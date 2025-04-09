@@ -40,34 +40,32 @@ The project focuses on training CNN-LSTM models for video regression tasks. It i
     pip install -r requirements.txt
     ```
 ## Usage
-
 ### Generating Dummy Data
 
-    To generate dummy data for testing purposes, run:
+To generate dummy data for testing purposes, run:
 
-    ```bash
-    python generate_dummy_data.py
-    ```
+```bash
+python generate_dummy_data.py
+```
+
+This will create a dataset of synthetic video data for experimentation.
 
 ### Training
-    To train the model, use the following command:
 
-    ```bash
-    python train.py --epochs <number_of_epochs>
-    ```
+To train the model, use the following command:
 
-    Replace `<number_of_epochs>` with the desired number of training epochs.
+```bash
+python train.py --epochs <number_of_epochs>
+```
 
-
-
-    This will create a dataset of synthetic video data for experimentation.
+Replace `<number_of_epochs>` with the desired number of training epochs.
 
 ### Testing
 
-    After training, you can test the model using:
+After training, you can test the model using:
 
-    ```bash
-    python test.py
-    ```
+```bash
+python test.py
+```
 
 This will evaluate the trained model on the test dataset.
