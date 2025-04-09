@@ -32,3 +32,42 @@ The project focuses on training CNN-LSTM models for video regression tasks. It i
    ```bash
    git clone https://github.com/your-username/video_regression.git
    cd video_regression
+   ```
+2. Create a virtual environment and install the required dependencies:
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+    pip install -r requirements.txt
+    ```
+## Usage
+
+### Generating Dummy Data
+
+    To generate dummy data for testing purposes, run:
+
+    ```bash
+    python generate_dummy_data.py
+    ```
+
+### Training
+    To train the model, use the following command:
+
+    ```bash
+    python train.py --epochs <number_of_epochs>
+    ```
+
+    Replace `<number_of_epochs>` with the desired number of training epochs.
+
+
+
+    This will create a dataset of synthetic video data for experimentation.
+
+### Testing
+
+    After training, you can test the model using:
+
+    ```bash
+    python test.py
+    ```
+
+This will evaluate the trained model on the test dataset.
