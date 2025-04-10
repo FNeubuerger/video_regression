@@ -57,9 +57,9 @@ if __name__ == "__main__":
     save_dir = "data"
     dataset_generator = RandomImageDataset(
         num_sequences=1000,
-        sequence_length=10,
+        sequence_length=50,
         image_size=(224, 224),
-        label_range=(0.0, 100.0),
+        label_range=(20.0, 100.0),
         save_dir=save_dir,
     )
     dataset_generator.generate_and_save()
