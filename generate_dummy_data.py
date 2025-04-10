@@ -1,5 +1,3 @@
-import torch
-from torch.utils.data import Dataset
 import numpy as np
 import os
 from tqdm import tqdm
@@ -16,12 +14,12 @@ class RandomImageDataset:
         image_size (tuple): Size of the images (height, width).
         label_range (tuple): Range of regression labels (min, max).
     """
-    def __init__(self, num_sequences, sequence_length, image_size, label_range, save_dir):
+    def __init__(self, num_sequences, sequence_length, image_size, label_range, save_directory):
         self.num_sequences = num_sequences
         self.sequence_length = sequence_length
         self.image_size = image_size
         self.label_range = label_range
-        self.save_dir = save_dir
+        self.save_dir = save_directory
 
     def generate_and_save(self):
         os.makedirs(self.save_dir, exist_ok=True)
@@ -60,7 +58,7 @@ if __name__ == "__main__":
         sequence_length=50,
         image_size=(224, 224),
         label_range=(20.0, 100.0),
-        save_dir=save_dir,
+        save_directory=save_dir,
     )
     dataset_generator.generate_and_save()
 

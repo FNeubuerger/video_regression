@@ -1,4 +1,4 @@
-from cnnlstm import CNNLSTM, PretrainedCNNLSTM
+from cnnlstm import CNNLSTM, PretrainedCNNLSTM, PretrainedCNN
 import os
 import torch
 from torch.utils.data import DataLoader
@@ -6,9 +6,11 @@ from torchvision import datasets, transforms
 from torchvision.models import resnet18
 from tqdm import tqdm
 import argparse
-def train_model(model, criterion, optimizer, data_dir="data", batch_size=32, num_epochs=1, learning_rate=0.001, model_save_path="models/cnn_lstm_model.pth", patience=5):
+
+
+def train_model(model_instance, criterion_instance, optimizer_instance, data_dir="data", batch_size=32, num_epochs=1, learning_rate=0.001, model_save_path="models/cnn_lstm_model.pth", patience=5):
     # Set the learning rate for the optimizer
-    for param_group in optimizer.param_groups:
+    for param_group in optimizer_instance.param_groups:
         param_group['lr'] = learning_rate
     # Define data transformations
     transform = transforms.Compose([
@@ -25,27 +27,27 @@ def train_model(model, criterion, optimizer, data_dir="data", batch_size=32, num
 
     # Training loop
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
+    model_instance.to(device)
 
     best_loss = float('inf')  # Initialize best loss to infinity
     epochs_no_improve = 0  # Counter for epochs without improvement
 
     for epoch in range(num_epochs):
-        model.train()
+        model_instance.train()
         running_loss = 0.0
         progress_bar = tqdm(train_loader, desc=f"Epoch [{epoch+1}/{num_epochs}]")
         for images, labels in progress_bar:
             images, labels = images.to(device), labels.to(device)
 
             # Forward pass
-            outputs = model(images)
+            outputs = model_instance(images)
             labels = labels.float()  # Ensure labels are float for regression
-            loss = criterion(outputs, labels)
+            loss = criterion_instance(outputs, labels)
 
             # Backward pass and optimization
-            optimizer.zero_grad()
+            optimizer_instance.zero_grad()
             loss.backward()
-            optimizer.step()
+            optimizer_instance.step()
 
             running_loss += loss.item()
             progress_bar.set_postfix(loss=(running_loss / (progress_bar.n + 1)))
@@ -57,7 +59,7 @@ def train_model(model, criterion, optimizer, data_dir="data", batch_size=32, num
         if epoch_loss < best_loss:
             best_loss = epoch_loss
             epochs_no_improve = 0
-            torch.save(model.state_dict(), model_save_path)
+            torch.save(model_instance.state_dict(), model_save_path)
             print(f"Model improved and saved to {model_save_path}")
         else:
             epochs_no_improve += 1
@@ -105,3 +107,16 @@ if __name__ == "__main__":
     # Train the pretrained model
     train_model(pretrained_model, pretrained_criterion, pretrained_optimizer, num_epochs=num_epochs, model_save_path="models/pretrained_cnn_lstm_model.pth")
     
+    pretrained_cnn2 = resnet18(weights='IMAGENET1K_V1')
+
+    # Modify the final layer to fit the medical imaging task (e.g., regression)
+    pretrained_cnn2.fc = torch.nn.Linear(pretrained_cnn.fc.in_features, 1)  # Assuming single output for regression
+    # Initialize the PretrainedCNNLSTM model using the pretrained ResNet
+    pretrained_model2 = PretrainedCNN(pretrained_cnn, frame_shape=frame_shape)
+
+    # Define a new criterion and optimizer for the pretrained model
+    pretrained_criterion2 = torch.nn.MSELoss()
+    pretrained_optimizer2 = torch.optim.Adam(pretrained_model.parameters(), lr=0.001)
+
+    # Train the pretrained model
+    train_model(pretrained_model2, pretrained_criterion2, pretrained_optimizer2, num_epochs=num_epochs, model_save_path="models/pretrained_cnn_model.pth")

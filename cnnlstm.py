@@ -168,3 +168,41 @@ class PretrainedCNNLSTM(nn.Module):
         output = self.fc2(x)
 
         return output.squeeze(-1)
+
+class PretrainedCNN(nn.Module):
+    """
+    PretrainedCNN: A PyTorch module that uses a pretrained CNN for spatial feature extraction.
+    """
+
+    def __init__(self, pretrained_cnn, frame_shape):
+        """
+        Initializes the Pretrained CNN model for feature extraction.
+
+        Parameters:
+        - pretrained_cnn: A pretrained CNN model (e.g., ResNet, EfficientNet).
+        - frame_shape: Tuple representing the shape of a single frame (height, width, channels).
+        """
+        super(PretrainedCNN, self).__init__()
+
+        # Use the pretrained CNN for feature extraction
+        self.cnn = nn.Sequential(
+            *list(pretrained_cnn.children())[:-1],  # Remove the final classification layer
+            nn.Flatten()
+        )
+
+        # Calculate the flattened feature size after the pretrained CNN
+        with torch.no_grad():
+            dummy_input = torch.zeros(1, frame_shape[2], frame_shape[0], frame_shape[1])
+            self.feature_size = self.cnn(dummy_input).shape[1]
+
+    def forward(self, x):
+        """
+        Forward pass of the model.
+
+        Parameters:
+        - x: Input tensor of shape (batch_size, channels, height, width).
+
+        Returns:
+        - Output tensor of shape (batch_size, feature_size).
+        """
+        return self.cnn(x)

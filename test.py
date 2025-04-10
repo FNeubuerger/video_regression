@@ -1,7 +1,5 @@
-import cv2
 import numpy as np
 from sklearn.metrics import mean_squared_error
-import joblib
 import torch
 import os
 from torchvision import datasets, transforms
@@ -60,31 +58,31 @@ def plot_results(true_temperatures, predicted_temperatures, frame_indices, save_
     plt.savefig(save_path)
     plt.close()
 
-def show_example_predictions(test_loader, model, device="cuda", num_examples=5, save_path="results/example_predictions.png"):
+def show_example_predictions(test_loader, model_instance, device_instance="cuda", num_examples=5, save_path="results/example_predictions.png"):
     """
     Display example test images with predicted and true temperatures.
 
     Args:
         test_loader (DataLoader): DataLoader for the test dataset.
-        model: Trained model for prediction.
-        device (str): Device to run the model on ("cuda" or "cpu").
+        model_instance: Trained model for prediction.
+        device_instance (str): Device to run the model on ("cuda" or "cpu").
         num_examples (int): Number of example images to display.
         save_path (str): Path to save the figure.
 
     Functionality:
         - Selects a few test images from the test_loader.
-        - Predicts temperatures using the model.
+        - Predicts temperatures using the model_instance.
         - Displays the images with predicted and true temperatures as annotations.
         - Saves the figure to the specified path.
     """
-    model.eval()
+    model_instance.eval()
     images_shown = 0
-    fig, axes = plt.subplots(1, num_examples, figsize=(15, 5))
+    axes = plt.subplots(1, num_examples, figsize=(15, 5))[1]
 
     with torch.no_grad():
         for images, labels in test_loader:
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images).cpu().numpy()
+            images, labels = images.to(device_instance), labels.to(device_instance)
+            outputs = model_instance(images).cpu().numpy()
             labels = labels.cpu().numpy()
 
             for i in range(min(num_examples - images_shown, len(images))):
@@ -107,17 +105,17 @@ def show_example_predictions(test_loader, model, device="cuda", num_examples=5, 
     plt.close()
 
 # Main function
-def evaluate(model, batch_size=32, data_dir="data", device="cuda", model_name="cnn_lstm_model"):
+def evaluate(model_instance, batch_size=32, data_dir="data", device_instance="cuda", model_name="cnn_lstm_model"):
     """
-    Evaluate a given model on a test dataset and calculate regression performance.
+    Evaluate a given model_instance on a test dataset and calculate regression performance.
     Args:
-        model: The model to be evaluated. It should have a `predict` method that accepts 
+        model_instance: The model to be evaluated. It should have a `predict` method that accepts 
                a numpy array as input and returns predicted values.
     Functionality:
         - Applies transformations to the dataset, including resizing and converting to tensors.
         - Splits the dataset into training and testing subsets (80% training, 20% testing).
         - Loads the test dataset into a DataLoader for batch processing.
-        - Predicts temperatures for each sample in the test dataset using the provided model.
+        - Predicts temperatures for each sample in the test dataset using the provided model_instance.
         - Calculates the Root Mean Squared Error (RMSE) between true and predicted temperatures.
         - Plots the results and saves them to a results directory.
         - Writes evaluation metrics and predictions to a text file.
@@ -146,16 +144,16 @@ def evaluate(model, batch_size=32, data_dir="data", device="cuda", model_name="c
     test_loader = DataLoader(test_dataset, batch_size=batch_size)
 
     # Evaluation loop
-    model.eval()
+    model_instance.eval()
     true_temperatures = []
     predicted_temperatures = []
     frame_indices = []
 
     with torch.no_grad():
         for idx, (images, labels) in enumerate(tqdm(test_loader, desc="Evaluating")):
-            images, labels = images.to(device), labels.to(device)
+            images, labels = images.to(device_instance), labels.to(device_instance)
             # Forward pass
-            outputs = model(images)
+            outputs = model_instance(images)
             true_temperatures.extend(labels.cpu().numpy())
             predicted_temperatures.extend(outputs.cpu().numpy())
             frame_indices.extend(range(idx * batch_size, (idx + 1) * batch_size))
@@ -167,7 +165,7 @@ def evaluate(model, batch_size=32, data_dir="data", device="cuda", model_name="c
     # Plot results
     plot_results(true_temperatures, predicted_temperatures, frame_indices, save_path=f"results/{model_name}_plot.png")
     # Show example predictions
-    show_example_predictions(test_loader, model, device=device, num_examples=5, save_path=f"results/{model_name}_example_predictions.png")
+    show_example_predictions(test_loader, model_instance, device_instance=device_instance, num_examples=5, save_path=f"results/{model_name}_example_predictions.png")
 
 if __name__ == "__main__":
     frame_shape = (128, 128, 3)  # Height, Width, Channels
@@ -179,7 +177,7 @@ if __name__ == "__main__":
     model.eval()  # Set the model to evaluation mode
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    evaluate(model, device=device, model_name="cnn_lstm_model")
+    evaluate(model, device_instance=device, model_name="cnn_lstm_model")
 
     pretrained_cnn = resnet18(weights='IMAGENET1K_V1')
 
@@ -192,4 +190,4 @@ if __name__ == "__main__":
     pretrained_model.eval()  # Set the model to evaluation mode
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     pretrained_model.to(device)
-    evaluate(pretrained_model, device=device, model_name="resnet_cnn_lstm_model")
+    evaluate(pretrained_model, device_instance=device, model_name="resnet_cnn_lstm_model")
