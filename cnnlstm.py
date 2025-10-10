@@ -36,17 +36,28 @@ class CNNLSTM(nn.Module):
         super(CNNLSTM, self).__init__()
         self.time_steps = time_steps
 
-        # CNN for feature extraction
+        # Optimized CNN for feature extraction with batch normalization
         self.cnn = nn.Sequential(
-            nn.Conv2d(frame_shape[2], 32, kernel_size=3, padding=1),
-            nn.ReLU(),
+            # First block - reduced channels for speed
+            nn.Conv2d(frame_shape[2], 16, kernel_size=3, padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2),
+            
+            # Second block
+            nn.Conv2d(16, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2),
+            
+            # Third block - smaller than original
             nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.ReLU(),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2),
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
+            
+            # Global average pooling instead of regular flatten for efficiency
+            nn.AdaptiveAvgPool2d((1, 1)),
             nn.Flatten()
         )
 
@@ -55,12 +66,13 @@ class CNNLSTM(nn.Module):
             dummy_input = torch.zeros(1, frame_shape[2], frame_shape[0], frame_shape[1])
             cnn_output_size = self.cnn(dummy_input).shape[1]
 
-        # LSTM for temporal processing
-        self.lstm = nn.LSTM(input_size=cnn_output_size, hidden_size=128, batch_first=True)
+        # Smaller LSTM for faster processing
+        self.lstm = nn.LSTM(input_size=cnn_output_size, hidden_size=64, batch_first=True)
 
-        # Fully connected layers for regression
-        self.fc1 = nn.Linear(128, 64)
-        self.fc2 = nn.Linear(64, 1)
+        # Smaller fully connected layers for regression
+        self.fc1 = nn.Linear(64, 32)
+        self.dropout = nn.Dropout(0.2)  # Add dropout for regularization
+        self.fc2 = nn.Linear(32, 1)
 
     def forward(self, x):
         """
@@ -91,8 +103,9 @@ class CNNLSTM(nn.Module):
         # Take the output of the last time step
         lstm_out = lstm_out[:, -1, :]
 
-        # Fully connected layers
+        # Fully connected layers with dropout
         x = torch.relu(self.fc1(lstm_out))
+        x = self.dropout(x)
         output = self.fc2(x)
 
         return output.squeeze(-1)
@@ -169,6 +182,55 @@ class PretrainedCNNLSTM(nn.Module):
 
         return output.squeeze(-1)
 
+class SimpleResNet(nn.Module):
+    """
+    Simple ResNet for temperature regression from single images (no temporal component).
+    """
+
+    def __init__(self, frame_shape):
+        """
+        Initializes the Simple ResNet model for temperature regression.
+
+        Parameters:
+        - frame_shape: Tuple representing the shape of a single frame (height, width, channels).
+        """
+        super(SimpleResNet, self).__init__()
+        
+        # Load pretrained ResNet18
+        from torchvision.models import resnet18
+        self.backbone = resnet18(weights='IMAGENET1K_V1')
+        
+        # Get the number of features from the original fc layer
+        num_features = self.backbone.fc.in_features
+        
+        # Replace the final layer for regression
+        self.backbone.fc = nn.Linear(num_features, 512)
+        self.dropout = nn.Dropout(0.2)
+        self.regressor = nn.Linear(512, 1)
+
+    def forward(self, x):
+        """
+        Forward pass of the model.
+
+        Parameters:
+        - x: Input tensor of shape (batch_size, channels, height, width) or
+             (batch_size, time_steps, channels, height, width) - will use last frame.
+
+        Returns:
+        - Output tensor of shape (batch_size, 1).
+        """
+        # If input has time dimension, take the last frame
+        if x.dim() == 5:
+            batch_size, time_steps, channels, height, width = x.size()
+            x = x[:, -1, :, :, :]  # Take last frame
+        
+        # Forward through ResNet backbone
+        features = self.backbone(x)
+        features = self.dropout(features)
+        output = self.regressor(features)
+        return output.squeeze(-1)
+
+
 class PretrainedCNN(nn.Module):
     """
     PretrainedCNN: A PyTorch module that uses a pretrained CNN for spatial feature extraction.
@@ -193,6 +255,9 @@ class PretrainedCNN(nn.Module):
         # Calculate the flattened feature size after the pretrained CNN
         with torch.no_grad():
             dummy_input = torch.zeros(1, frame_shape[2], frame_shape[0], frame_shape[1])
+            # Ensure dummy input is on same device as model
+            device = next(pretrained_cnn.parameters()).device
+            dummy_input = dummy_input.to(device)
             self.feature_size = self.cnn(dummy_input).shape[1]
 
     def forward(self, x):
