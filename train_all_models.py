@@ -21,7 +21,7 @@ from tqdm import tqdm
 import argparse
 import time
 import json
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 
 
 def create_model(model_type, frame_shape, time_steps):
@@ -91,7 +91,7 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
             optimizer_instance.zero_grad()
             
             if scaler is not None:
-                with autocast():
+                with autocast('cuda'):
                     outputs = model_instance(images)
                     loss = criterion_instance(outputs, labels.float())
                 
@@ -119,7 +119,7 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                 images, labels = images.to(device, non_blocking=True), labels.to(device, non_blocking=True)
                 
                 if scaler is not None:
-                    with autocast():
+                    with autocast('cuda'):
                         outputs = model_instance(images)
                         loss = criterion_instance(outputs, labels.float())
                 else:
