@@ -1,71 +1,122 @@
-# video_regression
+# Real-Time Ultrasonic Temperature Monitoring for Tumor Ablation
 
-This repository contains a deep learning pipeline for training and evaluating CNN-LSTM models for video regression tasks. The project is implemented in Python using PyTorch and torchvision.
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/python-3.8%2B-blue)
+![PyTorch](https://img.shields.io/badge/pytorch-2.0%2B-orange)
+![Platform](https://img.shields.io/badge/platform-Edge%20%7C%20Desktop-green)
 
-## Table of Contents
+This repository contains the implementation for the paper **"Hybrid CNN-LSTM and Physics-Informed Architectures for Real-Time Tumor Ablation Monitoring on Edge Devices"**.
 
-- [Overview](#overview)
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-  - [Training](#training)
-  - [Generating Dummy Data](#generating-dummy-data)
-  - [Testing](#testing)
-- [Project Structure](#project-structure)
-- [License](#license)
+## 🏥 Research Context
 
-## Overview
+In non-invasive thermal ablation therapies (e.g., High-Intensity Focused Ultrasound - HIFU), precise temperature monitoring is critical to ensure tumor destruction while preserving healthy tissue. Direct temperature measurement is often impossible. This project implements a **non-invasive, privacy-preserving monitoring system** that estimates temperature dynamics directly from ultrasonic video sequences.
 
-The project focuses on training CNN-LSTM models for video regression tasks. It includes support for training models from scratch or using pretrained CNN backbones (e.g., ResNet18). The pipeline supports early stopping and saving the best model during training.
+### Key Constraints & Goals
+*   **Privacy-First:** Patient data is processed locally on edge devices, eliminating the need for cloud transmission.
+*   **Cost-Effective:** Optimized for low-cost hardware (Raspberry Pi 4, Jetson Nano) to allow easy retrofitting in clinical settings.
+*   **Transparency:** Integrates **Uncertainty Quantification (UQ)** to provide clinicians with confidence intervals alongside predictions.
 
-## Features
+## 🧠 Model Architectures
 
-- Train CNN-LSTM models for video regression.
-- Use pretrained CNN backbones for feature extraction.
-- Early stopping to prevent overfitting.
-- Customizable training parameters (e.g., epochs, batch size, learning rate).
-- Dummy data generation for testing purposes.
+We evaluate and compare several architectures tailored for this task:
 
-## Installation
+1.  **CNNLSTM (Hybrid):** A custom, lightweight architecture combining Convolutional Neural Networks for spatial feature extraction and LSTMs for temporal dynamics.
+2.  **Physics-Informed CNN-LSTM:** Incorporates physical laws (temporal smoothness of heat diffusion) directly into the loss function.
+3.  **Pretrained ResNet:** A transfer learning approach using ImageNet features.
+4.  **Uncertainty Models:**
+    *   **Deep Ensembles:** Multiple models trained with different initializations.
+    *   **Bayesian Neural Networks:** Probabilistic weights to estimate epistemic uncertainty.
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/video_regression.git
-   cd video_regression
-   ```
-2. Create a virtual environment and install the required dependencies:
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-    pip install -r requirements.txt
-    ```
-## Usage
-### Generating Dummy Data
+## ⚡ Edge Deployment & Clinical Demo
 
-To generate dummy data for testing purposes, run:
+The project includes a full deployment pipeline using **ONNX Runtime** to ensure real-time performance on edge devices.
 
-```bash
-python generate_dummy_data.py
+*   **Input:** 5-Channel Tensor (3 RGB + 2 Optical Flow)
+*   **Performance:** >30 FPS on Raspberry Pi 4 / Jetson Nano
+*   **Preprocessing:** Dense Optical Flow (Farneback) to capture heat shimmer and tissue changes.
+
+## 📂 Project Structure
+
+```
+.
+├── models/                 # PyTorch model definitions (CNNLSTM, ResNet, Bayesian, etc.)
+├── training/               # Training scripts and loops
+├── demo/                   # Edge deployment and clinical simulation
+│   ├── benchmark_edge.py   # Latency/FPS benchmarking script
+│   ├── export_models.py    # ONNX export utilities
+│   └── run_clinical_demo.py # Real-time inference simulation
+├── paper/                  # LaTeX source for the research paper
+├── data/                   # Dataset directory
+├── logs/                   # Training logs
+├── run_benchmarks.sh       # Script to launch parallel training jobs
+├── monitor_benchmarks.sh   # Dashboard to monitor training progress
+└── requirements.txt        # Python dependencies
 ```
 
-This will create a dataset of synthetic video data for experimentation.
+## 🚀 Getting Started
 
-### Training
-
-To train the model, use the following command:
+### 1. Installation
 
 ```bash
-python train.py --epochs <number_of_epochs>
+git clone https://github.com/yourusername/video_regression.git
+cd video_regression
+pip install -r requirements.txt
 ```
 
-Replace `<number_of_epochs>` with the desired number of training epochs.
+### 2. Training Benchmarks
 
-### Testing
-
-After training, you can test the model using:
+To reproduce the paper's results, run the full benchmark suite. This launches 7 parallel training jobs in a detached tmux session.
 
 ```bash
-python test.py
+./run_benchmarks.sh
 ```
 
-This will evaluate the trained model on the test dataset.
+Monitor the progress using the dashboard:
+
+```bash
+./monitor_benchmarks.sh
+```
+
+### 3. Edge Performance Evaluation
+
+To benchmark the models on your hardware (simulating edge constraints):
+
+```bash
+python demo/benchmark_edge.py
+```
+
+### 4. Clinical Demo
+
+Run the simulated clinical monitoring pipeline:
+
+```bash
+python demo/run_clinical_demo.py
+```
+
+## 📊 Methodology
+
+### Input Representation
+We use a **5-channel input** to explicitly capture temporal dynamics:
+*   **Channels 1-3:** RGB Video Frame (Spatial features)
+*   **Channels 4-5:** Dense Optical Flow (dx, dy) (Temporal/Motion features)
+
+### Physics-Informed Loss
+2410457 \mathcal{L}_{total} = \mathcal{L}_{MSE} + \lambda_{smooth} \cdot \mathcal{L}_{smooth} 2410457
+We enforce temporal smoothness to mimic the physical properties of heat diffusion in tissue, improving robustness against noise.
+
+## 📄 Citation
+
+If you use this code, please cite our paper:
+
+```bibtex
+@inproceedings{neubuerger2025hybrid,
+  title={Hybrid CNN-LSTM and Physics-Informed Architectures for Real-Time Tumor Ablation Monitoring on Edge Devices},
+  author={Neubuerger, Felix and Nawrath, Helena},
+  booktitle={Proceedings of the IEEE Conference on ...},
+  year={2025}
+}
+```
+
+## 📜 License
+
+MIT License

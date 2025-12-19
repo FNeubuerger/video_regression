@@ -172,5 +172,15 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-
+# dont upload the images
 data/*
+# dont upload the pretrained models
+models/pretrained/*
+# ignore ONNX models
+demo/*.onnx
+# ignore training logs
+logs/
+# ignore saved checkpoints
+checkpoints/
+# ignore wandb files
+wandb/
