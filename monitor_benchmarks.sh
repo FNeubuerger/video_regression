@@ -18,38 +18,69 @@ while true; do
         echo "Benchmarks may have finished or crashed."
     fi
     
-    echo "--------------------------------------------------------------------------------"
-    printf "%-20s | %-20s | %s\n" "Job Name" "Log File" "Latest Status"
-    echo "--------------------------------------------------------------------------------"
+    # Table Header
+    # Job Name (22) | Log File (28) | Start Time (19) | Status (Remaining)
+    DIVIDER="------------------------------------------------------------------------------------------------------------------------------------"
+    echo "$DIVIDER"
+    printf "%-22s | %-28s | %-19s | %s\n" "Job Name" "Log File" "Start Time" "Latest Status"
+    echo "$DIVIDER"
     
-    # Function to get status
-    get_status() {
+    # Function to get start time
+    get_start_time() {
         local logfile="$1"
         if [ -f "$logfile" ]; then
-            # Get last non-empty line, truncate to 60 chars to show more info
-            tail -n 10 "$logfile" | grep -v "^$" | tail -n 1 | cut -c 1-60
+            stat -c %y "$logfile" | cut -d '.' -f 1
+        else
+            echo "-"
+        fi
+    }
+
+    # Function to get status line
+    get_status_line() {
+        local logfile="$1"
+        if [ -f "$logfile" ]; then
+            # Handle carriage returns from tqdm progress bars and strip ANSI colors
+            # Cut to 80 chars to prevent wrapping
+            tail -c 2000 "$logfile" | tr '\r' '\n' | sed 's/\x1b\[[0-9;]*m//g' | grep --color=never -v "^$" | tail -n 1 | cut -c 1-80
         else
             echo "Waiting for log..."
         fi
     }
 
+    # Helper to print row
+    print_row() {
+        local name="$1"
+        local log="$2"
+        local path="$LOG_DIR/$log"
+        printf "%-22s | %-28s | %-19s | %s\n" "$name" "$log" "$(get_start_time "$path")" "$(get_status_line "$path")"
+    }
+
     # Try to find WandB URL from logs
-    WANDB_URL=$(grep -h "View project at" "$LOG_DIR"/*.log 2>/dev/null | head -n 1 | grep -o 'https://.*')
+    WANDB_URL=$(grep --color=never -h "View project at" "$LOG_DIR"/*.log 2>/dev/null | head -n 1 | grep -o 'https://.*')
     if [ -z "$WANDB_URL" ]; then
         WANDB_URL="Waiting for sync..."
     fi
     
-    printf "%-20s | %-20s | %s\n" "CNNLSTM" "cnnlstm.log" "$(get_status "$LOG_DIR/cnnlstm.log")"
-    printf "%-20s | %-20s | %s\n" "Pretrained CNNLSTM" "pretrained_cnnlstm.log" "$(get_status "$LOG_DIR/pretrained_cnnlstm.log")"
-    printf "%-20s | %-20s | %s\n" "Simple ResNet" "simple_resnet.log" "$(get_status "$LOG_DIR/simple_resnet.log")"
-    printf "%-20s | %-20s | %s\n" "Physics CNNLSTM" "physics_cnnlstm.log" "$(get_status "$LOG_DIR/physics_cnnlstm.log")"
-    printf "%-20s | %-20s | %s\n" "Ensemble" "ensemble.log" "$(get_status "$LOG_DIR/ensemble.log")"
-    printf "%-20s | %-20s | %s\n" "Bayesian Head" "bayesian_head.log" "$(get_status "$LOG_DIR/bayesian_head.log")"
-    printf "%-20s | %-20s | %s\n" "Full Bayesian" "full_bayesian.log" "$(get_status "$LOG_DIR/full_bayesian.log")"
+    # Print Rows
+    # Dynamically find all log files
+    for logpath in "$LOG_DIR"/*.log; do
+        if [ -f "$logpath" ]; then
+            filename=$(basename "$logpath")
+            # Generate a pretty name from filename: remove extension, replace _ with space, title case
+            job_name=$(echo "$filename" | sed 's/\.log//' | sed 's/_/ /g' | awk '{for(i=1;i<=NF;i++)sub(/./,toupper(substr($i,1,1)),$i)}1')
+            
+            # Truncate job name if too long
+            if [ ${#job_name} -gt 22 ]; then
+                job_name="${job_name:0:19}..."
+            fi
+            
+            print_row "$job_name" "$filename"
+        fi
+    done
     
-    echo "--------------------------------------------------------------------------------"
+    echo "$DIVIDER"
     echo "WandB Dashboard: $WANDB_URL"
-    echo "--------------------------------------------------------------------------------"
+    echo "$DIVIDER"
     echo "Press Ctrl+C to exit monitor"
     
     sleep 2

@@ -101,8 +101,29 @@ We use a **5-channel input** to explicitly capture temporal dynamics:
 *   **Channels 4-5:** Dense Optical Flow (dx, dy) (Temporal/Motion features)
 
 ### Physics-Informed Loss
-2410457 \mathcal{L}_{total} = \mathcal{L}_{MSE} + \lambda_{smooth} \cdot \mathcal{L}_{smooth} 2410457
-We enforce temporal smoothness to mimic the physical properties of heat diffusion in tissue, improving robustness against noise.
+$$ \mathcal{L}_{total} = \mathcal{L}_{MSE} + \lambda_{physics} \cdot \mathcal{L}_{physics} $$
+We enforce consistency with **Newton's Law of Cooling**:
+$$ \frac{dT}{dt} = -k(T - T_{env}) $$
+This regularizes the model to learn physically plausible temperature trajectories, improving generalization in data-sparse regimes.
+
+## 🔮 Further Development
+
+Future work will focus on the following areas:
+
+1.  **Advanced Bio-Heat Models:**
+    *   Replace the simplified Newton's Law with the **Pennes' Bioheat Equation** to account for tissue perfusion and metabolic heat generation.
+    *   Implement spatial regularization (diffusion) using Laplacian operators on the video frames.
+
+2.  **Hardware Integration:**
+    *   Deploy the optimized ONNX models on a physical **Raspberry Pi 4** with a connected USB ultrasound probe.
+    *   Develop a lightweight GUI for real-time visualization on the edge device.
+
+3.  **Clinical Validation:**
+    *   Validate the model on **in-vivo** data from animal studies or clinical trials.
+    *   Calibrate the uncertainty estimates (conformal prediction) to ensure valid coverage for clinical decision support.
+
+4.  **Spatio-Temporal Attention:**
+    *   Integrate attention mechanisms to focus the model on the specific region of interest (ROI) where the ablation is occurring.
 
 ## 📄 Citation
 

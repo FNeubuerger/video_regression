@@ -241,9 +241,12 @@ class SimpleResNet(nn.Module):
             )
             # Initialize new weights
             with torch.no_grad():
-                new_conv1.weight[:, :3, :, :] = original_conv1.weight
-                if frame_shape[2] > 3:
-                    nn.init.kaiming_normal_(new_conv1.weight[:, 3:, :, :], mode='fan_out', nonlinearity='relu')
+                if frame_shape[2] < 3:
+                    new_conv1.weight[:, :, :, :] = original_conv1.weight[:, :frame_shape[2], :, :]
+                else:
+                    new_conv1.weight[:, :3, :, :] = original_conv1.weight
+                    if frame_shape[2] > 3:
+                        nn.init.kaiming_normal_(new_conv1.weight[:, 3:, :, :], mode='fan_out', nonlinearity='relu')
             self.backbone.conv1 = new_conv1
         
         # Get the number of features from the original fc layer
@@ -317,3 +320,60 @@ class PretrainedCNN(nn.Module):
         - Output tensor of shape (batch_size, feature_size).
         """
         return self.cnn(x)
+class SpatialResNet(nn.Module):
+    """
+    Spatial ResNet that outputs a temperature map instead of a scalar.
+    Compatible with AdvancedBioHeatLoss if used in a sequence.
+    """
+    def __init__(self, frame_shape, output_map_size=(4, 4)):
+        super(SpatialResNet, self).__init__()
+        from torchvision.models import resnet18
+        
+        # Backbone
+        base_model = resnet18(weights='IMAGENET1K_V1')
+        
+        # Handle input channels != 3
+        if frame_shape[2] != 3:
+            original_conv1 = base_model.conv1
+            new_conv1 = nn.Conv2d(
+                frame_shape[2], 
+                original_conv1.out_channels, 
+                kernel_size=original_conv1.kernel_size, 
+                stride=original_conv1.stride, 
+                padding=original_conv1.padding, 
+                bias=original_conv1.bias
+            )
+            with torch.no_grad():
+                if frame_shape[2] < 3:
+                    new_conv1.weight[:, :, :, :] = original_conv1.weight[:, :frame_shape[2], :, :]
+                else:
+                    new_conv1.weight[:, :3, :, :] = original_conv1.weight
+                    if frame_shape[2] > 3:
+                        nn.init.kaiming_normal_(new_conv1.weight[:, 3:, :, :], mode='fan_out', nonlinearity='relu')
+            base_model.conv1 = new_conv1
+            
+        # Remove FC and AvgPool to keep spatial dims
+        # Output of layer4 is (512, H/32, W/32)
+        self.cnn = nn.Sequential(*list(base_model.children())[:-2])
+        
+        # Decoder to map
+        self.decoder = nn.Sequential(
+            nn.Conv2d(512, 128, kernel_size=1),
+            nn.ReLU(),
+            nn.Conv2d(128, 1, kernel_size=1),
+            nn.AdaptiveAvgPool2d(output_map_size) # Force output to 4x4
+        )
+
+    def forward(self, x):
+        # x: (batch, channels, H, W) or (batch, time, channels, H, W)
+        if x.dim() == 5:
+            # If sequence, process each frame
+            batch, time, c, h, w = x.size()
+            x = x.view(batch * time, c, h, w)
+            features = self.cnn(x)
+            out = self.decoder(features) # (B*T, 1, 4, 4)
+            return out.view(batch, time, 4, 4)
+        else:
+            features = self.cnn(x)
+            out = self.decoder(features)
+            return out.squeeze(1) # (Batch, 4, 4)

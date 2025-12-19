@@ -143,6 +143,29 @@ where $\mathcal{L}_{MSE}$ is the standard Mean Squared Error between predicted a
 \end{equation}
 This regularization ensures that the model's predictions are not only data-consistent but also physically plausible, which is crucial for generalization in scenarios with limited training data or noisy sensor inputs.
 
+\subsubsection{Advanced Bioheat-Informed Model (Inverse PINN)}
+To further enhance physical realism, we propose an advanced architecture that incorporates Pennes' Bioheat Equation, accounting for tissue perfusion and spatial heat diffusion. Unlike the standard PINN approach where physical parameters are fixed, we treat the perfusion rate $\alpha$ and thermal conductivity $\beta$ as learnable parameters (Inverse PINN). The model outputs a spatio-temporal temperature map $T(x,y,t)$ rather than a scalar, allowing us to enforce spatial smoothness via the Laplacian operator $\nabla^2 T$. The governing equation is:
+\begin{equation}
+    \frac{\partial T}{\partial t} = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{ext}
+\end{equation}
+The loss function minimizes the residual of this PDE, enabling the model to simultaneously regress temperature and discover the underlying tissue properties.
+
+It is important to note that the full application of this bioheat loss requires temporal sequence data to compute the time derivative $\frac{\partial T}{\partial t}$. When applied to single-frame architectures (e.g., Spatial ResNet), the loss function adapts by enforcing only the spatial diffusion term ($\beta \nabla^2 T$), effectively acting as a spatial smoothness regularizer without the temporal dynamics.
+
+\subsubsection{Convection-Enhanced Bioheat Equation}
+To further refine the physical model, we incorporate the effects of convective heat transfer due to fluid motion (e.g., blood flow or tissue deformation). By leveraging the dense optical flow field $\vec{v} = (v_x, v_y)$ computed during preprocessing, we extend the bioheat equation to include the advection term $\vec{v} \cdot \nabla T$:
+\begin{equation}
+    \frac{\partial T}{\partial t} + \vec{v} \cdot \nabla T = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{ext}
+\end{equation}
+This formulation allows the model to account for temperature changes caused by the movement of heated tissue, providing a more comprehensive physical constraint. The optical flow vectors are downsampled to match the resolution of the predicted temperature map, ensuring consistent spatial dimensions for the gradient calculation.
+
+\subsubsection{Metabolic Heat Generation}
+Finally, we introduce a metabolic heat generation term $Q_{met}$ to account for the internal heat produced by biological processes within the tissue. This term is modeled as a learnable parameter, allowing the network to discover the baseline metabolic activity of the observed region. The fully augmented bioheat equation becomes:
+\begin{equation}
+    \frac{\partial T}{\partial t} + \vec{v} \cdot \nabla T = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{met} + Q_{ext}
+\end{equation}
+By incrementally adding these physical processes (Diffusion $\rightarrow$ Perfusion $\rightarrow$ Convection $\rightarrow$ Metabolism), we can systematically evaluate the contribution of each term to the model's predictive accuracy and generalization capability.
+
 \subsection{Uncertainty Quantification}
 Reliability is paramount in clinical and industrial settings. To provide clinicians with confidence intervals alongside temperature estimates, we implement two distinct probabilistic approaches:
 
@@ -162,6 +185,13 @@ We investigate two BNN variants:
     \item \textbf{Full Bayesian}: We convert every learnable layer (Convolutional and Linear) in the ResNet-18 to a Bayesian layer. This captures epistemic uncertainty (model uncertainty) across the entire hierarchy of features but significantly increases the number of parameters (doubling them to store means and variances).
 \end{itemize}
 Implementation was performed using the \texttt{torchbnn} library. During inference, we perform multiple forward passes (Monte Carlo sampling) to estimate the predictive mean and variance.
+
+\subsubsection{Bayesian Physics-Informed Neural Network (B-PINN)}
+We propose a hybrid architecture that synergizes the strengths of Bayesian Deep Learning and Physics-Informed Learning. This model employs a Bayesian ResNet backbone to capture epistemic uncertainty while simultaneously minimizing the Advanced Bioheat Loss. The total objective function becomes:
+\begin{equation}
+    \mathcal{L}_{total} = \mathcal{L}_{MSE} + \lambda_{phys} \mathcal{L}_{bioheat} + \lambda_{KL} \text{KL}(q_\theta(w) || P(w))
+\end{equation}
+This formulation ensures that the model's predictions are data-driven, physically consistent, and probabilistically calibrated. The physics loss acts as a regularizer that constrains the search space of the Bayesian posterior, potentially leading to better generalization in low-data regimes.
 
 \section{Experimental Setup}
 
@@ -188,6 +218,7 @@ CNNLSTM & 0.06 & 0.04 & 1.96 & 509 \\
 Pretrained & 11.52 & 0.47 & 20.88 & 48 \\
 ResNet & 11.45 & 0.16 & 8.84 & 113 \\
 Physics & 0.13 & 0.08 & 18.53 & 54 \\
+Bioheat-PINN & 16.49 & - & - & - \\
 \bottomrule
 \end{tabular}
 \label{tab:edge_benchmark}
@@ -204,7 +235,7 @@ Our custom CNNLSTM achieves exceptional throughput (>500 FPS), making it suitabl
 % TODO: Add a figure comparing the predicted temperature vs ground truth for the best performing model.
 
 \section{Discussion}
-The results indicate that while heavier models like the Pretrained ResNet offer high accuracy, their computational cost is significant for edge deployment. Our custom CNNLSTM architecture strikes a favorable balance, achieving real-time performance with competitive accuracy. The integration of optical flow proved crucial for capturing the subtle visual cues associated with temperature changes in ultrasonic images. Furthermore, the physics-informed loss function successfully regularized the training, preventing overfitting in scenarios with limited data. However, the current study is limited to phantom data; clinical validation on in-vivo tissue is a necessary next step.
+The results indicate that while heavier models like the Pretrained ResNet offer high accuracy, their computational cost is significant for edge deployment. Our custom CNNLSTM architecture strikes a favorable balance, achieving real-time performance with competitive accuracy. The Bioheat-PINN model, while computationally more intensive (16.49 M params), offers the unique advantage of spatially resolved temperature maps and physical parameter discovery, which may justify the cost in high-precision clinical applications. The integration of optical flow proved crucial for capturing the subtle visual cues associated with temperature changes in ultrasonic images. Furthermore, the physics-informed loss function successfully regularized the training, preventing overfitting in scenarios with limited data. However, the current study is limited to phantom data; clinical validation on in-vivo tissue is a necessary next step.
 
 \section{Conclusion}
 We demonstrated that physics-informed video regression is feasible on edge devices. By integrating optical flow and optimizing model architectures, we achieve robust temperature estimation with minimal latency. Future work will focus on deploying these models on physical hardware and validating the uncertainty estimates in real-world scenarios.
