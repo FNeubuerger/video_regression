@@ -176,6 +176,8 @@ cython_debug/
 data/*
 # dont upload the pretrained models
 models/pretrained/*
+# dont upload the models
+models/*.pth
 # ignore ONNX models
 demo/*.onnx
 # ignore training logs
