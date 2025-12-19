@@ -186,3 +186,5 @@ logs/
 checkpoints/
 # ignore wandb files
 wandb/
+# ignore the videos
+*.mp4
