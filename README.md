@@ -41,13 +41,48 @@ The project includes a full deployment pipeline using **ONNX Runtime** to ensure
 .
 ├── models/                 # PyTorch model definitions (CNNLSTM, ResNet, Bayesian, etc.)
 ├── training/               # Training scripts and loops
-├── demo/                   # Edge deployment and clinical simulation
-│   ├── benchmark_edge.py   # Latency/FPS benchmarking script
-│   ├── export_models.py    # ONNX export utilities
-│   └── run_clinical_demo.py # Real-time inference simulation
+├── simulation/             # Edge device simulation and profiling
+│   ├── profiles.py         # Hardware specifications (RPi4, Jetson, etc.)
+│   └── emulator.py         # Latency injection wrapper
+├── utils/                  # Utility scripts
+│   └── model_registry.py   # Centralized model configuration
+├── benchmark_deployment.py # Main benchmarking script
+├── convert_to_onnx.py      # ONNX export script
+├── analyze_results.py      # Visualization of benchmark results
+├── run_edge_benchmarks.sh  # Master script for full benchmark suite
 ├── paper/                  # LaTeX source for the research paper
 ├── data/                   # Dataset directory
 ├── logs/                   # Training logs
+
+## 🚀 Edge Simulation & Benchmarking
+
+We provide a comprehensive suite to simulate how these models perform on various edge hardware without needing the physical devices.
+
+### Supported Simulated Devices
+*   **Raspberry Pi 4 (4GB)** (CPU)
+*   **NVIDIA Jetson Nano** (GPU)
+*   **NVIDIA Jetson Orin Nano** (GPU)
+*   **High-End Desktop GPU** (RTX 3090/4090)
+
+### Running the Benchmarks
+
+To run the full benchmark suite (PyTorch vs ONNX) and generate performance plots:
+
+```bash
+./run_edge_benchmarks.sh
+```
+
+This script will:
+1.  Export all models to ONNX format.
+2.  Run inference benchmarks on all simulated devices.
+3.  Generate a CSV report (`results/edge_benchmark_results.csv`).
+4.  Create visualization plots in `results/plots/`.
+
+### Individual Scripts
+
+*   **Convert Models:** `python convert_to_onnx.py`
+*   **Run Benchmark:** `python benchmark_deployment.py --frames 50 --onnx`
+*   **Analyze Results:** `python analyze_results.py`
 ├── run_benchmarks.sh       # Script to launch parallel training jobs
 ├── monitor_benchmarks.sh   # Dashboard to monitor training progress
 └── requirements.txt        # Python dependencies
