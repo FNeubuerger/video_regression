@@ -36,8 +36,14 @@ def compute_uncertainty_metrics(targets, means, stds):
     
     # 2. Negative Log Likelihood (Gaussian Assumption)
     # NLL = 0.5 * log(2*pi*sigma^2) + (y - mu)^2 / (2*sigma^2)
-    nll = 0.5 * np.log(2 * np.pi * stds**2) + (targets - means)**2 / (2 * stds**2)
-    mean_nll = np.mean(nll)
+    # Handle deterministic models (stds ~ 0)
+    if np.all(stds < 1e-6):
+        mean_nll = float('nan')
+    else:
+        # Add epsilon for numerical stability
+        stds_safe = np.maximum(stds, 1e-6)
+        nll = 0.5 * np.log(2 * np.pi * stds_safe**2) + (targets - means)**2 / (2 * stds_safe**2)
+        mean_nll = np.mean(nll)
     
     # 3. Prediction Interval Coverage Probability (PICP)
     # Percentage of targets falling within 95% CI (mean +/- 1.96 * std)
@@ -58,24 +64,46 @@ def compute_uncertainty_metrics(targets, means, stds):
         "MPIW_95": float(mpiw)
     }
 
-def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_samples=50, device='cuda', limit=None):
-    print(f"Evaluating {model_name} from {checkpoint_path}")
+def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_samples=50, device='cuda', limit=None, ensemble_dir=None):
+    print(f"Evaluating {model_name}")
     
-    # 1. Load Model
+    # 1. Load Model(s)
     if model_name not in MODEL_REGISTRY:
         raise ValueError(f"Model {model_name} not found in registry.")
         
     ModelClass, kwargs = MODEL_REGISTRY[model_name]
-    model = ModelClass(**kwargs)
     
-    # Load weights
-    if not os.path.exists(checkpoint_path):
-        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+    models = []
+    if ensemble_dir:
+        print(f"Loading ensemble from {ensemble_dir}")
+        if not os.path.exists(ensemble_dir):
+            raise FileNotFoundError(f"Ensemble directory not found: {ensemble_dir}")
         
-    state_dict = torch.load(checkpoint_path, map_location=device)
-    model.load_state_dict(state_dict)
-    model.to(device)
-    model.eval()
+        # Find all .pth files
+        checkpoint_files = [f for f in os.listdir(ensemble_dir) if f.endswith('.pth')]
+        if not checkpoint_files:
+            raise ValueError(f"No .pth files found in {ensemble_dir}")
+            
+        print(f"Found {len(checkpoint_files)} ensemble members.")
+        
+        for ckpt in checkpoint_files:
+            model = ModelClass(**kwargs)
+            state_dict = torch.load(os.path.join(ensemble_dir, ckpt), map_location=device)
+            model.load_state_dict(state_dict)
+            model.to(device)
+            model.eval()
+            models.append(model)
+    else:
+        print(f"Loading single model from {checkpoint_path}")
+        model = ModelClass(**kwargs)
+        if not os.path.exists(checkpoint_path):
+            raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+            
+        state_dict = torch.load(checkpoint_path, map_location=device)
+        model.load_state_dict(state_dict)
+        model.to(device)
+        model.eval()
+        models.append(model)
     
     # 2. Load Data
     # Use 'test' split if available, otherwise use a subset of data
@@ -107,23 +135,29 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
         for images, targets in tqdm(test_loader, desc="Evaluating"):
             images = images.to(device)
             
-            # Monte Carlo Sampling
+            # Monte Carlo Sampling or Ensemble Averaging
             batch_preds = []
-            for _ in range(num_samples):
-                # Forward pass
-                # Note: Some models might return multiple outputs (e.g. physics loss components)
-                # We assume the first output is the prediction
-                out = model(images)
-                if isinstance(out, tuple):
-                    out = out[0]
-                
-                # Handle sequence output (B, T) -> (B,)
-                # If the model outputs a sequence of predictions, we take the last one
-                # to match the 'last' strategy of the dataset.
-                if out.dim() > 1 and out.shape[1] > 1:
-                     out = out[:, -1]
-                     
-                batch_preds.append(out.cpu().numpy())
+            
+            if ensemble_dir:
+                # For ensembles, we run each model once (deterministic)
+                # The "samples" are the ensemble members
+                for model in models:
+                    out = model(images)
+                    if isinstance(out, tuple):
+                        out = out[0]
+                    if out.dim() > 1 and out.shape[1] > 1:
+                         out = out[:, -1]
+                    batch_preds.append(out.cpu().numpy())
+            else:
+                # For single model (Bayesian), we run it num_samples times
+                model = models[0]
+                for _ in range(num_samples):
+                    out = model(images)
+                    if isinstance(out, tuple):
+                        out = out[0]
+                    if out.dim() > 1 and out.shape[1] > 1:
+                         out = out[:, -1]
+                    batch_preds.append(out.cpu().numpy())
             
             # Stack predictions: (num_samples, batch_size)
             batch_preds = np.stack(batch_preds, axis=0)
@@ -204,7 +238,8 @@ def plot_results(targets, means, stds, model_name, output_dir):
 def main():
     parser = argparse.ArgumentParser(description="Evaluate Bayesian Models with Uncertainty Metrics")
     parser.add_argument("--model", type=str, required=True, help="Model name (e.g., BayesianResNet)")
-    parser.add_argument("--checkpoint", type=str, required=True, help="Path to model checkpoint")
+    parser.add_argument("--checkpoint", type=str, help="Path to model checkpoint")
+    parser.add_argument("--ensemble_dir", type=str, help="Directory containing ensemble checkpoints")
     parser.add_argument("--data_dir", type=str, default="data", help="Path to data directory")
     parser.add_argument("--output_dir", type=str, default="results/uncertainty_eval", help="Directory to save results")
     parser.add_argument("--samples", type=int, default=50, help="Number of Monte Carlo samples")
@@ -212,6 +247,9 @@ def main():
     parser.add_argument("--limit", type=int, default=None, help="Limit number of test samples for quick evaluation")
     
     args = parser.parse_args()
+    
+    if not args.checkpoint and not args.ensemble_dir:
+        parser.error("Either --checkpoint or --ensemble_dir must be provided.")
     
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
@@ -223,18 +261,26 @@ def main():
         batch_size=args.batch_size, 
         num_samples=args.samples,
         device=device,
-        limit=args.limit
+        limit=args.limit,
+        ensemble_dir=args.ensemble_dir
     )
+    
+    # Determine output name
+    if args.ensemble_dir:
+        run_name = "Ensemble"
+    else:
+        # Use checkpoint filename as run name (minus extension)
+        run_name = os.path.splitext(os.path.basename(args.checkpoint))[0]
     
     # Save metrics
     os.makedirs(args.output_dir, exist_ok=True)
-    metrics_path = os.path.join(args.output_dir, f"{args.model}_metrics.json")
+    metrics_path = os.path.join(args.output_dir, f"{run_name}_metrics.json")
     with open(metrics_path, 'w') as f:
         json.dump(metrics, f, indent=4)
     print(f"Metrics saved to {metrics_path}")
     
     # Generate Plots
-    plot_results(targets, means, stds, args.model, args.output_dir)
+    plot_results(targets, means, stds, run_name, args.output_dir)
     print(f"Plots saved to {args.output_dir}")
 
 if __name__ == "__main__":
