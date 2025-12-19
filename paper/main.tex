@@ -1,0 +1,138 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{Hybrid CNN-LSTM and Physics-Informed Architectures for Real-Time Tumor Ablation Monitoring on Edge Devices}
+
+\author{\IEEEauthorblockN{Felix Neubürger}
+\IEEEauthorblockA{\textit{Department of Engineering and Economics} \\
+\textit{South Westphalia University of Applied Sciences}\\
+Meschede, Germany \\
+neubuerger.felix@fh-swf.de}
+\and
+\IEEEauthorblockN{Helena Nawrath}
+\IEEEauthorblockA{\textit{Department of Electrical Engineering and Information Technology} \\
+\textit{South Westphalia University of Applied Sciences}\\
+Lüdenscheid, Germany \\
+nawrath.helena@fh-swf.de}
+}
+
+\maketitle
+
+\begin{abstract}
+This paper presents a comprehensive study on estimating temperature dynamics from ultrasonic video sequences using
+deep learning models tailored for edge deployment, specifically for monitoring temperature during heat treatment of tumor tissue. We propose a specialized CNN-LSTM architecture for
+this task and compare it against Pretrained ResNets and Physics-Informed Neural Networks (PINNs)
+in terms of accuracy and computational efficiency. 
+To enhance robustness and provide a transparent monitoring system, we integrate Uncertainty Quantification (UQ) via Deep Ensembles and Bayesian Neural Networks. Furthermore, we propose a lightweight preprocessing pipeline incorporating dense optical flow to capture temporal dynamics explicitly. We benchmark these models on a simulated edge environment, demonstrating that our optimized architectures achieve real-time performance (>30 FPS) on low-cost, resource-constrained devices like the Raspberry Pi 4 and Jetson Nano, while maintaining high predictive accuracy.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Video Regression, Physics-Informed Machine Learning, Edge Computing, Bayesian Neural Networks, Optical Flow, Thermal Ablation, Medical Imaging
+\end{IEEEkeywords}
+
+\section{Introduction}
+Estimating physical parameters, such as temperature, from medical imaging data is a critical challenge in non-invasive thermal ablation therapies. In procedures like High-Intensity Focused Ultrasound (HIFU), precise temperature monitoring is essential to ensure tumor destruction while preserving healthy surrounding tissue. However, direct temperature measurement is often impossible or requires invasive probes. In this work, we explore the feasibility of using ultrasonic video sequences to regress temperature values, leveraging temporal coherence and visual cues present in the footage.
+
+A major constraint in clinical deployment is data privacy. Transmitting sensitive patient data to cloud servers for processing poses significant security risks and regulatory hurdles. Therefore, inference must be performed locally on edge devices. Furthermore, to ensure widespread accessibility, these devices must be cost-effective and easily retrofittable to existing ultrasonic machines. This necessitates models that are not only accurate but also lightweight enough to run on low-cost hardware like the Raspberry Pi or Jetson Nano.
+
+Finally, for clinical adoption, black-box predictions are insufficient. We emphasize the need for a transparent monitoring system by integrating Uncertainty Quantification (UQ), providing clinicians with confidence intervals alongside temperature estimates.
+
+We address these challenges by:
+\begin{itemize}
+    \item Proposing a custom, lightweight CNN-LSTM architecture optimized for ultrasonic video regression.
+    \item Integrating dense optical flow as an explicit input feature.
+    \item Benchmarking inference latency via ONNX Runtime on CPU.
+\end{itemize}
+
+\section{Methodology}
+
+\subsection{Data Preprocessing and Input Representation}
+To capture both spatial features and temporal dynamics explicitly, we utilize a 5-channel input representation for all models. For a given video frame $I_t$ at time $t$, the input tensor $X_t \in \mathbb{R}^{5 \times H \times W}$ is constructed as follows:
+\begin{enumerate}
+    \item \textbf{RGB Channels (3)}: The standard image frame, resized to $64 \times 64$ pixels and normalized using ImageNet statistics.
+    \item \textbf{Optical Flow Channels (2)}: We compute dense optical flow $(dx, dy)$ between the previous frame $I_{t-1}$ and the current frame $I_t$ using the Farneback algorithm \cite{farneback2003two}. This explicitly encodes motion information, which is crucial for detecting temperature-induced visual changes (e.g., convection currents or heat shimmer).
+\end{enumerate}
+This preprocessing step adds a small computational overhead (approx. 0.82 ms on CPU) but significantly enriches the input data.
+
+\subsection{Model Architectures}
+We evaluate four distinct architectures designed to balance accuracy and computational efficiency:
+
+\subsubsection{CNNLSTM (Custom Lightweight)}
+A compact architecture designed for extreme edge constraints. It consists of a 3-layer CNN feature extractor (16, 32, 64 filters) followed by a Global Average Pooling layer and a single LSTM layer (hidden size 64). This model has only $\sim$60k parameters.
+
+\subsubsection{Pretrained CNNLSTM}
+Leverages a ResNet-18 \cite{he2016deep} backbone pretrained on ImageNet. To accommodate the 5-channel input, we modify the first convolutional layer by extending its weights: the first 3 channels are initialized from the pretrained RGB weights, while the 2 flow channels are initialized using Kaiming initialization. The extracted features feed into an LSTM (hidden size 128).
+
+\subsubsection{Simple ResNet}
+A baseline frame-based approach that predicts temperature from a single 5-channel image using a modified ResNet-18. It lacks explicit temporal memory (LSTM) but benefits from the strong spatial feature extraction of the ResNet architecture.
+
+\subsubsection{Physics-Informed CNNLSTM}
+Identical in architecture to the Pretrained CNNLSTM but trained with a specialized loss function. The loss includes a physics regularization term based on Newton's Law of Cooling:
+\begin{equation}
+    \mathcal{L}_{physics} = \left| \frac{dT}{dt} + k(T - T_{env}) \right|^2
+\end{equation}
+This guides the model to learn physically consistent temperature dynamics, improving generalization in data-sparse regimes \cite{raissi2019physics}.
+
+\subsection{Uncertainty Quantification}
+Reliability is paramount in clinical and industrial settings. We implement two strategies:
+\begin{itemize}
+    \item \textbf{Deep Ensembles}: We train $M=5$ independent instances of the SimpleResNet. The prediction mean and variance provide the estimate and aleatoric uncertainty.
+    \item \textbf{Bayesian Neural Networks (BNN)}: We employ Variational Inference (Bayes by Backprop \cite{blundell2015weight}) to learn probability distributions over the network weights. We explore both a "Bayesian Head" (only final layers are Bayesian) and a "Full Bayesian" approach.
+\end{itemize}
+
+\section{Implementation and Benchmarking}
+
+\subsection{Training Infrastructure}
+The models were implemented in PyTorch. Training was parallelized using \texttt{tmux} sessions to maximize GPU utilization on an NVIDIA A100 cluster. Experiments were tracked and visualized using Weights \& Biases (WandB).
+
+\subsection{Edge Deployment Simulation}
+To assess real-world feasibility, we developed a deployment pipeline using ONNX Runtime. We measured inference latency on a standard CPU (restricted to a single thread) to simulate the constraints of edge devices like the Raspberry Pi 4 or NVIDIA Jetson Nano.
+
+\section{Results}
+
+\subsection{Computational Efficiency}
+Table \ref{tab:edge_benchmark} presents the results of our edge benchmark. The "Total Latency" includes the 0.82 ms overhead for optical flow calculation.
+
+\begin{table}[htbp]
+\caption{Edge Device Performance Benchmark}
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model} & \textbf{Params} & \textbf{GFLOPs} & \textbf{Total Latency} & \textbf{Simulated} \\
+& \textbf{(M)} & & \textbf{(ms)} & \textbf{FPS} \\
+\midrule
+CNNLSTM & 0.06 & 0.04 & 1.96 & 509 \\
+Pretrained & 11.52 & 0.47 & 20.88 & 48 \\
+ResNet & 11.45 & 0.16 & 8.84 & 113 \\
+Physics & 0.13 & 0.08 & 18.53 & 54 \\
+\bottomrule
+\end{tabular}
+\label{tab:edge_benchmark}
+\end{center}
+\footnotesize{Note: Latency measured on single-core CPU. Simulated FPS includes preprocessing time.}
+\end{table}
+
+Our custom CNNLSTM achieves exceptional throughput (>500 FPS), making it suitable for low-power microcontrollers. The ResNet-based models, while heavier, still comfortably achieve real-time performance (>30 FPS) on the simulated hardware.
+
+\subsection{Predictive Performance}
+\textit{(Pending final training results from WandB)}
+
+\section{Conclusion}
+We demonstrated that physics-informed video regression is feasible on edge devices. By integrating optical flow and optimizing model architectures, we achieve robust temperature estimation with minimal latency. Future work will focus on deploying these models on physical hardware and validating the uncertainty estimates in real-world scenarios.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

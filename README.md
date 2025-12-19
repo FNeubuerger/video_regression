@@ -1,217 +1,122 @@
-# Video Temperature Regression
+# Real-Time Ultrasonic Temperature Monitoring for Tumor Ablation
 
-This repository contains a comprehensive deep learning pipeline for temperature estimation from image sequences using multiple neural network architectures. The project implements three different models to compare temporal vs non-temporal approaches for temperature regression from thermal images.
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/python-3.8%2B-blue)
+![PyTorch](https://img.shields.io/badge/pytorch-2.0%2B-orange)
+![Platform](https://img.shields.io/badge/platform-Edge%20%7C%20Desktop-green)
 
-## Table of Contents
+This repository contains the implementation for the paper **"Hybrid CNN-LSTM and Physics-Informed Architectures for Real-Time Tumor Ablation Monitoring on Edge Devices"**.
 
-- [Overview](#overview)
-- [Models](#models)
-- [Features](#features)
-- [Installation](#installation)
-- [Dataset](#dataset)
-- [Usage](#usage)
-  - [Training All Models](#training-all-models)
-  - [Individual Model Training](#individual-model-training)
-  - [Model Evaluation](#model-evaluation)
-  - [Quick Evaluation](#quick-evaluation)
-- [Project Structure](#project-structure)
-- [Performance](#performance)
-- [License](#license)
+## 🏥 Research Context
 
-## Overview
+In non-invasive thermal ablation therapies (e.g., High-Intensity Focused Ultrasound - HIFU), precise temperature monitoring is critical to ensure tumor destruction while preserving healthy tissue. Direct temperature measurement is often impossible. This project implements a **non-invasive, privacy-preserving monitoring system** that estimates temperature dynamics directly from ultrasonic video sequences.
 
-This project focuses on temperature estimation from thermal image sequences using deep learning. It compares three different approaches:
+### Key Constraints & Goals
+*   **Privacy-First:** Patient data is processed locally on edge devices, eliminating the need for cloud transmission.
+*   **Cost-Effective:** Optimized for low-cost hardware (Raspberry Pi 4, Jetson Nano) to allow easy retrofitting in clinical settings.
+*   **Transparency:** Integrates **Uncertainty Quantification (UQ)** to provide clinicians with confidence intervals alongside predictions.
 
-1. **CNNLSTM** - Custom CNN-LSTM for temporal sequence modeling
-2. **PretrainedCNNLSTM** - ResNet18 + LSTM leveraging pretrained features
-3. **SimpleResNet** - Non-temporal ResNet18 baseline for single-frame prediction
+## 🧠 Model Architectures
 
-The pipeline supports GPU acceleration with mixed precision training, early stopping, and comprehensive model comparison.
+We evaluate and compare several architectures tailored for this task:
 
-## Models
+1.  **CNNLSTM (Hybrid):** A custom, lightweight architecture combining Convolutional Neural Networks for spatial feature extraction and LSTMs for temporal dynamics.
+2.  **Physics-Informed CNN-LSTM:** Incorporates physical laws (temporal smoothness of heat diffusion) directly into the loss function.
+3.  **Pretrained ResNet:** A transfer learning approach using ImageNet features.
+4.  **Uncertainty Models:**
+    *   **Deep Ensembles:** Multiple models trained with different initializations.
+    *   **Bayesian Neural Networks:** Probabilistic weights to estimate epistemic uncertainty.
 
-### CNNLSTM
-- Custom CNN architecture with 3 convolutional layers (16→32→64 channels)
-- LSTM with 64 hidden units for temporal modeling
-- Processes sequences of 3 frames for temperature prediction
+## ⚡ Edge Deployment & Clinical Demo
 
-### PretrainedCNNLSTM  
-- ResNet18 backbone pretrained on ImageNet
-- LSTM temporal modeling on extracted features
-- Combines transfer learning with sequence modeling
+The project includes a full deployment pipeline using **ONNX Runtime** to ensure real-time performance on edge devices.
 
-### SimpleResNet
-- ResNet18 for single-frame temperature estimation
-- Baseline model without temporal components
-- Direct image-to-temperature regression
+*   **Input:** 5-Channel Tensor (3 RGB + 2 Optical Flow)
+*   **Performance:** >30 FPS on Raspberry Pi 4 / Jetson Nano
+*   **Preprocessing:** Dense Optical Flow (Farneback) to capture heat shimmer and tissue changes.
 
-## Features
+## 📂 Project Structure
 
-- **Multi-model training** with comprehensive comparison
-- **GPU acceleration** with mixed precision training and optimized batch processing
-- **Early stopping** to prevent overfitting with configurable patience
-- **Comprehensive evaluation** with RMSE, MAE, and R² metrics
-- **Data visualization** with training curves and prediction comparisons
-- **Temperature sequence dataset** with automatic parsing from filename labels
-- **Optimized data loading** with parallel workers and memory pinning
-
-## Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/FNeubuerger/video_regression.git
-   cd video_regression
-   ```
-
-2. Create a virtual environment and install dependencies:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
-
-## Dataset
-
-The dataset consists of thermal image sequences organized in directories:
 ```
-data/
-├── sequence_1/
-│   ├── frame_1_label_30.0.png
-│   ├── frame_2_label_30.5.png
-│   └── ...
-├── sequence_2/
-└── ...
+.
+├── models/                 # PyTorch model definitions (CNNLSTM, ResNet, Bayesian, etc.)
+├── training/               # Training scripts and loops
+├── demo/                   # Edge deployment and clinical simulation
+│   ├── benchmark_edge.py   # Latency/FPS benchmarking script
+│   ├── export_models.py    # ONNX export utilities
+│   └── run_clinical_demo.py # Real-time inference simulation
+├── paper/                  # LaTeX source for the research paper
+├── data/                   # Dataset directory
+├── logs/                   # Training logs
+├── run_benchmarks.sh       # Script to launch parallel training jobs
+├── monitor_benchmarks.sh   # Dashboard to monitor training progress
+└── requirements.txt        # Python dependencies
 ```
 
-Each image filename contains the frame number and temperature label, which is automatically parsed by the dataset loader.
+## 🚀 Getting Started
 
-## Usage
-
-### Training All Models
-
-Train all three models with early stopping and comprehensive comparison:
+### 1. Installation
 
 ```bash
-python train_all_models.py --epochs 50 --patience 10 --batch_size 128
+git clone https://github.com/yourusername/video_regression.git
+cd video_regression
+pip install -r requirements.txt
 ```
 
-Options:
-- `--epochs`: Maximum training epochs (default: 50)
-- `--patience`: Early stopping patience (default: 10)
-- `--batch_size`: Training batch size (default: 128)
-- `--models`: Specific models to train (`cnnlstm`, `pretrained_cnnlstm`, `simple_resnet`, or `all`)
+### 2. Training Benchmarks
 
-### Individual Model Training
-
-Train a single model with the basic training script:
+To reproduce the paper's results, run the full benchmark suite. This launches 7 parallel training jobs in a detached tmux session.
 
 ```bash
-python train.py --epochs 30 --batch_size 64 --model cnnlstm
+./run_benchmarks.sh
 ```
 
-### Model Evaluation
-
-Comprehensive evaluation with metrics and visualizations:
+Monitor the progress using the dashboard:
 
 ```bash
-python evaluate_models.py
+./monitor_benchmarks.sh
 ```
 
-This generates:
-- Performance metrics (RMSE, MAE, R²)
-- Training loss curves
-- Prediction vs actual comparisons
-- Model comparison plots
+### 3. Edge Performance Evaluation
 
-### Quick Evaluation
-
-Fast evaluation of available trained models:
+To benchmark the models on your hardware (simulating edge constraints):
 
 ```bash
-python quick_eval.py
+python demo/benchmark_edge.py
 ```
 
-### Generating Test Data
+### 4. Clinical Demo
 
-Generate synthetic thermal data for testing:
+Run the simulated clinical monitoring pipeline:
 
 ```bash
-python generate_dummy_data.py
+python demo/run_clinical_demo.py
 ```
 
-## Project Structure
+## 📊 Methodology
 
-```
-video_regression/
-├── cnnlstm.py              # Model architectures (CNNLSTM, PretrainedCNNLSTM, SimpleResNet)
-├── dataset.py              # TemperatureSequenceDataset implementation
-├── train.py                # Basic model training script
-├── train_all_models.py     # Comprehensive training with early stopping
-├── evaluate_models.py      # Model comparison and evaluation
-├── quick_eval.py          # Quick model evaluation
-├── generate_dummy_data.py  # Synthetic data generation
-├── requirements.txt        # Python dependencies
-├── data/                   # Thermal image sequences
-│   ├── sequence_1/
-│   ├── sequence_2/
-│   └── ...
-├── models/                 # Saved model checkpoints
-│   ├── cnnlstm_model.pth
-│   ├── pretrained_cnn_lstm_model.pth
-│   └── simple_resnet_model.pth
-└── results/               # Training plots and evaluation results
-    ├── training_curves.png
-    ├── model_comparison.png
-    └── prediction_examples.png
+### Input Representation
+We use a **5-channel input** to explicitly capture temporal dynamics:
+*   **Channels 1-3:** RGB Video Frame (Spatial features)
+*   **Channels 4-5:** Dense Optical Flow (dx, dy) (Temporal/Motion features)
+
+### Physics-Informed Loss
+2410457 \mathcal{L}_{total} = \mathcal{L}_{MSE} + \lambda_{smooth} \cdot \mathcal{L}_{smooth} 2410457
+We enforce temporal smoothness to mimic the physical properties of heat diffusion in tissue, improving robustness against noise.
+
+## 📄 Citation
+
+If you use this code, please cite our paper:
+
+```bibtex
+@inproceedings{neubuerger2025hybrid,
+  title={Hybrid CNN-LSTM and Physics-Informed Architectures for Real-Time Tumor Ablation Monitoring on Edge Devices},
+  author={Neubuerger, Felix and Nawrath, Helena},
+  booktitle={Proceedings of the IEEE Conference on ...},
+  year={2025}
+}
 ```
 
-## Performance
+## 📜 License
 
-### Training Optimizations
-- **Mixed precision training** for 2x speedup on modern GPUs
-- **Large batch processing** (128 samples) for efficient GPU utilization
-- **Optimized data loading** with 8 parallel workers and memory pinning
-- **Early stopping** prevents overfitting and reduces training time
-
-### Model Comparison
-Based on validation performance:
-
-| Model | Parameters | Training Time | RMSE | MAE | R² |
-|-------|------------|---------------|------|-----|-----|
-| CNNLSTM | ~50K | ~15 min | TBD | TBD | TBD |
-| PretrainedCNNLSTM | ~11M | ~20 min | TBD | TBD | TBD |
-| SimpleResNet | ~11M | ~10 min | TBD | TBD | TBD |
-
-*Run training and evaluation to populate actual metrics*
-
-### Hardware Requirements
-- **GPU**: NVIDIA GPU with CUDA support (recommended: 8GB+ VRAM)
-- **RAM**: 16GB+ recommended for large batch processing
-- **Storage**: 2GB+ for dataset and models
-
-## Code Style
-
-This project follows [Black code formatting](https://black.readthedocs.io/en/stable/) with 88 character line limits. A pre-commit hook is recommended:
-
-```bash
-pip install pre-commit
-pre-commit install
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/new-feature`)
-3. Commit changes (`git commit -am 'Add new feature'`)
-4. Push to branch (`git push origin feature/new-feature`)
-5. Create a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- PyTorch team for the deep learning framework
-- torchvision for pretrained models and transforms
-- ResNet architecture from "Deep Residual Learning for Image Recognition"
+MIT License

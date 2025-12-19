@@ -1,0 +1,4 @@
+Model,RMSE (°C),MAE (°C),R² Score,Correlation,Within 1°C (%),Within 2°C (%),Within 5°C (%),Test Samples
+CNNLSTM,2.947,1.208,0.991,0.996,62.5,82.8,97.0,10765
+PretrainedCNNLSTM,24.793,19.731,0.353,0.594,24.2,25.1,26.9,10765
+SimpleResNet,2.154,0.975,0.995,0.998,74.2,91.3,99.1,10765

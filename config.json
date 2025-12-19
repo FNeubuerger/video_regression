@@ -1,0 +1,13 @@
+{
+    "force_rerun": {
+        "cnnlstm": true,
+        "pretrained_cnnlstm": true,
+        "simple_resnet": true,
+        "physics_cnnlstm": true
+    },
+    "training_params": {
+        "epochs": 50,
+        "batch_size": 128,
+        "patience": 10
+    }
+}
