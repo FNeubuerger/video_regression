@@ -113,7 +113,7 @@ def train_spatial_bioheat_model(epochs=50, batch_size=32, learning_rate=1e-4):
         with torch.no_grad():
             for images, labels in val_loader:
                 images = images.to(device).squeeze(1)
-                labels = labels.to(device).float().squeeze(1)
+                labels = labels.to(device).float()
                 
                 predictions = model(images)
                 loss, _, _ = criterion(predictions, labels)

@@ -201,6 +201,30 @@ All models were implemented using the PyTorch framework. Training was conducted 
 \subsection{Edge Inference Evaluation}
 To validate the suitability of our models for clinical edge deployment, we simulated a resource-constrained environment. Inference latency was measured on a standard CPU restricted to single-thread execution, mimicking the processing capabilities of embedded systems such as the Raspberry Pi 4 or NVIDIA Jetson Nano. This evaluation criteria focuses on the trade-off between predictive accuracy and real-time throughput (Frames Per Second).
 
+\subsection{Uncertainty Evaluation Metrics}
+To rigorously assess the quality of the uncertainty estimates provided by our Bayesian and Ensemble models, we employ a comprehensive set of metrics beyond standard regression error:
+
+\begin{itemize}
+    \item \textbf{Negative Log Likelihood (NLL)}: Measures how well the predicted probability distribution fits the observed data. Assuming a Gaussian distribution $\mathcal{N}(\mu, \sigma^2)$, NLL is defined as:
+    \begin{equation}
+        \text{NLL} = \frac{1}{N} \sum_{i=1}^{N} \left( \frac{\log(2\pi\sigma_i^2)}{2} + \frac{(y_i - \mu_i)^2}{2\sigma_i^2} \right)
+    \end{equation}
+    Lower NLL indicates better calibration and accuracy.
+    
+    \item \textbf{Prediction Interval Coverage Probability (PICP)}: The percentage of ground truth values that fall within the predicted 95\% confidence interval ($\mu \pm 1.96\sigma$). An ideal calibrated model should achieve a PICP of 0.95.
+    \begin{equation}
+        \text{PICP} = \frac{1}{N} \sum_{i=1}^{N} \mathbb{I}(y_i \in [\mu_i - 1.96\sigma_i, \mu_i + 1.96\sigma_i])
+    \end{equation}
+    
+    \item \textbf{Mean Prediction Interval Width (MPIW)}: The average width of the 95\% confidence interval.
+    \begin{equation}
+        \text{MPIW} = \frac{1}{N} \sum_{i=1}^{N} 2 \times 1.96\sigma_i
+    \end{equation}
+    A lower MPIW indicates a sharper, more certain model, provided that the PICP remains close to 95\%. A model with high PICP but very large MPIW is underconfident and less useful.
+\end{itemize}
+
+We evaluate these metrics using Monte Carlo sampling ($N=50$ samples) for Bayesian models and ensemble averaging for Deep Ensembles.
+
 \section{Results}
 
 \subsection{Computational Efficiency}

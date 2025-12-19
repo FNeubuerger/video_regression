@@ -179,7 +179,7 @@ models/pretrained/*
 # dont upload the models
 models/*.pth
 # ignore ONNX models
-demo/*.onnx
+*.onnx
 # ignore training logs
 logs/
 # ignore saved checkpoints

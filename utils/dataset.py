@@ -216,13 +216,17 @@ class TemperatureRegressionDataset(Dataset):
             images: Tensor of shape (sequence_length, channels, height, width)
             target_temp: Tensor containing single temperature value
         """
-        images, temperatures = self.base_dataset[idx]
+        # Get images from base dataset (ignore its default mean target)
+        images, _ = self.base_dataset[idx]
+        
+        # Get raw temperatures from the sequence data
+        _, temperatures = self.base_dataset.sequences[idx]
         
         # Determine target temperature based on strategy
         if self.target_strategy == 'last':
             target_temp = temperatures[-1]
         elif self.target_strategy == 'mean':
-            target_temp = torch.mean(temperatures)
+            target_temp = np.mean(temperatures)
         elif self.target_strategy == 'first':
             target_temp = temperatures[0]
         else:
