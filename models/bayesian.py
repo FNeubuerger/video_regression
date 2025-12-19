@@ -211,6 +211,67 @@ class FullBayesianResNet(nn.Module):
             
         return self.backbone(x).squeeze(-1)
 
+class BayesianCNNLSTM(nn.Module):
+    """
+    Bayesian CNN-LSTM for temporal temperature regression.
+    Combines a ResNet backbone, an LSTM for temporal dynamics, 
+    and a Bayesian regression head.
+    """
+    def __init__(self, frame_shape, hidden_size=128, prior_mu=0.0, prior_sigma=0.1):
+        super(BayesianCNNLSTM, self).__init__()
+        
+        # 1. CNN Backbone (ResNet18)
+        self.backbone = resnet18(weights='IMAGENET1K_V1')
+        
+        # Handle input channels != 3
+        if frame_shape[2] != 3:
+            original_conv1 = self.backbone.conv1
+            new_conv1 = nn.Conv2d(
+                frame_shape[2], 
+                original_conv1.out_channels, 
+                kernel_size=original_conv1.kernel_size, 
+                stride=original_conv1.stride, 
+                padding=original_conv1.padding, 
+                bias=original_conv1.bias
+            )
+            with torch.no_grad():
+                new_conv1.weight[:, :3, :, :] = original_conv1.weight
+                if frame_shape[2] > 3:
+                    nn.init.kaiming_normal_(new_conv1.weight[:, 3:, :, :], mode='fan_out', nonlinearity='relu')
+            self.backbone.conv1 = new_conv1
+            
+        num_features = self.backbone.fc.in_features
+        self.backbone.fc = nn.Identity()
+        
+        # 2. LSTM
+        self.lstm = nn.LSTM(input_size=num_features, hidden_size=hidden_size, batch_first=True)
+        
+        # 3. Bayesian Head
+        # Takes LSTM output and predicts temperature
+        self.bayesian_head = nn.Sequential(
+            bnn.BayesLinear(prior_mu=prior_mu, prior_sigma=prior_sigma, in_features=hidden_size, out_features=64),
+            nn.ReLU(),
+            bnn.BayesLinear(prior_mu=prior_mu, prior_sigma=prior_sigma, in_features=64, out_features=1)
+        )
+        
+    def forward(self, x):
+        # x: (batch, time, channels, H, W)
+        batch_size, time_steps, C, H, W = x.size()
+        
+        # CNN
+        c_in = x.view(batch_size * time_steps, C, H, W)
+        features = self.backbone(c_in)
+        features = features.view(batch_size, time_steps, -1)
+        
+        # LSTM
+        lstm_out, _ = self.lstm(features) # (batch, time, hidden)
+        
+        # Bayesian Head (applied to each time step)
+        # Flatten time for efficiency
+        lstm_out_flat = lstm_out.contiguous().view(batch_size * time_steps, -1)
+        predictions = self.bayesian_head(lstm_out_flat)
+        
+        return predictions.view(batch_size, time_steps)
 class BayesianSpatialResNet(nn.Module):
     """
     Bayesian Spatial ResNet that outputs a temperature MAP (not a scalar).

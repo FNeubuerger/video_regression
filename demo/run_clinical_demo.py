@@ -1,13 +1,18 @@
-import onnxruntime as ort
-import numpy as np
+import torch
 import cv2
-import time
-import os
+import numpy as np
 import argparse
+import os
 import sys
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from tqdm import tqdm
 
-# Add parent directory to path for utils
+# Add parent directory to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from utils.model_registry import MODEL_REGISTRY
+from torchvision import transforms
 
 def preprocess_frame(frame, prev_frame=None, target_size=(64, 64)):
     """
@@ -55,101 +60,177 @@ def preprocess_frame(frame, prev_frame=None, target_size=(64, 64)):
     
     return input_tensor
 
-def load_sequence(data_dir):
-    """Load a sample sequence from the data directory."""
-    # Find a sequence folder
-    seq_dirs = [d for d in os.listdir(data_dir) if d.startswith('sequence_')]
-    if not seq_dirs:
-        raise ValueError("No sequence folders found in data directory")
-    
-    seq_path = os.path.join(data_dir, seq_dirs[0])
-    images = sorted([f for f in os.listdir(seq_path) if f.endswith('.png')])[:200]
-    
-    frames = []
-    for img_name in images:
-        img_path = os.path.join(seq_path, img_name)
-        frame = cv2.imread(img_path)
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frames.append(frame)
-        
-    return frames
+def parse_filename(filename):
+    """Extract temperature from filename like frame_001_label_37.5.png"""
+    import re
+    match = re.search(r'label_(\d+\.\d+)', filename)
+    if match:
+        return float(match.group(1))
+    return None
 
-def run_demo(model_path, data_dir="data", sequence_length=3):
-    print(f"Loading model from {model_path}...")
-    try:
-        # Use CPU provider for "limited resources" simulation
-        session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        return
-
-    print("Loading sample data...")
-    try:
-        all_frames = load_sequence(data_dir)
-    except Exception as e:
-        print(f"Error loading data: {e}")
-        return
-        
-    print(f"Loaded {len(all_frames)} frames. Starting simulation...")
-    print("-" * 60)
-    print(f"{'Frame':<10} | {'Inference (ms)':<15} | {'FPS':<10} | {'Prediction':<10}")
-    print("-" * 60)
+def create_plot(real_temps, est_temps, window_size=50):
+    """Create a matplotlib plot of temperature over time."""
+    fig, ax = plt.subplots(figsize=(4, 2), dpi=100)
     
-    # Buffer for sequence
+    # Get recent history
+    start_idx = max(0, len(real_temps) - window_size)
+    x = range(start_idx, len(real_temps))
+    y_real = real_temps[start_idx:]
+    y_est = est_temps[start_idx:]
+    
+    ax.plot(x, y_real, 'g-', label='Real', linewidth=2)
+    ax.plot(x, y_est, 'r--', label='Est', linewidth=2)
+    
+    ax.set_ylim(30, 50) # Assuming bioheat range
+    ax.set_title("Temperature History")
+    ax.legend(loc='upper left', fontsize='small')
+    ax.grid(True, alpha=0.3)
+    
+    # Convert to image
+    canvas = FigureCanvas(fig)
+    canvas.draw()
+    width, height = fig.get_size_inches() * fig.get_dpi()
+    image = np.frombuffer(canvas.tostring_rgb(), dtype='uint8').reshape(int(height), int(width), 3)
+    plt.close(fig)
+    
+    return image
+
+def run_clinical_demo(model_name, checkpoint_path, sequence_dir, output_path="demo_output.mp4"):
+    print(f"Loading model {model_name} from {checkpoint_path}...")
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Load Model
+    if model_name not in MODEL_REGISTRY:
+        raise ValueError(f"Model {model_name} not found in registry.")
+        
+    ModelClass, kwargs = MODEL_REGISTRY[model_name]
+    model = ModelClass(**kwargs)
+    
+    state_dict = torch.load(checkpoint_path, map_location=device)
+    model.load_state_dict(state_dict)
+    model.to(device)
+    model.eval()
+    
+    # Load Images
+    print(f"Loading sequence from {sequence_dir}...")
+    image_files = sorted([f for f in os.listdir(sequence_dir) if f.endswith('.png')])
+    if not image_files:
+        raise ValueError("No images found in sequence directory")
+        
+    # Setup Video Writer
+    first_frame = cv2.imread(os.path.join(sequence_dir, image_files[0]))
+    height, width = first_frame.shape[:2]
+    
+    # Output layout: Original Frame + Plot below or side-by-side?
+    # Let's do side-by-side. 
+    # Frame (W, H) + Plot (400, 200) -> We'll resize plot to match height or width.
+    # Actually, let's just overlay the plot on the frame if it's large enough, or extend the canvas.
+    # Let's extend the canvas to the right.
+    
+    plot_width = 400
+    canvas_width = width + plot_width
+    canvas_height = max(height, 300) # Ensure enough height for plot
+    
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_path, fourcc, 10.0, (canvas_width, canvas_height))
+    
     frame_buffer = []
     prev_frame = None
+    sequence_length = 5
     
-    latencies = []
+    real_temps = []
+    est_temps = []
     
-    # Loop through frames (simulate stream)
-    # We loop the sequence multiple times to get a good measurement
-    for i in range(100): 
-        frame_idx = i % len(all_frames)
-        frame = all_frames[frame_idx]
+    print("Processing frames...")
+    for i, img_file in enumerate(tqdm(image_files)):
+        img_path = os.path.join(sequence_dir, img_file)
+        frame = cv2.imread(img_path) # BGR
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-        start_time = time.time()
-        
+        # Get Ground Truth
+        real_temp = parse_filename(img_file)
+        if real_temp is None:
+            real_temp = 0.0 # Fallback
+            
         # Preprocess
-        processed_frame = preprocess_frame(frame, prev_frame)
-        prev_frame = frame
+        processed_frame = preprocess_frame(frame_rgb, prev_frame)
+        prev_frame = frame_rgb
         
-        # Add to buffer
+        # Update Buffer
         frame_buffer.append(processed_frame)
         if len(frame_buffer) > sequence_length:
             frame_buffer.pop(0)
             
-        # Run inference if buffer is full
+        # Inference
+        est_temp = 0.0
         if len(frame_buffer) == sequence_length:
-            # Stack frames -> (Time, Channels, Height, Width)
-            input_seq = np.stack(frame_buffer)
-            # Add batch dimension -> (1, Time, Channels, Height, Width)
-            input_tensor = input_seq[np.newaxis, ...].astype(np.float32)
+            input_seq = np.stack(frame_buffer) # (T, C, H, W)
+            input_tensor = torch.from_numpy(input_seq).unsqueeze(0).to(device) # (1, T, C, H, W)
             
-            # Run inference
-            input_name = session.get_inputs()[0].name
-            output = session.run(None, {input_name: input_tensor})
-            # print(f"Output shape: {output[0].shape}")
-            prediction = output[0].item()
+            with torch.no_grad():
+                output = model(input_tensor)
+                # Handle tuple output (physics models)
+                if isinstance(output, tuple):
+                    output = output[0]
+                # Handle sequence output
+                if output.dim() > 1 and output.shape[1] > 1:
+                    est_temp = output[0, -1].item()
+                else:
+                    est_temp = output.item()
+        else:
+            # Not enough frames yet, use 0 or previous
+            est_temp = est_temps[-1] if est_temps else 37.0
             
-            end_time = time.time()
-            latency_ms = (end_time - start_time) * 1000
-            latencies.append(latency_ms)
-            fps = 1000 / latency_ms
+        real_temps.append(real_temp)
+        est_temps.append(est_temp)
+        
+        # Visualization
+        # Create Canvas
+        canvas = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)
+        
+        # Draw Frame
+        # Resize frame to fit left side if needed, or center it
+        # For now, just place at 0,0
+        canvas[:height, :width] = frame
+        
+        # Draw Info Text
+        text_x = width + 20
+        cv2.putText(canvas, f"Frame: {i}", (text_x, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        cv2.putText(canvas, f"Real: {real_temp:.1f} C", (text_x, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        cv2.putText(canvas, f"Est:  {est_temp:.1f} C", (text_x, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        
+        error = abs(real_temp - est_temp)
+        color = (0, 255, 0) if error < 1.0 else (0, 165, 255) if error < 3.0 else (0, 0, 255)
+        cv2.putText(canvas, f"Error: {error:.1f} C", (text_x, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+        
+        # Draw Plot
+        if i > 0:
+            plot_img = create_plot(real_temps, est_temps)
+            # Resize plot to fit right side bottom
+            plot_h, plot_w = plot_img.shape[:2]
+            target_w = plot_width - 20
+            scale = target_w / plot_w
+            target_h = int(plot_h * scale)
+            plot_resized = cv2.resize(plot_img, (target_w, target_h))
             
-            print(f"{i:<10} | {latency_ms:<15.2f} | {fps:<10.2f} | {prediction:.4f}")
-            
-        # Simulate real-time delay (optional, but we want to measure max speed)
-        # time.sleep(0.03) 
-
-    print("-" * 60)
-    avg_latency = np.mean(latencies)
-    print(f"Average Latency: {avg_latency:.2f} ms")
-    print(f"Average FPS: {1000/avg_latency:.2f}")
-    print("-" * 60)
+            # Place plot
+            y_offset = 200
+            if y_offset + target_h < canvas_height:
+                canvas[y_offset:y_offset+target_h, text_x:text_x+target_w] = plot_resized
+        
+        out.write(canvas)
+        
+    out.release()
+    print(f"Demo video saved to {output_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=str, default="demo/cnnlstm.onnx", help="Path to ONNX model")
+    parser.add_argument("--model", type=str, default="CNNLSTM", help="Model name")
+    parser.add_argument("--checkpoint", type=str, required=True, help="Path to checkpoint")
+    parser.add_argument("--sequence", type=str, default="data/sequence_1", help="Path to sequence directory")
+    parser.add_argument("--output", type=str, default="demo_output.mp4", help="Output video path")
+    
     args = parser.parse_args()
     
-    run_demo(args.model)
+    run_clinical_demo(args.model, args.checkpoint, args.sequence, args.output)

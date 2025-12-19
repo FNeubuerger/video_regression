@@ -2,18 +2,25 @@ import time
 import torch
 import torch.nn as nn
 import numpy as np
-from typing import Optional
+from typing import Optional, Union
 from .profiles import DeviceProfile, DeviceType, PROFILES
 
-class EdgeEmulator(nn.Module):
+# Try importing onnxruntime
+try:
+    import onnxruntime as ort
+    HAS_ONNX = True
+except ImportError:
+    HAS_ONNX = False
+
+class EdgeEmulator:
     """
-    Wraps a PyTorch model to simulate the inference latency of an edge device.
+    Wraps a PyTorch model OR ONNX session to simulate the inference latency of an edge device.
     """
-    def __init__(self, model: nn.Module, device_type: DeviceType):
-        super().__init__()
-        self.model = model
+    def __init__(self, model_or_session: Union[nn.Module, 'ort.InferenceSession'], device_type: DeviceType):
+        self.model = model_or_session
         self.profile = PROFILES[device_type]
         self.device_type = device_type
+        self.is_onnx = HAS_ONNX and isinstance(self.model, ort.InferenceSession)
         
         # Statistics
         self.total_inference_calls = 0
@@ -22,27 +29,46 @@ class EdgeEmulator(nn.Module):
         self.start_time = None
         
         print(f"EdgeEmulator initialized for: {self.profile.name}")
-        print(f"Target Base Latency: {self.profile.base_latency_resnet18*1000:.1f} ms")
+        print(f"Backend: {'ONNX Runtime' if self.is_onnx else 'PyTorch'}")
+        print(f"Slowdown Factor: {self.profile.slowdown_factor}x")
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
 
     def forward(self, *args, **kwargs):
         # 1. Measure actual inference time (on current hardware)
         t0 = time.perf_counter()
-        output = self.model(*args, **kwargs)
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
+        
+        if self.is_onnx:
+            # ONNX Runtime Inference
+            # args[0] is usually the input tensor
+            # We need to convert to numpy
+            input_tensor = args[0]
+            if isinstance(input_tensor, torch.Tensor):
+                input_numpy = input_tensor.cpu().numpy()
+            else:
+                input_numpy = input_tensor
+                
+            input_name = self.model.get_inputs()[0].name
+            output = self.model.run(None, {input_name: input_numpy})
+        else:
+            # PyTorch Inference
+            output = self.model(*args, **kwargs)
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+                
         t1 = time.perf_counter()
         actual_latency = t1 - t0
         
         # 2. Calculate target latency
-        # Add random jitter to simulate real-world OS scheduling/thermal throttling
+        # Target = Actual * SlowdownFactor + Jitter
         jitter = np.random.normal(0, self.profile.latency_jitter)
-        target_latency = self.profile.base_latency_resnet18 + jitter
+        target_latency = (actual_latency * self.profile.slowdown_factor) + jitter
         target_latency = max(0.001, target_latency) # Ensure positive
         
         # 3. Inject Delay
         # If actual hardware is faster than target, sleep.
-        # If actual hardware is slower (unlikely for RPi vs GPU), we can't speed it up, 
-        # but we report the actual time as the simulated time.
+
         sleep_time = target_latency - actual_latency
         
         if sleep_time > 0:
