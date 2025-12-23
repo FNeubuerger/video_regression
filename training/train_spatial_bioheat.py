@@ -116,7 +116,12 @@ def train_spatial_bioheat_model(epochs=50, batch_size=32, learning_rate=1e-4):
                 labels = labels.to(device).float()
                 
                 predictions = model(images)
-                loss, _, _ = criterion(predictions, labels)
+                
+                # Prepare inputs for loss
+                predictions_unsqueezed = predictions.unsqueeze(1)
+                labels_unsqueezed = labels.unsqueeze(1)
+                
+                loss, _, _ = criterion(predictions_unsqueezed, labels_unsqueezed)
                 val_loss += loss.item()
                 
         avg_val_loss = val_loss / len(val_loader)
