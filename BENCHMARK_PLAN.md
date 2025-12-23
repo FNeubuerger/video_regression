@@ -9,8 +9,8 @@ We are currently training **16 distinct models** across three primary categories
 ### A. Temporal Models (Sequence-based)
 *Input: Sequence of 5 Frames (RGB + Optical Flow)*
 - [x] **CNNLSTM** (Started: 2025-12-19 15:01:44)
-- [x] **Pretrained CNNLSTM** (Started: 2025-12-19 15:01:39)
-- [x] **Physics CNNLSTM** (Started: 2025-12-19 15:01:40)
+- [ ] **Pretrained CNNLSTM** (Retraining with Gradient Clipping)
+- [ ] **Physics CNNLSTM** (Retraining with Gradient Clipping)
 - [x] **Bioheat PINN** (Started: 2025-12-19 15:01:49)
 - [x] **Convection Bioheat** (Started: 2025-12-19 15:01:48)
 - [x] **Metabolic Bioheat** (Started: 2025-12-19 15:01:48)
