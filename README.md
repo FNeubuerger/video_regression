@@ -34,7 +34,32 @@ We evaluate and compare several architectures tailored for this task:
     *   **Deep Ensembles:** Multiple models trained with different initializations.
     *   **Bayesian Neural Networks:** Probabilistic weights to estimate epistemic uncertainty.
 
-## ⚡ Edge Deployment & Clinical Demo
+## 🏋️ Training
+
+### Part 1: Vector Regression
+Train the baseline CNN-LSTM or Physics-Informed models:
+```bash
+python training/train_all_models.py --models cnnlstm --epochs 50
+```
+
+### Part 2: Dense Map Estimation (U-Net)
+Train the U-Net architecture to predict full temperature heatmaps:
+```bash
+# Baseline
+python training/train_unet_sparse.py --run_name unet_baseline --epochs 50 --no_physics_prior
+
+# With Physics Prior
+python training/train_unet_sparse.py --run_name unet_prior --epochs 50
+
+# Hybrid Physics-Informed (Equation Error)
+python training/train_unet_hybrid.py --run_name unet_hybrid --epochs 50 --lambda_physics 0.001
+```
+
+### Part 3: Latent Dynamics (LTC)
+Train the Latent Liquid Time Constant model:
+```bash
+python training/train_ltc.py --run_name ltc_model --epochs 50
+```
 
 The project includes a full deployment pipeline using **ONNX Runtime** to ensure real-time performance on edge devices.
 

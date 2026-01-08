@@ -1,13 +1,15 @@
 # Benchmark Status Report
 
 **Date:** January 8, 2026
-**Status:** Part 2: Dense Map Estimation Implementation
+**Status:** Part 1 Retraining & Part 2/3 Benchmark Execution
 
 ## Part 1 Summary (Vector Regression)
 Evaluation of single-value regression models is complete.
 *   **Best Model:** Simple ResNet (RMSE 1.86°C).
 *   **Physics Result:** Spatial Bioheat (RMSE 1.88°C) validated the PDE approach.
-*   **Pending:** Retraining CNNLSTM variants (low priority compared to Part 2).
+*   **Active Tasks:**
+    *   `physics_cnnlstm`: Retraining in progress (Epoch 3/50, Loss ~724).
+    *   `pretrained_cnnlstm`: Retraining in progress (Epoch 21/50, Loss ~650).
 
 ## Part 2 Status: Dense Map Estimation
 We have transitioned the codebase to support dense temperature map prediction ($H \times W$ heatmap output instead of scalar).
@@ -34,14 +36,19 @@ We have transitioned the codebase to support dense temperature map prediction ($
     *   Implemented `BioheatHybridLoss` in `physics/hybrid_loss.py` (MSE + Bioheat PDE Residual).
     *   Created `training/train_unet_hybrid.py` to train with PDE constraints.
 
+### Benchmarks (Active)
+The following benchmarks are currently running in `tmux` (session `video_regression_benchmarks`):
+*   `unet_sparse_noprior`: U-Net Baseline (running).
+*   `unet_sparse_withprior`: U-Net + Gaussian Prior (running).
+*   `unet_hybrid_physics`: U-Net + Bioheat PDE Reg (running).
+
 ### Next Steps (Implementation Plan)
-1.  **Benchmarks Running:** `unet_noprior`, `unet_prior`, and `unet_hybrid` are training in tmux.
-2.  **Evaluate Results:** Compare convergence and final MSE.
-3.  **Part 3 (Time):**
+1.  **Evaluate Results:** Compare convergence and final MSE once training completes.
+2.  **Part 3 (Time):**
     *   **Documentation:** Added a new section to the paper (`ltc_section.tex`) justifying the use of Liquid Time Constant (LTC) networks via the Bioheat Transfer Equation.
     *   **Implementation:** Implemented `models/latent_ltc.py` (Latent-Space Dynamics) and `training/train_ltc.py`.
-    *   **Status:** Launched `ltc_unet_seq16_hybrid` benchmark.
+    *   **Status:** Active. `ltc_unet_seq16_hybrid` and `conv_ltc_seq16_hybrid` are training.
 
-4.  **Verification:**
+3.  **Verification:**
     *   **Test Suite:** Expanded `tests/test_model_suite.py` covering all Part 2 and Part 3 architectures (`ResNetUNet`, `LatentLTC_UNet`, `CNNLSTM`, `SimpleResNet`).
     *   **Status:** All tests passing.

@@ -1,19 +1,24 @@
 # Next Actions Checklist
 
-## Immediate Tasks (Phase 2 Validation)
-- [x] **Run Baseline Training (No Prior):**
-    *   Launched in tmux session `video_regression_benchmarks`.
-- [x] **Run Residual Training (With Prior):**
-    *   Launched in tmux session `video_regression_benchmarks`.
+## Immediate Tasks (Monitoring & Validation)
+- [x] **Launch Part 1 Retraining:**
+    *   `physics_cnnlstm` and `pretrained_cnnlstm` are running.
+- [x] **Launch Part 2 Benchmarks:**
+    *   `unet_sparse_no/prior` and `hybrid` are running.
+- [x] **Launch Part 3 Benchmarks:**
+    *   `ltc_unet` and `conv_ltc` are running.
+- [ ] **Monitor Convergence:**
+    *   Check logs/tmux sessions daily.
+    *   Look for instability in the PDE loss term.
 - [ ] **Compare Results:**
-    *   Check validation loss curves in WandB.
+    *   Once training finishes, generate comparison tables for Part 2/3.
     *   Visualize output heatmaps (using `demo/live_inference.py` or similar).
 
-## Upcoming Features (Physics Integration)
+## Completed Features (Implementation)
 - [x] **Implement Hybrid Loss:** Added the Bioheat PDE loss term to `physics/hybrid_loss.py`.
 - [x] **Integration:** Created `training/train_unet_hybrid.py` using `BioheatHybridLoss`.
-- [x] **Launch Benchmark:** Launched `unet_hybrid_physics` in tmux.
-- [ ] **Tune Lambda:** Experiment with weights for the physics loss (currently 0.001).
+- [x] **LTC Integration:** Implemented `models/latent_ltc.py` and connected it to the U-Net bottleneck.
 
-## Phase 3 (Time & Dynamics)
-- [ ] **LTC Integration:** Begin integrating Liquid Time Constant units into the U-Net bottleneck (as researched in `docs/RESEARCH_PART2.md`).
+## Documentation
+- [x] **Update Papers:** Added LTC justification to `ltc_section.tex`.
+- [ ] **Final Report:** Synthesize all results into `evaluation_report.md` when benchmarks complete.
