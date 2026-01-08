@@ -1,43 +1,29 @@
 # Benchmark Status Report
 
 **Date:** January 8, 2026
-**Status:** Evaluation / Recovery Phase
+**Status:** Part 2: Dense Map Estimation Implementation
 
-## Executive Summary
-Evaluation of the **Spatial Models** and baseline **Simple ResNet** is complete.
-The **Simple ResNet** remains the performant baseline (RMSE 1.86°C), but the **Spatial Bioheat** model is extremely close (RMSE 1.88°C), validating the physics-informed approach in the spatial domain.
+## Part 1 Summary (Vector Regression)
+Evaluation of single-value regression models is complete.
+*   **Best Model:** Simple ResNet (RMSE 1.86°C).
+*   **Physics Result:** Spatial Bioheat (RMSE 1.88°C) validated the PDE approach.
+*   **Pending:** Retraining CNNLSTM variants (low priority compared to Part 2).
 
-## Completed Benchmarks (Evaluation Results)
+## Part 2 Status: Dense Map Estimation
+We have transitioned the codebase to support dense temperature map prediction ($H \times W$ heatmap output instead of scalar).
 
-| Model | RMSE (°C) | MAE (°C) | R² Score | Status |
-|-------|-----------|----------|----------|--------|
-| **Simple ResNet** | **1.856** | **0.575** | **0.996** | **SOTA** |
-| **Spatial Bioheat** | 1.882 | 1.188 | 0.996 | Competitive |
-| **Spatial Metabolic** | 2.030 | 1.089 | 0.996 | Strong |
-| **Spatial Convection** | 3.437 | 2.196 | 0.988 | Underperforming |
-| **CNNLSTM** | 26.345 | 17.888 | 0.268 | **Needs Review** |
+### Completed Work
+1.  **Refactored Data Pipeline (Level 0 $\to$ Level 1):**
+    *   **Preprocessing:** Implemented dynamic "Active Zone" cropping ($Y_{peak} \pm 180$) to standardize inputs.
+    *   **Sensor Localization:** Implemented robust Axis-Aligned 4-sensor detection on clean, averaged frames.
+    *   **Dataset:** Created `TemperatureHeatmapDataset` that synchronizes video frames with CSV logs and generates sparse supervision masks.
+    *   **Validation:** Generated verification videos confirming sensor alignment and coordinate stability.
 
-*Note: The CNNLSTM model performance is unexpectedly low compared to previous runs, likely due to a checkpoint issue or data loading mismatch during the new parallel evaluation. This requires investigation.*
+2.  **Architecture:**
+    *   Implemented `ResNetUNet` (Encoder-Decoder with Skip Connections) in `models/dense_heads.py`.
 
-## Failed / In Progress
-
-| Model | Status | Cause/Notes | Action Items |
-|-------|--------|-------------|--------------|
-| **Physics CNNLSTM** | **Failed** | `python: not found` in Makefile. | **Fixed & Ready to Retrain.** |
-| **Pretrained CNNLSTM** | **Failed** | `python: not found` in Makefile. | **Fixed & Ready to Retrain.** |
-| **Ensemble** | **Stalled** | Stopped at Member 4/5. | Investigate logs/resources. **Restart Member 4 & 5.** |
-
-## Technical Incident Report
-
-### 1. Makefile Environment Error (Resolved)
-*   **Issue:** `Physics CNNLSTM` and `Pretrained CNNLSTM` logs show `/bin/sh: 1: python: not found`.
-*   **Fix:** Updated `Makefile` to use `python3`.
-
-### 2. Evaluation Optimization (Resolved)
-*   **Action:** Optimized `evaluate_models.py` to run inference for **all models simultaneously** using `DataParallel` on the A100 GPUs.
-*   **Result:** Reduced evaluation time ~5x (Single pass over test set for 5 models).
-
-## Next Steps
-1.  **Retrain Failed Models:** Launch Physics/Pretrained benchmarks using the fixed Makefile.
-2.  **Restart Ensemble:** Resume the stalled ensemble training.
-3.  **Investigate CNNLSTM:** Check why the baseline CNNLSTM evaluated poorly (possible normalization or sequence length mismatch in evaluation script).
+### Next Steps (Implementation Plan)
+1.  **Hybrid Loss Function:** Implement `HybridLoss = MSE_Sparse + lambda * PDE_Dense`.
+2.  **Training Loop:** Create training script for the U-Net.
+3.  **Baseline Training:** Train a standard U-Net with Sparse MSE only (no physics).
+4.  **Physics Training:** Train Physics-Informed U-Net.
