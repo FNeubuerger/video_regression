@@ -184,3 +184,7 @@ logs/
 checkpoints/
 # ignore wandb files
 wandb/
+#ignore pth files
+*.pth
+#ignore onnx files
+*.onnx
