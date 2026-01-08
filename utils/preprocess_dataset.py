@@ -145,7 +145,7 @@ def detect_sensors_in_frame(frame, threshold_val=200):
             
     return None
 
-def process_video_pipeline(input_path, output_dir, vis_dir):
+def process_video_pipeline(input_path, output_dir, vis_dir, crop_radius=180):
     filename = os.path.basename(input_path)
     output_path = os.path.join(output_dir, filename)
     
@@ -168,7 +168,7 @@ def process_video_pipeline(input_path, output_dir, vis_dir):
     avg_frame = np.mean(check_frames, axis=0).astype(np.uint8)
     
     # Determine Crop
-    y_start, y_end, peak_y = get_crop_bounds(avg_frame, offset=180) # 180px radius around peak
+    y_start, y_end, peak_y = get_crop_bounds(avg_frame, offset=crop_radius) # ROI radius around peak
     if y_end <= y_start:
         y_start, y_end = 0, avg_frame.shape[0] # Fallback? No, this shouldn't happen.
     
@@ -224,6 +224,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input_dir', default='data/level0_raw')
     parser.add_argument('--output_dir', default='data/level1_cropped')
+    parser.add_argument('--crop_radius', type=int, default=180, help='Half-height of the crop window around active zone')
     args = parser.parse_args()
     
     vis_dir = os.path.join(args.output_dir, 'vis') # Store vis inside processed folder
@@ -235,6 +236,7 @@ def main():
     results_json = {}
     
     print(f"Starting Preprocessing Pipeline: Level 0 -> Level 1 (Crop)")
+    print(f"Crop Radius: +/- {args.crop_radius} pixels")
     print(f"Found {len(video_files)} videos.")
     
     for v_path in tqdm(video_files):
@@ -242,7 +244,7 @@ def main():
         # Skip verification videos if they ended up here?
         if 'verified_' in fname: continue
             
-        res = process_video_pipeline(v_path, args.output_dir, vis_dir)
+        res = process_video_pipeline(v_path, args.output_dir, vis_dir, crop_radius=args.crop_radius)
         
         if res and res['sensors']:
             results_json[fname] = res['sensors'] # Save sensors relative to cropped frame

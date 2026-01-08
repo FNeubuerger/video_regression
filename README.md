@@ -12,9 +12,15 @@ This repository contains the implementation for the paper **"Hybrid CNN-LSTM and
 In non-invasive thermal ablation therapies (e.g., High-Intensity Focused Ultrasound - HIFU), precise temperature monitoring is critical to ensure tumor destruction while preserving healthy tissue. Direct temperature measurement is often impossible. This project implements a **non-invasive, privacy-preserving monitoring system** that estimates temperature dynamics directly from ultrasonic video sequences.
 
 ### Key Constraints & Goals
-*   **Privacy-First:** Patient data is processed locally on edge devices, eliminating the need for cloud transmission.
-*   **Cost-Effective:** Optimized for low-cost hardware (Raspberry Pi 4, Jetson Nano) to allow easy retrofitting in clinical settings.
-*   **Transparency:** Integrates **Uncertainty Quantification (UQ)** to provide clinicians with confidence intervals alongside predictions.
+*   **Privacy-First:** Patient data is processed locally on edge devices.
+*   **Cost-Effective:** Optimized for low-cost hardware (Raspberry Pi 4, Jetson Nano).
+*   **Transparency:** Integrates **Uncertainty Quantification (UQ)**.
+
+## 📚 Documentation
+*   [**Methodology Part 1:** Single-Value Regression (Base)](Methodology_Part1.md)
+*   [**Methodology Part 2:** Dense Temperature Map Estimation](Methodology_Part2.md)
+*   [**Research Notes:** Advanced Architectures (LTCs) & Physics Priors](docs/RESEARCH_PART2.md)
+*   [**Benchmark Status:** Current Results](BENCHMARK_STATUS.md)
 
 ## 🧠 Model Architectures
 

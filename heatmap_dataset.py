@@ -13,21 +13,18 @@ class TemperatureHeatmapDataset(Dataset):
                  data_dir="data/level1_cropped", 
                  raw_dir="data/level0_raw", 
                  transform=None,
-                 target_size=(256, 256),
-                 use_physics_prior=True):
+                 target_size=(256, 256)):
         """
         Args:
             data_dir: Directory containing cropped MP4 videos and sensor_coordinates.json
             raw_dir: Directory containing CSV log files
             transform: Optional transform to be applied on a sample.
             target_size: Tuple (H, W) to resize frames and coordinates to.
-            use_physics_prior: If True, generates Gaussian heatmap based on wattage. If False, returns zeros.
         """
         self.data_dir = data_dir
         self.raw_dir = raw_dir
         self.transform = transform
         self.target_size = target_size
-        self.use_physics_prior = use_physics_prior
         
         # Load Sensor Coordinates
         json_path = os.path.join(data_dir, "sensor_coordinates.json")
@@ -64,8 +61,7 @@ class TemperatureHeatmapDataset(Dataset):
             return candidates[0]
         return None
 
-    @staticmethod
-    def _parse_power_from_filename(filename):
+    def _parse_power_from_filename(self, filename):
         """
         Extracts power wattage from filename.
         US_005_30W_10min.mp4 -> 30.0
@@ -79,8 +75,7 @@ class TemperatureHeatmapDataset(Dataset):
             pass
         return 30.0 # Default fallback
 
-    @staticmethod
-    def _generate_physics_prior(H, W, power_watts):
+    def _generate_physics_prior(self, H, W, power_watts):
         """
         Generates a 2D Gaussian heatmap centered in the frame.
         Peak intensity scales with Power.
@@ -180,10 +175,7 @@ class TemperatureHeatmapDataset(Dataset):
             # Logic: Video usually matches Log duration.
             # We assume linear mapping.
             # Precompute prior for this video
-            if self.use_physics_prior:
-                prior_map = self._generate_physics_prior(self.target_size[0], self.target_size[1], power)
-            else:
-                prior_map = torch.zeros((1, self.target_size[0], self.target_size[1]), dtype=torch.float32)
+            prior_map = self._generate_physics_prior(self.target_size[0], self.target_size[1], power)
 
             for i in range(n_frames):
                 # Map frame index 'i' to log index 'j'
