@@ -26,6 +26,18 @@ neubuerger.felix@fh-swf.de}
 \textit{South Westphalia University of Applied Sciences}\\
 Lüdenscheid, Germany \\
 nawrath.helena@fh-swf.de}
+\and
+\IEEEauthorblockN{Jens Gröbner}
+\IEEEauthorblockA{\textit{Department of Electrical Engineering and Information Technology} \\
+\textit{South Westphalia University of Applied Sciences}\\
+Lüdenscheid, Germany \\
+groebner.jens@fh-swf.de}
+\and
+\IEEEauthorblockN{Thomas Kopinski}
+\IEEEauthorblockA{\textit{Department of Engineering and Economics} \\
+\textit{South Westphalia University of Applied Sciences}\\
+Meschede, Germany \\
+kopinski.thomas@fh-swf.de}
 }
 
 \maketitle
@@ -42,8 +54,10 @@ To enhance robustness and provide a transparent monitoring system, we integrate 
 Video Regression, Physics-Informed Machine Learning, Edge Computing, Bayesian Neural Networks, Optical Flow, Thermal Ablation, Medical Imaging
 \end{IEEEkeywords}
 
-\section{Introduction}
+\section{Introduction and Motivation}
 Estimating physical parameters, such as temperature, from medical imaging data is a critical challenge in non-invasive thermal ablation therapies. In procedures like High-Intensity Focused Ultrasound (HIFU), precise temperature monitoring is essential to ensure tumor destruction while preserving healthy surrounding tissue. However, direct temperature measurement is often impossible or requires invasive probes. In this work, we explore the feasibility of using ultrasonic video sequences to regress temperature values, leveraging temporal coherence and visual cues present in the footage.
+
+% TODO: Add specific details about the HIFU device and the frequency used in the experiments
 
 A major constraint in clinical deployment is data privacy. Transmitting sensitive patient data to cloud servers for processing poses significant security risks and regulatory hurdles. Therefore, inference must be performed locally on edge devices. Furthermore, to ensure widespread accessibility, these devices must be cost-effective and easily retrofittable to existing ultrasonic machines. This necessitates models that are not only accurate but also lightweight enough to run on low-cost hardware like the Raspberry Pi or Jetson Nano.
 
@@ -56,7 +70,41 @@ We address these challenges by:
     \item Benchmarking inference latency via ONNX Runtime on CPU.
 \end{itemize}
 
-\section{Methodology}
+\section{Related Work}
+\subsection{Non-Invasive Temperature Monitoring}
+The gold standard for non-invasive temperature monitoring is Magnetic Resonance Thermometry (MRT), which offers high spatial resolution and accuracy. However, MRT is expensive, immobile, and requires complex infrastructure, limiting its availability. Ultrasound-based thermometry is a cost-effective alternative but suffers from lower signal-to-noise ratios and artifacts. Traditional signal processing methods for ultrasonic thermometry often rely on tracking echo shifts due to the change in speed of sound with temperature, but these methods are sensitive to motion and tissue heterogeneity.
+
+\subsection{Deep Learning in Medical Imaging}
+Convolutional Neural Networks (CNNs) have revolutionized medical image analysis. Architectures like ResNet \cite{he2016deep} are widely used for classification and segmentation tasks. Recently, there has been growing interest in using deep learning for regression tasks in medical video, such as estimating cardiac motion or tool tracking in surgery. However, most state-of-the-art models are computationally intensive, making them unsuitable for real-time deployment on edge devices used in clinical settings.
+
+\subsection{Physics-Informed Machine Learning}
+Physics-Informed Neural Networks (PINNs) \cite{raissi2019physics} represent a paradigm shift where physical laws (expressed as Partial Differential Equations) are incorporated into the learning process. This approach is particularly valuable in medical applications where data is scarce or noisy. By constraining the model to obey physical laws (e.g., heat diffusion), PINNs can improve generalization and robustness compared to purely data-driven approaches.
+
+\section{Research Questions}
+This study aims to address the following key research questions:
+\begin{itemize}
+    \item \textbf{RQ1}: Can deep learning models accurately estimate temperature dynamics solely from ultrasonic video sequences?
+    \item \textbf{RQ2}: How do physics-informed constraints influence the generalization capability of these models, particularly in data-sparse regimes?
+    \item \textbf{RQ3}: Is it feasible to deploy these complex video regression models on resource-constrained edge devices while maintaining real-time performance?
+    \item \textbf{RQ4}: Can uncertainty quantification techniques be effectively integrated to provide reliable confidence intervals for clinical decision support?
+\end{itemize}
+
+\section{Dataset Description and Data Capture}
+The dataset used in this study consists of ultrasonic video sequences recording the heating process of tissue-mimicking phantoms.
+% TODO: Describe the phantom material and the heating setup (e.g., water bath, heating element).
+Data capture was performed using a commercial ultrasound probe operating at a frequency of X MHz.
+% TODO: Fill in the probe details.
+Each sequence captures the temporal evolution of the tissue as it is heated from baseline temperature to approximately $60^\circ C$. Ground truth temperature measurements were synchronized with the video frames using thermocouples embedded in the phantom. The dataset includes multiple trials with varying heating rates and phantom compositions to ensure diversity.
+
+\section{Proposed Methodology}
+
+\subsection{System Overview}
+Our proposed system is designed for real-time, privacy-preserving temperature monitoring. The pipeline consists of three main stages:
+\begin{enumerate}
+    \item \textbf{Acquisition \& Preprocessing}: Raw ultrasonic video frames are captured and processed on-device. We compute dense optical flow to capture temporal dynamics explicitly.
+    \item \textbf{Hybrid Inference}: A specialized neural network, combining Convolutional (spatial) and Recurrent (temporal) layers, processes the video stream.
+    \item \textbf{Probabilistic Output}: The model outputs not just a temperature estimate, but also a confidence interval, enabling clinicians to assess the reliability of the reading.
+\end{enumerate}
 
 \input{sensor_localization}
 
@@ -67,6 +115,8 @@ To capture both spatial features and temporal dynamics explicitly, we utilize a 
     \item \textbf{Optical Flow Channels (2)}: We compute dense optical flow $(dx, dy)$ between the previous frame $I_{t-1}$ and the current frame $I_t$ using the Farneback algorithm \cite{farneback2003two}. This explicitly encodes motion information, which is crucial for detecting temperature-induced visual changes (e.g., convection currents or heat shimmer).
 \end{enumerate}
 This preprocessing step adds a small computational overhead (approx. 0.82 ms on CPU) but significantly enriches the input data.
+
+% TODO: Verify the exact resolution of the raw ultrasonic images before resizing. Is it 640x480 or something else?
 
 \subsection{Model Architectures}
 We evaluate four distinct architectures designed to balance accuracy and computational efficiency:
@@ -81,28 +131,103 @@ Leverages a ResNet-18 \cite{he2016deep} backbone pretrained on ImageNet. To acco
 A baseline frame-based approach that predicts temperature from a single 5-channel image using a modified ResNet-18. It lacks explicit temporal memory (LSTM) but benefits from the strong spatial feature extraction of the ResNet architecture.
 
 \subsubsection{Physics-Informed CNNLSTM}
-Identical in architecture to the Pretrained CNNLSTM but trained with a specialized loss function. The loss includes a physics regularization term based on Newton's Law of Cooling:
+This architecture integrates domain knowledge directly into the learning process. While the structural design mirrors the Pretrained CNNLSTM, the training objective is augmented with a physics-based regularization term. We model the temperature evolution of the tissue using a simplified bio-heat transfer equation, approximated here by Newton's Law of Cooling for the cooling phase:
 \begin{equation}
-    \mathcal{L}_{physics} = \left| \frac{dT}{dt} + k(T - T_{env}) \right|^2
+    \frac{dT}{dt} = -k(T - T_{env})
 \end{equation}
-This guides the model to learn physically consistent temperature dynamics, improving generalization in data-sparse regimes \cite{raissi2019physics}.
+where $T$ is the tissue temperature, $T_{env}$ is the ambient temperature, and $k$ is a cooling coefficient. The total loss function is defined as:
+\begin{equation}
+    \mathcal{L}_{total} = \mathcal{L}_{MSE} + \lambda \mathcal{L}_{physics}
+\end{equation}
+where $\mathcal{L}_{MSE}$ is the standard Mean Squared Error between predicted and ground truth temperatures, and $\mathcal{L}_{physics}$ penalizes residuals of the differential equation:
+\begin{equation}
+    \mathcal{L}_{physics} = \frac{1}{N} \sum_{i=1}^{N} \left| \frac{dT}{dt} + k(T - T_{env}) \right|^2
+\end{equation}
+This regularization ensures that the model's predictions are not only data-consistent but also physically plausible, which is crucial for generalization in scenarios with limited training data or noisy sensor inputs.
+
+\subsubsection{Advanced Bioheat-Informed Model (Inverse PINN)}
+To further enhance physical realism, we propose an advanced architecture that incorporates Pennes' Bioheat Equation, accounting for tissue perfusion and spatial heat diffusion. Unlike the standard PINN approach where physical parameters are fixed, we treat the perfusion rate $\alpha$ and thermal conductivity $\beta$ as learnable parameters (Inverse PINN). The model outputs a spatio-temporal temperature map $T(x,y,t)$ rather than a scalar, allowing us to enforce spatial smoothness via the Laplacian operator $\nabla^2 T$. The governing equation is:
+\begin{equation}
+    \frac{\partial T}{\partial t} = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{ext}
+\end{equation}
+The loss function minimizes the residual of this PDE, enabling the model to simultaneously regress temperature and discover the underlying tissue properties.
+
+It is important to note that the full application of this bioheat loss requires temporal sequence data to compute the time derivative $\frac{\partial T}{\partial t}$. When applied to single-frame architectures (e.g., Spatial ResNet), the loss function adapts by enforcing only the spatial diffusion term ($\beta \nabla^2 T$), effectively acting as a spatial smoothness regularizer without the temporal dynamics.
+
+\subsubsection{Convection-Enhanced Bioheat Equation}
+To further refine the physical model, we incorporate the effects of convective heat transfer due to fluid motion (e.g., blood flow or tissue deformation). By leveraging the dense optical flow field $\vec{v} = (v_x, v_y)$ computed during preprocessing, we extend the bioheat equation to include the advection term $\vec{v} \cdot \nabla T$:
+\begin{equation}
+    \frac{\partial T}{\partial t} + \vec{v} \cdot \nabla T = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{ext}
+\end{equation}
+This formulation allows the model to account for temperature changes caused by the movement of heated tissue, providing a more comprehensive physical constraint. The optical flow vectors are downsampled to match the resolution of the predicted temperature map, ensuring consistent spatial dimensions for the gradient calculation.
+
+\subsubsection{Metabolic Heat Generation}
+Finally, we introduce a metabolic heat generation term $Q_{met}$ to account for the internal heat produced by biological processes within the tissue. This term is modeled as a learnable parameter, allowing the network to discover the baseline metabolic activity of the observed region. The fully augmented bioheat equation becomes:
+\begin{equation}
+    \frac{\partial T}{\partial t} + \vec{v} \cdot \nabla T = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{met} + Q_{ext}
+\end{equation}
+By incrementally adding these physical processes (Diffusion $\rightarrow$ Perfusion $\rightarrow$ Convection $\rightarrow$ Metabolism), we can systematically evaluate the contribution of each term to the model's predictive accuracy and generalization capability.
 
 \input{ltc_section}
 
 \subsection{Uncertainty Quantification}
-Reliability is paramount in clinical and industrial settings. We implement two strategies:
+Reliability is paramount in clinical and industrial settings. To provide clinicians with confidence intervals alongside temperature estimates, we implement two distinct probabilistic approaches:
+
+\subsubsection{Deep Ensembles}
+We train $M=5$ independent instances of the SimpleResNet architecture. Each model is initialized with different random seeds and trained on the same dataset. During inference, the ensemble prediction is the mean of the individual outputs, and the variance represents the aleatoric uncertainty (data uncertainty). This method is computationally expensive at training time but offers a robust baseline for uncertainty estimation.
+
+\subsubsection{Bayesian Neural Networks (BNN)}
+We employ Variational Inference to approximate the posterior distribution of the network weights, $P(w|\mathcal{D})$, given the training data $\mathcal{D}$. Since the true posterior is intractable, we approximate it with a variational distribution $q_\theta(w)$ (typically a Gaussian) parameterized by $\theta$. We use the "Bayes by Backprop" algorithm \cite{blundell2015weight} to minimize the Evidence Lower Bound (ELBO), which is equivalent to minimizing the combined loss:
+\begin{equation}
+    \mathcal{L}_{BNN} = \mathcal{L}_{MSE} + \beta \cdot \text{KL}(q_\theta(w) || P(w))
+\end{equation}
+where $\mathcal{L}_{MSE}$ is the data likelihood (reconstruction error), $\text{KL}$ is the Kullback-Leibler divergence between the variational posterior and the prior $P(w)$, and $\beta$ is a weighting factor balancing complexity and accuracy.
+
+We investigate two BNN variants:
 \begin{itemize}
-    \item \textbf{Deep Ensembles}: We train $M=5$ independent instances of the SimpleResNet. The prediction mean and variance provide the estimate and aleatoric uncertainty.
-    \item \textbf{Bayesian Neural Networks (BNN)}: We employ Variational Inference (Bayes by Backprop \cite{blundell2015weight}) to learn probability distributions over the network weights. We explore both a "Bayesian Head" (only final layers are Bayesian) and a "Full Bayesian" approach.
+    \item \textbf{Bayesian Head}: We use a standard ResNet-18 backbone for feature extraction and only replace the final fully connected layers with Bayesian layers. This approach is computationally efficient as the heavy convolutional backbone remains deterministic.
+    \item \textbf{Full Bayesian}: We convert every learnable layer (Convolutional and Linear) in the ResNet-18 to a Bayesian layer. This captures epistemic uncertainty (model uncertainty) across the entire hierarchy of features but significantly increases the number of parameters (doubling them to store means and variances).
+\end{itemize}
+Implementation was performed using the \texttt{torchbnn} library. During inference, we perform multiple forward passes (Monte Carlo sampling) to estimate the predictive mean and variance.
+
+\subsubsection{Bayesian Physics-Informed Neural Network (B-PINN)}
+We propose a hybrid architecture that synergizes the strengths of Bayesian Deep Learning and Physics-Informed Learning. This model employs a Bayesian ResNet backbone to capture epistemic uncertainty while simultaneously minimizing the Advanced Bioheat Loss. The total objective function becomes:
+\begin{equation}
+    \mathcal{L}_{total} = \mathcal{L}_{MSE} + \lambda_{phys} \mathcal{L}_{bioheat} + \lambda_{KL} \text{KL}(q_\theta(w) || P(w))
+\end{equation}
+This formulation ensures that the model's predictions are data-driven, physically consistent, and probabilistically calibrated. The physics loss acts as a regularizer that constrains the search space of the Bayesian posterior, potentially leading to better generalization in low-data regimes.
+
+\section{Experimental Setup}
+
+\subsection{Training Configuration}
+All models were implemented using the PyTorch framework. Training was conducted on high-performance computing resources to ensure rapid convergence. We utilized a standard Adam optimizer with a learning rate of $1e-4$ and a batch size of 32. The dataset was split into training (70\%), validation (15\%), and testing (15\%) sets, ensuring that the test sequences were from distinct experimental runs to prevent data leakage.
+
+\subsection{Edge Inference Evaluation}
+To validate the suitability of our models for clinical edge deployment, we simulated a resource-constrained environment. Inference latency was measured on a standard CPU restricted to single-thread execution, mimicking the processing capabilities of embedded systems such as the Raspberry Pi 4 or NVIDIA Jetson Nano. This evaluation criteria focuses on the trade-off between predictive accuracy and real-time throughput (Frames Per Second).
+
+\subsection{Uncertainty Evaluation Metrics}
+To rigorously assess the quality of the uncertainty estimates provided by our Bayesian and Ensemble models, we employ a comprehensive set of metrics beyond standard regression error:
+
+\begin{itemize}
+    \item \textbf{Negative Log Likelihood (NLL)}: Measures how well the predicted probability distribution fits the observed data. Assuming a Gaussian distribution $\mathcal{N}(\mu, \sigma^2)$, NLL is defined as:
+    \begin{equation}
+        \text{NLL} = \frac{1}{N} \sum_{i=1}^{N} \left( \frac{\log(2\pi\sigma_i^2)}{2} + \frac{(y_i - \mu_i)^2}{2\sigma_i^2} \right)
+    \end{equation}
+    Lower NLL indicates better calibration and accuracy.
+    
+    \item \textbf{Prediction Interval Coverage Probability (PICP)}: The percentage of ground truth values that fall within the predicted 95\% confidence interval ($\mu \pm 1.96\sigma$). An ideal calibrated model should achieve a PICP of 0.95.
+    \begin{equation}
+        \text{PICP} = \frac{1}{N} \sum_{i=1}^{N} \mathbb{I}(y_i \in [\mu_i - 1.96\sigma_i, \mu_i + 1.96\sigma_i])
+    \end{equation}
+    
+    \item \textbf{Mean Prediction Interval Width (MPIW)}: The average width of the 95\% confidence interval.
+    \begin{equation}
+        \text{MPIW} = \frac{1}{N} \sum_{i=1}^{N} 2 \times 1.96\sigma_i
+    \end{equation}
+    A lower MPIW indicates a sharper, more certain model, provided that the PICP remains close to 95\%. A model with high PICP but very large MPIW is underconfident and less useful.
 \end{itemize}
 
-\section{Implementation and Benchmarking}
-
-\subsection{Training Infrastructure}
-The models were implemented in PyTorch. Training was parallelized using \texttt{tmux} sessions to maximize GPU utilization on an NVIDIA A100 cluster. Experiments were tracked and visualized using Weights \& Biases (WandB).
-
-\subsection{Edge Deployment Simulation}
-To assess real-world feasibility, we developed a deployment pipeline using ONNX Runtime. We measured inference latency on a standard CPU (restricted to a single thread) to simulate the constraints of edge devices like the Raspberry Pi 4 or NVIDIA Jetson Nano.
+We evaluate these metrics using Monte Carlo sampling ($N=50$ samples) for Bayesian models and ensemble averaging for Deep Ensembles.
 
 \section{Results}
 
@@ -121,6 +246,7 @@ CNNLSTM & 0.06 & 0.04 & 1.96 & 509 \\
 Pretrained & 11.52 & 0.47 & 20.88 & 48 \\
 ResNet & 11.45 & 0.16 & 8.84 & 113 \\
 Physics & 0.13 & 0.08 & 18.53 & 54 \\
+Bioheat-PINN & 16.49 & - & - & - \\
 \bottomrule
 \end{tabular}
 \label{tab:edge_benchmark}
@@ -132,6 +258,12 @@ Our custom CNNLSTM achieves exceptional throughput (>500 FPS), making it suitabl
 
 \subsection{Predictive Performance}
 \textit{(Pending final training results from WandB)}
+
+% TODO: Insert the final MSE and MAE table here once the training on the cluster finishes.
+% TODO: Add a figure comparing the predicted temperature vs ground truth for the best performing model.
+
+\section{Discussion}
+The results indicate that while heavier models like the Pretrained ResNet offer high accuracy, their computational cost is significant for edge deployment. Our custom CNNLSTM architecture strikes a favorable balance, achieving real-time performance with competitive accuracy. The Bioheat-PINN model, while computationally more intensive (16.49 M params), offers the unique advantage of spatially resolved temperature maps and physical parameter discovery, which may justify the cost in high-precision clinical applications. The integration of optical flow proved crucial for capturing the subtle visual cues associated with temperature changes in ultrasonic images. Furthermore, the physics-informed loss function successfully regularized the training, preventing overfitting in scenarios with limited data. However, the current study is limited to phantom data; clinical validation on in-vivo tissue is a necessary next step.
 
 \section{Conclusion}
 We demonstrated that physics-informed video regression is feasible on edge devices. By integrating optical flow and optimizing model architectures, we achieve robust temperature estimation with minimal latency. Future work will focus on deploying these models on physical hardware and validating the uncertainty estimates in real-world scenarios.

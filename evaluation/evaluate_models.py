@@ -23,7 +23,7 @@ import sys
 # Add parent directory to path to allow imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from models.backbones import CNNLSTM, PretrainedCNNLSTM, SimpleResNet
+from models.backbones import CNNLSTM, PretrainedCNNLSTM, SimpleResNet, SpatialResNet
 from utils.dataset import TemperatureSequenceDataset
 import warnings
 warnings.filterwarnings('ignore')
@@ -32,10 +32,15 @@ warnings.filterwarnings('ignore')
 class ModelEvaluator:
     """Comprehensive model evaluation and comparison class."""
     
-    def __init__(self, data_dir="data", batch_size=64, device=None):
+    def __init__(self, data_dir="data", batch_size=256, device=None):
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        # Check for multiple GPUs
+        self.n_gpu = torch.cuda.device_count()
+        if self.n_gpu > 1:
+            print(f"Using {self.n_gpu} GPUs for evaluation!")
         
         # Initialize dataset and data loader
         self.transform = transforms.Compose([
@@ -46,8 +51,9 @@ class ModelEvaluator:
         
         self.dataset = TemperatureSequenceDataset(
             data_dir, 
-            sequence_length=3, 
-            transform=self.transform, 
+            sequence_length=5, 
+            transform=self.transform,
+            use_optical_flow=True,
             image_size=(64, 64)
         )
         
@@ -74,29 +80,38 @@ class ModelEvaluator:
     
     def load_model(self, model_name, model_path):
         """Load a trained model from checkpoint."""
-        frame_shape = (64, 64, 3)
-        time_steps = 3
+        frame_shape = (64, 64, 5)
+        time_steps = 5
         
         try:
             if model_name == "CNNLSTM":
                 model = CNNLSTM(frame_shape=frame_shape, time_steps=time_steps)
-                model.load_state_dict(torch.load(model_path, map_location=self.device))
+                # Load weights before DataParallel wrapping
+                model.load_state_dict(torch.load(model_path, map_location='cpu'))
                 
             elif model_name == "PretrainedCNNLSTM":
                 # Recreate the pretrained CNN
                 pretrained_cnn = resnet18(weights='IMAGENET1K_V1')
                 pretrained_cnn.fc = torch.nn.Linear(pretrained_cnn.fc.in_features, 1)
                 model = PretrainedCNNLSTM(pretrained_cnn, frame_shape=frame_shape, time_steps=time_steps)
-                model.load_state_dict(torch.load(model_path, map_location=self.device))
+                model.load_state_dict(torch.load(model_path, map_location='cpu'))
                 
             elif model_name == "SimpleResNet":
                 model = SimpleResNet(frame_shape=frame_shape)
-                model.load_state_dict(torch.load(model_path, map_location=self.device))
+                model.load_state_dict(torch.load(model_path, map_location='cpu'))
                 
+            elif model_name in ["SpatialBioheat", "SpatialConvection", "SpatialMetabolic"]:
+                model = SpatialResNet(frame_shape=frame_shape)
+                state_dict = torch.load(model_path, map_location='cpu')
+                model.load_state_dict(state_dict)
+
             else:
                 raise ValueError(f"Unknown model name: {model_name}")
             
             model.to(self.device)
+            if self.n_gpu > 1:
+                model = torch.nn.DataParallel(model)
+                
             model.eval()
             print(f"Successfully loaded {model_name} from {model_path}")
             return model
@@ -119,6 +134,16 @@ class ModelEvaluator:
                 
                 # Forward pass
                 outputs = model(images)
+                
+                # Handle spatial output (Batch, Time, 4, 4) or (Batch, 4, 4) -> (Batch,)
+                if model_name in ["SpatialBioheat", "SpatialConvection", "SpatialMetabolic"]:
+                    # If output has time dimension (Batch, Time, 4, 4), take last frame
+                    if outputs.dim() == 4:
+                        outputs = outputs[:, -1, :, :]
+                    
+                    # Now (Batch, 4, 4), average over spatial dimensions
+                    if outputs.dim() == 3:
+                        outputs = outputs.mean(dim=[1, 2])
                 
                 # Store predictions and true values
                 predictions.extend(outputs.cpu().numpy())
@@ -266,25 +291,92 @@ class ModelEvaluator:
         return df
     
     def run_evaluation(self, model_configs):
-        """Run complete evaluation for all models."""
+        """Run complete evaluation for all models simultaneously to save I/O and time."""
+        loaded_models = {}
         results = []
         
+        # 1. Load all available models
+        print("\nLoading all models into memory...")
         for model_name, model_path in model_configs.items():
             if os.path.exists(model_path):
                 model = self.load_model(model_name, model_path)
                 if model is not None:
-                    metrics = self.evaluate_model(model, model_name)
-                    results.append(metrics)
-                    
-                    # Clean up GPU memory
-                    del model
-                    torch.cuda.empty_cache()
+                    loaded_models[model_name] = model
             else:
                 print(f"Model file not found: {model_path}")
         
-        if not results:
-            print("No models could be evaluated!")
+        if not loaded_models:
+            print("No models could be loaded!")
             return None
+            
+        print(f"\nSuccessfully loaded {len(loaded_models)} models.")
+        
+        # 2. Single pass evaluation
+        print("\nStarting simultaneous evaluation...")
+        
+        # Initialize storage for predictions and targets
+        all_preds = {name: [] for name in loaded_models}
+        all_targets = []
+        
+        with torch.no_grad():
+            for images, labels in tqdm(self.test_loader, desc="Evaluating all models"):
+                images = images.to(self.device, non_blocking=True)
+                labels = labels.to(self.device, non_blocking=True)
+                
+                # Store targets once
+                all_targets.extend(labels.cpu().numpy())
+                
+                # Run inference for each model
+                for name, model in loaded_models.items():
+                    outputs = model(images)
+                    
+                    # Handle spatial output
+                    if name in ["SpatialBioheat", "SpatialConvection", "SpatialMetabolic"]:
+                        if outputs.dim() == 4:
+                            outputs = outputs[:, -1, :, :]
+                        if outputs.dim() == 3:
+                            outputs = outputs.mean(dim=[1, 2])
+                    
+                    all_preds[name].extend(outputs.cpu().numpy())
+        
+        # 3. Compute metrics for each model
+        print("\nComputing metrics...")
+        true_values = np.array(all_targets)
+        
+        for name, preds in all_preds.items():
+            predictions = np.array(preds)
+            
+            # Helper to calculate metrics (copied logic from original evaluate_model)
+            mse = mean_squared_error(true_values, predictions)
+            rmse = np.sqrt(mse)
+            mae = mean_absolute_error(true_values, predictions)
+            r2 = r2_score(true_values, predictions)
+            correlation, _ = stats.pearsonr(true_values, predictions)
+            
+            abs_errors = np.abs(predictions - true_values)
+            within_1c = np.mean(abs_errors <= 1.0) * 100
+            within_2c = np.mean(abs_errors <= 2.0) * 100
+            within_5c = np.mean(abs_errors <= 5.0) * 100
+            
+            results.append({
+                'model_name': name,
+                'predictions': predictions,  # Needed for plotting
+                'true_values': true_values,
+                'mse': mse,
+                'rmse': rmse,
+                'mae': mae,
+                'r2_score': r2,
+                'correlation': correlation,
+                'within_1c': within_1c,
+                'within_2c': within_2c,
+                'within_5c': within_5c,
+                'num_samples': len(true_values)
+            })
+            
+        # Clean up
+        for model in loaded_models.values():
+            del model
+        torch.cuda.empty_cache()
         
         # Create visualizations and reports
         self.plot_comparison(results)
@@ -310,14 +402,17 @@ def main():
     parser = argparse.ArgumentParser(description="Evaluate and compare trained models")
     parser.add_argument("--data_dir", type=str, default="data", help="Data directory")
     parser.add_argument("--batch_size", type=int, default=64, help="Batch size for evaluation")
-    parser.add_argument("--models_dir", type=str, default="checkpoints", help="Directory containing model checkpoints")
+    parser.add_argument("--models_dir", type=str, default="models", help="Directory containing model checkpoints")
     args = parser.parse_args()
     
     # Define model configurations
     model_configs = {
         "CNNLSTM": os.path.join(args.models_dir, "cnnlstm_model.pth"),
         "PretrainedCNNLSTM": os.path.join(args.models_dir, "pretrained_cnnlstm_model.pth"),
-        "SimpleResNet": os.path.join(args.models_dir, "simple_resnet_model.pth")
+        "SimpleResNet": os.path.join(args.models_dir, "simple_resnet_model.pth"),
+        "SpatialBioheat": os.path.join(args.models_dir, "spatial_bioheat_resnet.pth"),
+        "SpatialConvection": os.path.join(args.models_dir, "spatial_convection_bioheat_resnet.pth"),
+        "SpatialMetabolic": os.path.join(args.models_dir, "spatial_metabolic_bioheat_resnet.pth")
     }
     
     # Initialize evaluator

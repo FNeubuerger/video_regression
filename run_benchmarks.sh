@@ -42,50 +42,61 @@ tmux new-session -d -s $SESSION -n "cnnlstm"
 # 1. CNNLSTM
 tmux send-keys -t $SESSION:cnnlstm "cd $WORKSPACE" C-m
 tmux send-keys -t $SESSION:cnnlstm "source .venv/bin/activate" C-m
-tmux send-keys -t $SESSION:cnnlstm "echo 'Starting CNNLSTM Training...'" C-m
-tmux send-keys -t $SESSION:cnnlstm "python training/train_all_models.py --models cnnlstm --epochs 50 --patience 10 2>&1 | tee $LOG_DIR/cnnlstm.log" C-m
+tmux send-keys -t $SESSION:cnnlstm "make cnnlstm" C-m
 
 # 2. Pretrained CNNLSTM
 tmux new-window -t $SESSION -n "pretrained"
 tmux send-keys -t $SESSION:pretrained "cd $WORKSPACE" C-m
 tmux send-keys -t $SESSION:pretrained "source .venv/bin/activate" C-m
-tmux send-keys -t $SESSION:pretrained "echo 'Starting Pretrained CNNLSTM Training...'" C-m
-tmux send-keys -t $SESSION:pretrained "python training/train_all_models.py --models pretrained_cnnlstm --epochs 50 --patience 10 2>&1 | tee $LOG_DIR/pretrained_cnnlstm.log" C-m
+tmux send-keys -t $SESSION:pretrained "make pretrained_cnnlstm" C-m
 
 # 3. Simple ResNet
 tmux new-window -t $SESSION -n "resnet"
 tmux send-keys -t $SESSION:resnet "cd $WORKSPACE" C-m
 tmux send-keys -t $SESSION:resnet "source .venv/bin/activate" C-m
-tmux send-keys -t $SESSION:resnet "echo 'Starting Simple ResNet Training...'" C-m
-tmux send-keys -t $SESSION:resnet "python training/train_all_models.py --models simple_resnet --epochs 50 --patience 10 2>&1 | tee $LOG_DIR/simple_resnet.log" C-m
+tmux send-keys -t $SESSION:resnet "make simple_resnet" C-m
 
 # 4. Physics CNNLSTM
 tmux new-window -t $SESSION -n "physics"
 tmux send-keys -t $SESSION:physics "cd $WORKSPACE" C-m
 tmux send-keys -t $SESSION:physics "source .venv/bin/activate" C-m
-tmux send-keys -t $SESSION:physics "echo 'Starting Physics CNNLSTM Training...'" C-m
-tmux send-keys -t $SESSION:physics "python training/train_all_models.py --models physics_cnnlstm --epochs 50 --patience 10 2>&1 | tee $LOG_DIR/physics_cnnlstm.log" C-m
+tmux send-keys -t $SESSION:physics "make physics_cnnlstm" C-m
 
 # 5. Ensemble
 tmux new-window -t $SESSION -n "ensemble"
 tmux send-keys -t $SESSION:ensemble "cd $WORKSPACE" C-m
 tmux send-keys -t $SESSION:ensemble "source .venv/bin/activate" C-m
-tmux send-keys -t $SESSION:ensemble "echo 'Starting Ensemble Training...'" C-m
-tmux send-keys -t $SESSION:ensemble "python training/train_uncertainty.py --mode ensemble --epochs 20 2>&1 | tee $LOG_DIR/ensemble.log" C-m
+tmux send-keys -t $SESSION:ensemble "make ensemble" C-m
 
 # 6. Bayesian Head
 tmux new-window -t $SESSION -n "bayesian_head"
 tmux send-keys -t $SESSION:bayesian_head "cd $WORKSPACE" C-m
 tmux send-keys -t $SESSION:bayesian_head "source .venv/bin/activate" C-m
-tmux send-keys -t $SESSION:bayesian_head "echo 'Starting Bayesian Head Training...'" C-m
-tmux send-keys -t $SESSION:bayesian_head "python training/train_uncertainty.py --mode bayesian --epochs 30 2>&1 | tee $LOG_DIR/bayesian_head.log" C-m
+tmux send-keys -t $SESSION:bayesian_head "make bayesian" C-m
 
 # 7. Full Bayesian
 tmux new-window -t $SESSION -n "full_bayesian"
 tmux send-keys -t $SESSION:full_bayesian "cd $WORKSPACE" C-m
 tmux send-keys -t $SESSION:full_bayesian "source .venv/bin/activate" C-m
-tmux send-keys -t $SESSION:full_bayesian "echo 'Starting Full Bayesian Training...'" C-m
-tmux send-keys -t $SESSION:full_bayesian "python training/train_uncertainty.py --mode full_bayesian --epochs 30 2>&1 | tee $LOG_DIR/full_bayesian.log" C-m
+tmux send-keys -t $SESSION:full_bayesian "make full_bayesian" C-m
+
+# 8. Spatial Bioheat
+tmux new-window -t $SESSION -n "spatial_bioheat"
+tmux send-keys -t $SESSION:spatial_bioheat "cd $WORKSPACE" C-m
+tmux send-keys -t $SESSION:spatial_bioheat "source .venv/bin/activate" C-m
+tmux send-keys -t $SESSION:spatial_bioheat "make spatial_bioheat" C-m
+
+# 9. Spatial Convection
+tmux new-window -t $SESSION -n "spatial_convection"
+tmux send-keys -t $SESSION:spatial_convection "cd $WORKSPACE" C-m
+tmux send-keys -t $SESSION:spatial_convection "source .venv/bin/activate" C-m
+tmux send-keys -t $SESSION:spatial_convection "make spatial_convection" C-m
+
+# 10. Spatial Metabolic
+tmux new-window -t $SESSION -n "spatial_metabolic"
+tmux send-keys -t $SESSION:spatial_metabolic "cd $WORKSPACE" C-m
+tmux send-keys -t $SESSION:spatial_metabolic "source .venv/bin/activate" C-m
+tmux send-keys -t $SESSION:spatial_metabolic "make spatial_metabolic" C-m
 
 echo "✅ Benchmarks launched in tmux session: $SESSION"
 echo ""

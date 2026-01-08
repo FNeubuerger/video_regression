@@ -45,7 +45,9 @@ def train_physics_model():
     model.to(device)
     
     # Physics Loss
-    criterion = PhysicsInformedLoss(smoothness_weight=1.0) # High weight for smoothness
+    # Using Newton's Law of Cooling: dT/dt = -k(T - T_env)
+    # We assume T_env = 25.0 (Room Temp) and k = 0.1 (Cooling coefficient)
+    criterion = PhysicsInformedLoss(physics_weight=1.0, k=0.1, T_env=25.0) 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     
     # Training Loop

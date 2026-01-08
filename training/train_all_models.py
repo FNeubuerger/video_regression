@@ -109,6 +109,11 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                         loss = criterion_instance(outputs, labels.float())
                 
                 scaler.scale(loss).backward()
+                
+                # Gradient clipping
+                scaler.unscale_(optimizer_instance)
+                torch.nn.utils.clip_grad_norm_(model_instance.parameters(), max_norm=1.0)
+                
                 scaler.step(optimizer_instance)
                 scaler.update()
             else:
@@ -118,6 +123,10 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                 else:
                     loss = criterion_instance(outputs, labels.float())
                 loss.backward()
+                
+                # Gradient clipping
+                torch.nn.utils.clip_grad_norm_(model_instance.parameters(), max_norm=1.0)
+                
                 optimizer_instance.step()
             
             train_loss += loss.item()
@@ -314,7 +323,7 @@ def main():
         # Create criterion and optimizer
         if model_type == "physics_cnnlstm":
             # Use PhysicsInformedLoss for the physics model
-            criterion = PhysicsInformedLoss(smoothness_weight=0.1)
+            criterion = PhysicsInformedLoss(physics_weight=0.1)
         else:
             criterion = nn.MSELoss()
             
