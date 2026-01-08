@@ -110,6 +110,22 @@ def benchmark_model(model_name, device_type, num_frames=50, use_onnx=False, mc_s
     is_bayesian = "Bayesian" in model_name
     passes_per_frame = mc_samples if is_bayesian else 1
     
+    # Check input shape for inference
+    seq_len = 5
+    if "LTC" in model_name: 
+            seq_len = 16
+    
+    if "UNet" in model_name or "ResNetUNet" in model_name:
+         # Frame-based: (1, 5, 64, 64)
+         # If using PyTorch model directly, it expects a tensor.
+         # If using Emulator, it will pass the tensor to the inner model.
+         dummy_input = torch.randn(1, 5, 64, 64)
+         if not use_onnx: dummy_input = dummy_input.to(next(model.parameters()).device)
+    else:
+         # Sequence-based: (1, seq, 5, 64, 64)
+         dummy_input = torch.randn(1, seq_len, 5, 64, 64)
+         if not use_onnx: dummy_input = dummy_input.to(next(model.parameters()).device)
+
     try:
         with torch.no_grad():
             for i in range(num_frames):

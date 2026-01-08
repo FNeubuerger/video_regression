@@ -68,11 +68,25 @@ def convert_to_onnx(output_dir="models/onnx"):
             # But some might be frame-based.
             
             # Let's inspect the forward method signature or just try 5D first
-            dummy_input = torch.randn(1, 5, 5, 64, 64)
-            
-            # Special handling for models that might expect 4D input
-            # But wait, BayesianResNet in models/bayesian.py handles 5D input by taking last frame.
-            # So 5D input should be safe for all.
+            seq_len = 5
+            if "LTC" in model_name: 
+                 seq_len = 16 # Use longer sequence for LTC
+            elif "UNet" in model_name or "ResNetUNet" in model_name:
+                 # UNet is frame-based (B, C, H, W)
+                 dummy_input = torch.randn(1, 5, 64, 64)
+                 # Update dynamic axes for 4D
+                 dynamic_axes = {'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}}
+            else:
+                 dummy_input = torch.randn(1, seq_len, 5, 64, 64)
+                 dynamic_axes = {
+                    'input': {0: 'batch_size', 1: 'sequence_length'},
+                    'output': {0: 'batch_size'}
+                }
+
+            # For UNet/ResNetUNet, we've already set dummy_input. For others (LSTM/LTC), we need to set it:
+            if "UNet" not in model_name and "ResNetUNet" not in model_name:
+                dummy_input = torch.randn(1, seq_len, 5, 64, 64)
+
             
             output_path = os.path.join(output_dir, f"{model_name}.onnx")
             
@@ -82,14 +96,11 @@ def convert_to_onnx(output_dir="models/onnx"):
                 dummy_input,
                 output_path,
                 export_params=True,
-                opset_version=12,
+                opset_version=14, # LTC needs higher opset
                 do_constant_folding=True,
                 input_names=['input'],
                 output_names=['output'],
-                dynamic_axes={
-                    'input': {0: 'batch_size'},
-                    'output': {0: 'batch_size'}
-                }
+                dynamic_axes=dynamic_axes
             )
             
         except Exception as e:
