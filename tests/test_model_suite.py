@@ -10,6 +10,7 @@ from models.dense_heads import ResNetUNet
 from models.backbones import SimpleResNet, CNNLSTM
 from models.bayesian import BayesianResNet
 from models.latent_ltc import LatentLTC_UNet
+from models.conv_ltc import ConvLTC_Model
 
 def test_resnet_unet_structure():
     # Pass n_channels=3 to match the input tensor
@@ -62,3 +63,17 @@ def test_latent_ltc_unet_structure():
     out = model(x)
     assert out.shape == (batch_size, seq_len, 1, 64, 64)
 
+
+def test_conv_ltc_structure():
+    # ConvLTC Expects (Batch, Time, Channels, H, W)
+    # Returns (Batch, Time, 1, H, W)
+    batch_size = 2
+    seq_len = 3
+    # Use small spatial dim for speed
+    H, W = 16, 16 
+    
+    model = ConvLTC_Model(input_channels=3, hidden_channels=8, output_channels=1)
+    x = torch.randn(batch_size, seq_len, 3, H, W)
+    
+    out = model(x)
+    assert out.shape == (batch_size, seq_len, 1, H, W)

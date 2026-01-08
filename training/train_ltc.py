@@ -13,6 +13,7 @@ from tqdm import tqdm
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.latent_ltc import LatentLTC_UNet
+from models.conv_ltc import ConvLTC_Model
 from utils.sequence_dataset import SequenceHeatmapDataset
 from physics.hybrid_loss import BioheatHybridLoss
 
@@ -39,6 +40,7 @@ def main():
     parser.add_argument('--gpu_id', type=int, default=0)
     parser.add_argument('--no_physics_prior', action='store_true', help="Disable Physics Prior")
     parser.add_argument('--lambda_physics', type=float, default=1e-4)
+    parser.add_argument('--model_type', type=str, default='latent_ltc', choices=['latent_ltc', 'conv_ltc'], help="Choose architecture: latent_ltc or conv_ltc")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -82,11 +84,19 @@ def main():
     )
     
     # 2. Model
-    model = LatentLTC_UNet(
-        n_channels=3, 
-        latent_dim=args.latent_dim, 
-        ncp_units=args.ncp_units
-    ).to(device)
+    if args.model_type == 'conv_ltc':
+        print("Initializing ConvLTC Model (Spatially Continuous)...")
+        model = ConvLTC_Model(
+            input_channels=3,
+            hidden_channels=32 # Using fixed hidden size for now, could be arg
+        ).to(device)
+    else:
+        print("Initializing Latent LTC Model...")
+        model = LatentLTC_UNet(
+            n_channels=3, 
+            latent_dim=args.latent_dim, 
+            ncp_units=args.ncp_units
+        ).to(device)
     
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     
