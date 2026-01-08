@@ -1,0 +1,222 @@
+import cv2
+import torch
+import numpy as np
+import argparse
+import os
+import sys
+import time
+from torchvision import transforms
+from tqdm import tqdm
+import matplotlib.cm as cm
+
+# Add parent directory to path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from utils.model_registry import MODEL_REGISTRY
+from utils.xai_wrappers import RegressionWrapper
+
+try:
+    from captum.attr import LayerGradCam
+except ImportError:
+    print("Captum not installed. Please run 'pip install captum'")
+    sys.exit(1)
+
+def apply_heatmap(attr_map, frame, alpha=0.6):
+    """
+    Overlays attribution map on frame.
+    attr_map: (H, W) float [0, 1]
+    frame: (H, W, 3) uint8 BGR (opencv default)
+    """
+    # Colorize
+    heatmap = cm.jet(attr_map)[:, :, :3] # RGBA -> RGB [0,1]
+    heatmap = (heatmap * 255).astype(np.uint8)
+    heatmap = cv2.cvtColor(heatmap, cv2.COLOR_RGB2BGR)
+    
+    # Overlay
+    overlay = cv2.addWeighted(frame, 1 - alpha, heatmap, alpha, 0)
+    return overlay
+
+def load_model_for_xai(model_name, checkpoint_path, device):
+    if model_name not in MODEL_REGISTRY:
+        raise ValueError(f"Model {model_name} not found")
+        
+    ModelClass, kwargs = MODEL_REGISTRY[model_name]
+    
+    # Smart Load
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    state_dict = checkpoint['model_state_dict'] if 'model_state_dict' in checkpoint else checkpoint
+    
+    # Auto-detect variational
+    is_variational = any("bottleneck.conv_mu" in k for k in state_dict.keys())
+    if is_variational: kwargs['variational'] = True
+         
+    # Auto-detect channels
+    if 'base_model.conv1.weight' in state_dict:
+        w = state_dict['base_model.conv1.weight']
+        if w.shape[1] == 3: kwargs['n_channels'] = 3
+    
+    try:
+        model = ModelClass(**kwargs)
+        model.load_state_dict(state_dict)
+        input_channels = kwargs.get('n_channels', 3)
+    except:
+        kwargs['n_channels'] = 3
+        kwargs['variational'] = False
+        model = ModelClass(**kwargs)
+        model.load_state_dict(state_dict)
+        input_channels = 3
+        
+    model.to(device)
+    model.eval()
+    
+    # Wrap
+    wrapper = RegressionWrapper(model, target_mode='mean')
+    wrapper.to(device)
+    wrapper.eval()
+    
+    return model, wrapper, input_channels
+
+def run_dashboard(video_path, model_name, checkpoint_path, output_path, device_name='cuda'):
+    device = torch.device(device_name if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
+    
+    # 1. Load Model
+    model, wrapper, input_channels = load_model_for_xai(model_name, checkpoint_path, device)
+    
+    # Setup GradCAM
+    # Try different layers
+    target_layer = None
+    if hasattr(model, 'enc_layer4'): target_layer = model.enc_layer4
+    elif hasattr(model, 'layer4'): target_layer = model.layer4
+    elif hasattr(model, 'base_model') and hasattr(model.base_model, 'layer4'): target_layer = model.base_model.layer4
+    
+    if target_layer is None:
+        print("Error: Could not find target layer for GradCAM.")
+        return
+        
+    gradcam = LayerGradCam(wrapper, target_layer)
+    
+    # 2. Video Input
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        print(f"Error: Could not open {video_path}")
+        return
+        
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    
+    # 3. Writer
+    # We will create a side-by-side view (Input | Attribution)
+    # Output width is 2x input width (resized to 256 for visibility)
+    display_size = (256, 256)
+    out_w = display_size[0] * 3 # Input, Pred, Attr
+    out_h = display_size[1]
+    
+    if output_path:
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(output_path, fourcc, fps, (out_w, out_h))
+        
+    # Standard Transform (ImageNet)
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    
+    pbar = tqdm(total=total_frames)
+    
+    while True:
+        ret, frame = cap.read()
+        if not ret: break
+        
+        # Preprocess
+        # Resize to 64x64 for model
+        input_frame = cv2.resize(frame, (64, 64))
+        input_rgb = cv2.cvtColor(input_frame, cv2.COLOR_BGR2RGB)
+        
+        input_tensor = transforms.ToTensor()(input_rgb)
+        input_tensor = normalize(input_tensor)
+        
+        if input_channels == 5:
+            # Pad
+            inp = torch.zeros((1, 5, 64, 64)).to(device)
+            inp[0, :3] = input_tensor.to(device)
+            inp.requires_grad = True # For gradients
+        else:
+            inp = input_tensor.unsqueeze(0).to(device)
+            inp.requires_grad = True
+            
+        # Inference & Explanation
+        # GradCAM
+        try:
+            attr = gradcam.attribute(inp, target=0)
+            # Interpolate to display size
+            attr = LayerGradCam.interpolate(attr, display_size, interpolate_mode='bilinear')
+            attr_np = attr.squeeze().detach().cpu().numpy()
+            if attr_np.ndim > 2: attr_np = attr_np.mean(axis=0) # Handle filters
+            
+            # Prediction
+            # Run forward again if needed, or if attributes doesn't improve output
+            # Just visualization
+            with torch.no_grad():
+                if input_channels == 5:
+                    if hasattr(model, 'variational') and model.variational:
+                        pred, _ = model(inp.detach())
+                    else:
+                        pred = model(inp.detach())
+                else:
+                    pred = model(inp.detach())
+                    
+            pred_map = pred.squeeze().cpu().numpy() # 64x64
+            pred_resized = cv2.resize(pred_map, display_size)
+        except Exception as e:
+            print(e)
+            break
+            
+        # Visualization
+        # 1. Original (Resized)
+        vis_frame = cv2.resize(frame, display_size)
+        
+        # 2. Prediction Heatmap
+        # Normalize pred to 0-255 (assuming temp range 20-60?)
+        # Let's auto-scale for vis
+        # pred_vis = (pred_resized - 30) / (60 - 30) * 255 ??
+        # Or Just use min/max of frame
+        if pred_resized.max() != pred_resized.min():
+            pred_norm = (pred_resized - pred_resized.min()) / (pred_resized.max() - pred_resized.min())
+        else:
+            pred_norm = pred_resized 
+            
+        pred_heatmap = (cm.inferno(pred_norm)[:, :, :3] * 255).astype(np.uint8)
+        pred_heatmap = cv2.cvtColor(pred_heatmap, cv2.COLOR_RGB2BGR)
+        
+        # 3. Attribution Overlay
+        # Normalize attr
+        if attr_np.max() != 0: attr_np /= attr_np.max()
+        attr_overlay = apply_heatmap(attr_np, vis_frame)
+        
+        # Combine
+        combined = np.hstack([vis_frame, pred_heatmap, attr_overlay])
+        
+        # Add Text
+        cv2.putText(combined, "Input", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+        cv2.putText(combined, "Pred Map", (display_size[0]+10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+        cv2.putText(combined, "XAI (CAM)", (display_size[0]*2+10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+        
+        if output_path:
+            out.write(combined)
+            
+        pbar.update(1)
+        
+    cap.release()
+    if output_path: out.release()
+    pbar.close()
+    print(f"Dashboard video saved to {output_path}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--video", type=str, required=True)
+    parser.add_argument("--model", type=str, default="ResNetUNet")
+    parser.add_argument("--checkpoint", type=str, required=True)
+    parser.add_argument("--output", type=str, default="dashboard_output.mp4")
+    args = parser.parse_args()
+    
+    run_dashboard(args.video, args.model, args.checkpoint, args.output)
