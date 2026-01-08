@@ -23,9 +23,28 @@ For `spatial_convection_bioheat` and `spatial_metabolic_bioheat`, we also ensure
 - [x] Fix validation loop in `training/train_spatial_metabolic_bioheat.py`
 - [ ] Rerun the benchmarks to verify the fix.
 
+## Priority Actions (Jan 9)
+- [ ] **Monitor Benchmarks:** Check completion of `ConvLTC` and `U-Net Hybrid` (currently Epoch ~17 and ~10).
+- [ ] **Core Evaluation:** Run `evaluation/evaluate_dense.py` on the completed Part 3 models.
+    - Compare `ConvLTC` vs `U-Net Hybrid` vs `Latent LTC`.
+    - Generate tables for the paper.
+- [ ] **Paper Writing:** Draft the Results section using the new benchmark data.
+
 ## Part 2/3 (Dense & LTC) Analysis
 - [ ] **Implementation:** Create `evaluation/evaluate_dense.py` for dense map metrics (SSIM, Hausdorff, IoU).
 - [ ] **Bayesian U-Net:** Implement "Probabilistic Bottleneck" (Variational Layer) in `models/dense_heads.py`.
 - [ ] **Bayesian LTC:** Implement Variational Encoder for `LatentLTC_UNet`.
 - [ ] **Evaluation:** Run comparative analysis between Physics-Informed U-Net and Latent LTC.
 
+## XAI & Interpretability (Bonus / Deprioritized)
+- [x] **Justification:** Created `research/XAI_PAPER_CONTRIBUTION.md` (on `feature/xai-integration`).
+- [x] **Metric Implementation:** `evaluation/evaluate_xai.py` implemented (on `feature/xai-integration`).
+- [ ] **Fix Memory Error:** `FaithfulnessCorrelation` causing OOM. (Low Priority)
+- [ ] **Dashboard Fix:** `demo/xai_dashboard.py` flickers. (Low Priority)
+
+
+## XAI & Interpretability (Bonus / Deprioritized)
+- [x] **Justification:** Created research/XAI_PAPER_CONTRIBUTION.md (on xai branch).
+- [x] **Metric Implementation:** evaluation/evaluate_xai.py implemented (on xai branch).
+- [ ] **Fix Memory Error:** FaithfulnessCorrelation causing OOM. (Low Priority)
+- [ ] **Dashboard Fix:** demo/xai_dashboard.py flickers. (Low Priority)
