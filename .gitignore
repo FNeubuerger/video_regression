@@ -188,3 +188,5 @@ wandb/
 *.pth
 #ignore onnx files
 *.onnx
+#ignore videos
+*.mp4

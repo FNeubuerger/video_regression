@@ -13,11 +13,23 @@ We lack **Dense Ground Truth**. Therefore, we cannot simply train a UNet with MS
 
 ## Methodology
 
-### 1. Sensor Localization (Current Step)
-To use the sparse temperature readings $T_{GT}$ for supervision, we must know **where** in the image these readings correspond to.
-*   **Algorithm:** Automated blob detection to find the 4 sensors in the video.
-*   **Constraint:** The sensors form a rectangular grid (Top-Left, Top-Right, Bottom-Left, Bottom-Right).
-*   **Output:** `sensor_coordinates.json` containing $(x,y)$ and radius $r$ for M1-M4.
+### 1. Data Pipeline & Sensor Localization
+To use the sparse temperature readings $T_{GT}$ for supervision, we strictly align the spatial data.
+
+**Preprocessing Pipeline (Level 0 $\to$ Level 1):**
+1.  **Dynamic Active Zone Cropping:**
+    *   Ultrasonic frames contain high-intensity artifacts outside the probe interface.
+    *   We compute the vertical intensity projection (row-wise mean) to find the peak signal $y_{peak}$.
+    *   Frames are cropped to $y_{peak} \pm 180$ px. This standardizes the input and removes noise.
+2.  **Robust Sensor Detection:**
+    *   Input: Temporally averaged cropped frame (mean of first 15 frames).
+    *   Enhancement: CLAHE (Contrast Limited Adaptive Histogram Equalization) + Gaussian Blur.
+    *   Pattern Matching: We detect all candidate blobs and select the 4-tuple that minimizes an **Axis-Aligned Rectangularity Cost**:
+        $$ Cost = \Delta_{sides} + \Delta_{diagonals} + 2 \cdot (\text{Deviation from Horizontal/Vertical}) $$
+    *   This ensures we identify the physical sensor grid correctly, rejecting rotated reflections.
+3.  **Output:**
+    *   `data/level1_cropped/`: Preprocessed video files.
+    *   `sensor_coordinates.json`: Specific $(x,y)$ coordinates for M1-M4 in the cropped frame.
 
 ### 2. Hybrid Loss Function
 We will train a **ResNet-UNet** architecture using a composite loss:
