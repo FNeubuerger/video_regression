@@ -22,3 +22,10 @@ For `spatial_convection_bioheat` and `spatial_metabolic_bioheat`, we also ensure
 - [x] Fix validation loop in `training/train_spatial_convection_bioheat.py`
 - [x] Fix validation loop in `training/train_spatial_metabolic_bioheat.py`
 - [ ] Rerun the benchmarks to verify the fix.
+
+## Part 2/3 (Dense & LTC) Analysis
+- [ ] **Implementation:** Create `evaluation/evaluate_dense.py` for dense map metrics (SSIM, Hausdorff, IoU).
+- [ ] **Bayesian U-Net:** Implement "Probabilistic Bottleneck" (Variational Layer) in `models/dense_heads.py`.
+- [ ] **Bayesian LTC:** Implement Variational Encoder for `LatentLTC_UNet`.
+- [ ] **Evaluation:** Run comparative analysis between Physics-Informed U-Net and Latent LTC.
+

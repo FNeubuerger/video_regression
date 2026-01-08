@@ -53,16 +53,54 @@ class UpBlock(nn.Module):
         x = torch.cat([x2, x1], dim=1)
         return self.conv(x)
 
+class VariationalBottleneck(nn.Module):
+    """
+    Probabilistic Bottleneck using Re-parameterization Trick.
+    Encodes feature map into Normal Distribution N(mu, sigma).
+    Sample z ~ N(mu, sigma) = mu + sigma * epsilon.
+    """
+    def __init__(self, in_channels):
+        super().__init__()
+        self.conv_mu = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        self.conv_logvar = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        
+    def forward(self, x):
+        mu = self.conv_mu(x)
+        logvar = self.conv_logvar(x)
+        
+        # Clamp logvar for stability
+        logvar = torch.clamp(logvar, min=-10, max=10)
+        
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        
+        if self.training:
+            z = mu + std * eps
+        else:
+            # During inference, we can sample OR return mean
+            # Ideally for Bayesian Eval we sample.
+            # But let's support both via mode switch?
+            # For now, let's always sample to enable uncertainty estimation.
+            z = mu + std * eps
+            
+        # KL Divergence term (sum over spatial dims)
+        # KL(N(mu, sigma) || N(0, 1)) = -0.5 * sum(1 + logvar - mu^2 - exp(logvar))
+        kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=[1, 2, 3])
+        kl_loss = torch.mean(kl_loss) # Batch mean
+        
+        return z, kl_loss
 
 class ResNetUNet(nn.Module):
     """
     U-Net with ResNet18 Encoder.
     """
-    def __init__(self, n_channels=5, n_classes=1):
+    def __init__(self, n_channels=5, n_classes=1, variational=False):
         super(ResNetUNet, self).__init__()
+        self.variational = variational
         
         # Load ResNet18
         self.base_model = resnet18(weights='IMAGENET1K_V1')
+
         
         # Adapt first layer
         if n_channels != 3:
@@ -91,6 +129,10 @@ class ResNetUNet(nn.Module):
         self.enc_layer2 = self.base_model.layer2 # -> H/8 (128 ch)
         self.enc_layer3 = self.base_model.layer3 # -> H/16 (256 ch)
         self.enc_layer4 = self.base_model.layer4 # -> H/32 (512 ch)
+        
+        # Variational Bottleneck
+        if self.variational:
+            self.bottleneck = VariationalBottleneck(512)
         
         # Decoder Layers
         # layer4 (512) -> layer3 (256)
@@ -127,6 +169,11 @@ class ResNetUNet(nn.Module):
         x4 = self.enc_layer3(x3) # Skip 4: H/16, 256
         x5 = self.enc_layer4(x4) # Bottleneck: H/32, 512
         
+        # Variational
+        kl_loss = 0.0
+        if self.variational:
+            x5, kl_loss = self.bottleneck(x5)
+            
         # Decoder
         d5 = self.up1(x5, x4)
         d4 = self.up2(d5, x3)
@@ -134,5 +181,8 @@ class ResNetUNet(nn.Module):
         d2 = self.up4(d3, x1)
         
         out = self.final_up(d2)
+        
+        if self.variational:
+             return out, kl_loss
         
         return out

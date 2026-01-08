@@ -4,6 +4,31 @@ from ncps.torch import LTC
 from ncps.wirings import AutoNCP
 from torchvision.models import resnet18
 
+class VariationalEncoder(nn.Module):
+    """Encodes Features to Gaussian Distribution N(mu, sigma)"""
+    def __init__(self, input_dim, latent_dim):
+        super().__init__()
+        self.fc_mu = nn.Linear(input_dim, latent_dim)
+        self.fc_logvar = nn.Linear(input_dim, latent_dim)
+        
+    def forward(self, x):
+        mu = self.fc_mu(x)
+        logvar = self.fc_logvar(x)
+        logvar = torch.clamp(logvar, min=-10, max=10)
+        
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        
+        if self.training:
+            z = mu + std * eps
+        else:
+            z = mu + std * eps
+            
+        kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1)
+        kl_loss = torch.mean(kl_loss)
+        
+        return z, kl_loss
+
 class LatentLTC_UNet(nn.Module):
     """
     Architecture B from Research Part 2: Latent-Space Dynamics.
@@ -12,10 +37,11 @@ class LatentLTC_UNet(nn.Module):
     2. Dynamics (LTC): Evolves z_t -> z_{t+1} using Physics-Inspired ODEs.
     3. Decoder (UpConv): Reconstructs dense heatmap from z_{t+1}.
     """
-    def __init__(self, n_channels=3, latent_dim=128, ncp_units=32):
+    def __init__(self, n_channels=3, latent_dim=128, ncp_units=32, variational=False):
         super(LatentLTC_UNet, self).__init__()
         
         self.latent_dim = latent_dim
+        self.variational = variational
         
         # Validation for AutoNCP
         # AutoNCP requires units > output_size (latent_dim)
@@ -38,7 +64,10 @@ class LatentLTC_UNet(nn.Module):
         self.encoder_backbone = nn.Sequential(*list(resnet.children())[:-1]) # Output: (B, 512, 1, 1)
         
         # Project to latent space
-        self.fc_encode = nn.Linear(512, latent_dim)
+        if self.variational:
+            self.vae_encoder = VariationalEncoder(512, latent_dim)
+        else:
+            self.fc_encode = nn.Linear(512, latent_dim)
         
         # --- 2. LTC Dynamics ---
         # Neural Circuit Policy wiring
@@ -91,7 +120,13 @@ class LatentLTC_UNet(nn.Module):
         # Encode
         features = self.encoder_backbone(x_flat) # (B*T, 512, 1, 1)
         features = features.view(batch_size * seq_len, -1) # (B*T, 512)
-        latent = self.fc_encode(features) # (B*T, latent)
+        
+        kl_loss = 0.0
+        
+        if self.variational:
+            latent, kl_loss = self.vae_encoder(features)
+        else:
+            latent = self.fc_encode(features) # (B*T, latent)
         
         # Unflatten for RNN
         latent_seq = latent.view(batch_size, seq_len, -1)
@@ -113,4 +148,7 @@ class LatentLTC_UNet(nn.Module):
         # Reshape to (Batch, Seq_Len, 1, H, W)
         pred_map = pred_map.view(batch_size, seq_len, 1, 64, 64)
         
+        if self.variational:
+            return pred_map, kl_loss
+            
         return pred_map

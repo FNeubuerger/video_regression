@@ -34,6 +34,8 @@ def main():
     parser.add_argument('--gpu_id', type=int, default=0)
     parser.add_argument('--no_physics_prior', action='store_true', help="Disable Physics Prior (Gaussian base)")
     parser.add_argument('--lambda_physics', type=float, default=1e-4, help="Weight for Physics PDE Loss")
+    parser.add_argument('--variational', action='store_true', help="Use Bayesian/Variational Bottleneck")
+    parser.add_argument('--beta_kl', type=float, default=0.01, help="Weight for KL Divergence Loss") # Beta-VAE
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -76,7 +78,7 @@ def main():
     )
     
     # 2. Model
-    model = ResNetUNet(n_channels=3, n_classes=1).to(device)
+    model = ResNetUNet(n_channels=3, n_classes=1, variational=args.variational).to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     
     # 3. Loss
@@ -111,21 +113,29 @@ def main():
             optimizer.zero_grad()
             
             # RESIDUAL LEARNING
-            delta = model(frames)
+            if args.variational:
+                delta, kl_loss = model(frames)
+            else:
+                delta = model(frames)
+                kl_loss = torch.tensor(0.0).to(device)
+                
             preds = delta + priors
             
             # Hybrid Loss
             # returns (total_loss, mse_item, physics_item)
             loss, mse_item, phys_item = hybrid_criterion(preds, targets, masks)
             
-            loss.backward()
+            # Add KL Loss
+            total_loss = loss + args.beta_kl * kl_loss
+            
+            total_loss.backward()
             optimizer.step()
             
-            train_loss_accum += loss.item()
+            train_loss_accum += total_loss.item()
             mse_loss_accum += mse_item
             phys_loss_accum += phys_item
             
-            train_pbar.set_postfix({'loss': loss.item(), 'mse': mse_item, 'phys': phys_item})
+            train_pbar.set_postfix({'loss': total_loss.item(), 'mse': mse_item, 'kl': kl_loss.item()})
             
         avg_train_loss = train_loss_accum / len(train_loader)
         avg_train_mse = mse_loss_accum / len(train_loader)
@@ -147,12 +157,20 @@ def main():
                 masks = masks.to(device)
                 priors = priors.to(device)
                 
-                delta = model(frames)
+                if args.variational:
+                    delta, kl_loss = model(frames)
+                    # For validation, we might want to sample multiple times? 
+                    # For now just use the single sample pass or mean if we changed model locally
+                else:
+                    delta = model(frames)
+                    kl_loss = torch.tensor(0.0).to(device)
+                
                 preds = delta + priors
                 
                 loss, mse_item, phys_item = hybrid_criterion(preds, targets, masks)
+                total_loss = loss + args.beta_kl * kl_loss
                 
-                val_loss_accum += loss.item()
+                val_loss_accum += total_loss.item()
                 val_mse_accum += mse_item
                 val_phys_accum += phys_item
                 

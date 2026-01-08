@@ -41,6 +41,8 @@ def main():
     parser.add_argument('--no_physics_prior', action='store_true', help="Disable Physics Prior")
     parser.add_argument('--lambda_physics', type=float, default=1e-4)
     parser.add_argument('--model_type', type=str, default='latent_ltc', choices=['latent_ltc', 'conv_ltc'], help="Choose architecture: latent_ltc or conv_ltc")
+    parser.add_argument('--variational', action='store_true', help="Use Bayesian/Variational Encoder")
+    parser.add_argument('--beta_kl', type=float, default=0.01, help="Weight for KL Divergence Loss")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -95,7 +97,8 @@ def main():
         model = LatentLTC_UNet(
             n_channels=3, 
             latent_dim=args.latent_dim, 
-            ncp_units=args.ncp_units
+            ncp_units=args.ncp_units,
+            variational=args.variational
         ).to(device)
     
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -135,7 +138,11 @@ def main():
             
             # Forward (LTC handles time internally)
             # Output: (B, T, 1, H, W) - Represents DELTA if prior used
-            outputs = model(frames) 
+            if args.model_type == 'latent_ltc' and args.variational:
+                outputs, kl_loss = model(frames)
+            else:
+                outputs = model(frames)
+                kl_loss = torch.tensor(0.0).to(device)
             
             if not args.no_physics_prior:
                 final_preds = outputs + priors
@@ -152,14 +159,16 @@ def main():
             # Compute Loss
             loss, mse_val, phys_val = hybrid_criterion(preds_flat, targets_flat, mask_flat)
             
-            loss.backward()
+            total_loss = loss + args.beta_kl * kl_loss
+
+            total_loss.backward()
             optimizer.step()
             
-            train_loss_accum += loss.item()
+            train_loss_accum += total_loss.item()
             train_mse_accum += mse_val
             train_phys_accum += phys_val
             
-            pbar.set_postfix({'loss': loss.item(), 'mse': mse_val})
+            pbar.set_postfix({'loss': total_loss.item(), 'mse': mse_val, 'kl': kl_loss.item()})
             
         avg_train_loss = train_loss_accum / len(train_loader)
         
@@ -174,7 +183,11 @@ def main():
                 targets = targets.to(device)
                 priors = priors.to(device)
                 
-                outputs = model(frames)
+                if args.model_type == 'latent_ltc' and args.variational:
+                    outputs, kl_loss = model(frames)
+                else:
+                    outputs = model(frames)
+                    kl_loss = torch.tensor(0.0).to(device)
                 
                 if not args.no_physics_prior:
                     final_preds = outputs + priors
@@ -186,8 +199,9 @@ def main():
                 mask_flat = (targets_flat > 0).float()
                 
                 loss, mse_val, _ = hybrid_criterion(preds_flat, targets_flat, mask_flat)
+                total_loss = loss + args.beta_kl * kl_loss
                 
-                val_loss_accum += loss.item()
+                val_loss_accum += total_loss.item()
                 val_mse_accum += mse_val
                 
         avg_val_loss = val_loss_accum / len(val_loader)

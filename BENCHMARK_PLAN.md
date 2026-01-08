@@ -4,34 +4,42 @@ This document outlines the suite of 14 active benchmarks and the specific compar
 
 ## 1. Active Benchmarks Overview
 
-We are currently training **16 distinct models** across three primary categories.
+We are currently training **20+ distinct models** across four primary categories.
 
 ### A. Temporal Models (Sequence-based)
 *Input: Sequence of 5 Frames (RGB + Optical Flow)*
-- [x] **CNNLSTM** (Started: 2025-12-19 15:01:44)
-- [ ] **Pretrained CNNLSTM** (Retraining with Gradient Clipping)
-- [ ] **Physics CNNLSTM** (Retraining with Gradient Clipping)
-- [x] **Bioheat PINN** (Started: 2025-12-19 15:01:49)
-- [x] **Convection Bioheat** (Started: 2025-12-19 15:01:48)
-- [x] **Metabolic Bioheat** (Started: 2025-12-19 15:01:48)
+- [x] **CNNLSTM** (Part 1, Baseline)
+- [x] **Pretrained CNNLSTM** (Retraining)
+- [x] **Physics CNNLSTM** (Retraining)
+- [x] **Bioheat PINN** (PDE: Diff+Perf)
+- [x] **Convection Bioheat** (PDE: +Flow)
+- [x] **Metabolic Bioheat** (PDE: +Source)
 
 ### B. Spatial Models (Frame-based)
 *Input: Single Frame (RGB + Optical Flow)*
-- [x] **Simple ResNet** (Started: 2025-12-19 15:01:48)
-- [x] **Spatial Bioheat** (Started: 2025-12-19 14:54:33)
-- [x] **Spatial Convection** (Started: 2025-12-19 15:00:31)
-- [x] **Spatial Metabolic** (Started: 2025-12-19 15:00:47)
+- [x] **Simple ResNet** (Validated)
+- [x] **Spatial Bioheat** (Validated)
+- [x] **Spatial Convection** (Validated)
+- [x] **Spatial Metabolic** (Validated)
 
-### C. Uncertainty Models
-- [x] **Ensemble** (Started: 2025-12-19 15:01:42)
-- [x] **Bayesian Head** (Started: 2025-12-19 15:01:29)
-- [x] **Full Bayesian** (Started: 2025-12-19 15:01:44)
-- [x] **Bayesian PINN** (Started: 2025-12-19 15:01:43)
-- [x] **Bayesian CNNLSTM** (Started: 2025-12-19 15:01:48)
-- [x] **Bayesian Metabolic PINN** (Started: 2025-12-19 14:59:41)
-- [x] **Bayesian Spatial Convection** (Started: 2025-12-19 15:10:00)
+### C. Dense Map Models (Part 2: U-Net)
+*Input: Frame/Sequence with Dense Output ($H \times W$)*
+- [x] **U-Net Baseline** (Sparse Supervision)
+- [x] **U-Net + Physics Prior** (Gaussian Prior)
+- [x] **Hybrid U-Net** (PDE Loss in Loss Function)
 
-*(Note: We implemented a Bayesian Spatial ResNet to enable convection physics with uncertainty.)*
+### D. Time & Dynamics (Part 3: LTC/ODES)
+- [x] **ConvLTC** (Closed-form Continuous, Hybrid)
+- [x] **Latent LTC U-Net** (Latent Physics Dynamics)
+
+### E. Uncertainty Models
+- [x] **Ensemble**
+- [x] **Bayesian Head**
+- [x] **Full Bayesian** (ResNet)
+- [x] **Bayesian PINN**
+- [x] **Bayesian CNNLSTM**
+- [ ] **Bayesian U-Net** (Research Phase: Bottleneck/Decoder Uncertainty)
+- [ ] **Bayesian LTC** (Research Phase: Variational Encoder + Deterministic LTC)
 
 ---
 
@@ -39,7 +47,15 @@ We are currently training **16 distinct models** across three primary categories
 
 We will perform the following pairwise and group comparisons to validate our hypotheses.
 
-### Comparison 1: The "Ladder of Physics" (Temporal)
+### Comparison 1: Scalar vs. Dense Estimation (Part 1 vs. Part 2)
+*Hypothesis: Estimating the full temperature field regularizes the scalar prediction (max temp) better than direct regression.*
+
+| Model A | Model B | Comparison Goal |
+| :--- | :--- | :--- |
+| **Simple ResNet** | **U-Net (Max Pool)** | Does predicting the map then taking the max beat direct regression? |
+| **U-Net** | **Hybrid U-Net** | Does PDE regularization improve hotspot localization (Hausdorff)? |
+
+### Comparison 2: The "Ladder of Physics" (Temporal)
 *Hypothesis: Adding more detailed physical processes improves accuracy and generalization.*
 
 | Model A | Model B | Comparison Goal |
@@ -48,43 +64,59 @@ We will perform the following pairwise and group comparisons to validate our hyp
 | **Bioheat PINN** | **Convection Bioheat** | Does explicitly modeling fluid dynamics (blood flow) via Optical Flow help? |
 | **Convection Bioheat** | **Metabolic Bioheat** | Does learning a metabolic heat source term ($Q_{met}$) add value? |
 
-### Comparison 2: Spatial vs. Temporal Physics
-*Hypothesis: Temporal dynamics ($dT/dt$) are crucial for accurate bioheat modeling, but steady-state spatial constraints still offer regularization benefits.*
+### Comparison 3: Time Dynamics (LTC vs. LSTM)
+*Hypothesis: Continuous-time models (LTCs) handle irregular sampling and physics dynamics better than discrete RNNs.*
 
-| Temporal Model | Spatial Equivalent | Comparison Goal |
+| Model A | Model B | Comparison Goal |
 | :--- | :--- | :--- |
-| **Bioheat PINN** | **Spatial Bioheat** | Value of $dT/dt$ vs. pure Laplacian smoothing. |
-| **Convection Bioheat** | **Spatial Convection** | Can we model convection effectively in a steady-state (single frame) regime? |
-| **Metabolic Bioheat** | **Spatial Metabolic** | Impact of metabolic terms with vs. without temporal evolution. |
+| **CNNLSTM** | **ConvLTC** | Discrete vs. Continuous recurrence for diffusion processes. |
+| **Latent LTC** | **Hybrid U-Net** | Does explicitly modeling latent dynamics over time beat frame-by-frame estimation? |
 
-### Comparison 3: Uncertainty Quantification Strategies
-*Hypothesis: B-PINN provides the best trade-off between calibration and accuracy.*
+---
 
-| Strategy | Pros | Cons | Metric to Compare |
-| :--- | :--- | :--- | :--- |
-| **Ensemble** | Robust, simple | High training cost (5x) | NLL, ECE |
-| **Bayesian Head** | Fast, lightweight | Ignores feature uncertainty | NLL, Inference Time |
-| **Full Bayesian** | Captures all uncertainty | Hard to train, slow inference | NLL, Weight Histograms |
-| **Bayesian PINN** | Physically constrained | Complex loss landscape | Physics Residual vs. Uncertainty |
+## 3. Evaluation Metrics & Strategy
 
-### Comparison 4: The "Ultimate" Showdown
-*Identifying the State-of-the-Art (SOTA) for this task.*
+### A. Scalar Metrics (Regression)
+1.  **RMSE/MAE**: Accuracy of Peak Temperature ($T_{max}$).
+2.  **Calibration Error (ECE)**: Reliability of uncertainty bounds.
 
-*   **Baseline SOTA**: Pretrained CNNLSTM
-*   **Physics SOTA**: Metabolic Bioheat (Theoretical best physics)
-*   **Uncertainty SOTA**: Bayesian PINN (Theoretical best reliability)
+### B. Dense Map Metrics (Field Estimation)
+1.  **Pixel-wise RMSE**: Accuracy over the entire field.
+2.  **SSIM (Structural Similarity)**: Perceptual quality of the heat diffusion pattern.
+3.  **Hausdorff Distance (Thresholded)**: Safety metric. Distance between predicted and true "Safe Zone" ($T < 43^\circ C$) boundaries.
+4.  **IoU (Intersection over Union)**: Overlap of the "Tumor Ablation Zone" ($T > 50^\circ C$).
 
-**Key Metrics:**
-1.  **MSE/MAE**: Raw accuracy.
-2.  **Physics Residual**: How well does it obey the laws of physics?
-3.  **Inference Latency**: Can it run on the edge?
-4.  **Calibration Error**: Are the confidence intervals reliable?
+---
 
-## 3. Next Steps
-1.  Wait for all 50 epochs to complete.
-2.  Generate "Physics Compliance Plots": Plot the distribution of the physics loss term for all models on the Test set.
-3.  Generate "Uncertainty Calibration Curves": Compare Ensemble vs. Bayesian approaches.
-4.  Select the top 3 models for the final paper results table.
+## 4. Next Steps & Research Actions
+
+### Implementation Tasks
+1.  **Implement Dense Evaluation Script:**
+    *   Create `evaluation/evaluate_dense.py`.
+    *   Implement **SSIM**, **Hausdorff**, and **IoU** metrics.
+2.  **Bayesian Part 2 (U-Net):**
+    *   **Strategy:** Do NOT implement Full Bayesian U-Net (too heavy).
+    *   **Implementation:** Implement **Probabilistic Bottleneck** (Encoder $\to$ Variational Layer $\to$ Decoder) or use MC-Dropout.
+3.  **Bayesian Part 3 (LTC):**
+    *   **Strategy:** Implement **Variational Encoder** with Deterministic LTC (Latent ODE approach).
+    *   **Avoid:** Bayesian weights inside the stiff ODE solver (instability risk).
+
+---
+
+## 5. Final Evaluation Execution
+
+Once training is complete (approx. 50 epochs), you can run evaluations using the provided tools.
+
+### Comparison Tables
+```bash
+python evaluation/generate_tables.py --include_dense
+```
+
+### Dense Map Visualization
+```bash
+python evaluation/evaluate_dense.py --model unet_hybrid --visualize
+```
+
 ## 4. Final Evaluation Execution
 
 Once training is complete (approx. 50 epochs), you can run all evaluations in parallel using the provided tmux script:
