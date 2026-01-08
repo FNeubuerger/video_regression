@@ -25,10 +25,20 @@ class RegressionWrapper(nn.Module):
         # x shape: (B, C, H, W) or (B, T, C, H, W)
         output = self.model(x)
         
+        # Handle tuple return (Variational models return (pred, kl))
+        if isinstance(output, tuple):
+            output = output[0]
+        
         # Ensure output is (B, H, W) or (B, 1, H, W)
         if output.dim() == 4 and output.shape[1] == 1:
             output = output.squeeze(1)
-            
+        
+        # If output is already scalar/vector (B, ) or (B, 1), just return it
+        if output.dim() <= 2:
+            if output.dim() == 1:
+                 return output.unsqueeze(1) # (B, 1)
+            return output # (B, 1)
+
         # Aggregation
         if self.target_mode == 'mean':
             # Mean temperature across the map

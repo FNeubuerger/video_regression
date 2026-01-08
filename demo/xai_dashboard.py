@@ -51,17 +51,36 @@ def load_model_for_xai(model_name, checkpoint_path, device):
     if is_variational: kwargs['variational'] = True
          
     # Auto-detect channels
+    detected_channels = 5 # Default
     if 'base_model.conv1.weight' in state_dict:
         w = state_dict['base_model.conv1.weight']
-        if w.shape[1] == 3: kwargs['n_channels'] = 3
+        detected_channels = w.shape[1]
+    
+    # Update kwargs
+    if 'n_channels' in kwargs:
+        kwargs['n_channels'] = detected_channels
+    elif 'frame_shape' in kwargs:
+        fs = list(kwargs['frame_shape'])
+        if len(fs) == 3:
+            fs[2] = detected_channels
+            kwargs['frame_shape'] = tuple(fs)
+            
+    input_channels = detected_channels
     
     try:
         model = ModelClass(**kwargs)
         model.load_state_dict(state_dict)
-        input_channels = kwargs.get('n_channels', 3)
-    except:
-        kwargs['n_channels'] = 3
-        kwargs['variational'] = False
+    except Exception as e:
+        print(f"First load attempt failed: {e}. Trying fallback...")
+        # Fallback to default 3 channels
+        detected_channels = 3
+        if 'n_channels' in kwargs: kwargs['n_channels'] = 3
+        if 'frame_shape' in kwargs:
+            fs = list(kwargs['frame_shape'])
+            if len(fs) == 3:
+                fs[2] = 3
+                kwargs['frame_shape'] = tuple(fs)
+        
         model = ModelClass(**kwargs)
         model.load_state_dict(state_dict)
         input_channels = 3
@@ -89,6 +108,7 @@ def run_dashboard(video_path, model_name, checkpoint_path, output_path, device_n
     if hasattr(model, 'enc_layer4'): target_layer = model.enc_layer4
     elif hasattr(model, 'layer4'): target_layer = model.layer4
     elif hasattr(model, 'base_model') and hasattr(model.base_model, 'layer4'): target_layer = model.base_model.layer4
+    elif hasattr(model, 'backbone') and hasattr(model.backbone, 'layer4'): target_layer = model.backbone.layer4
     
     if target_layer is None:
         print("Error: Could not find target layer for GradCAM.")
