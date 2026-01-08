@@ -1,6 +1,6 @@
 # Makefile for Video Regression Benchmarks
 
-PYTHON := python
+PYTHON := python3
 LOG_DIR := logs
 MODELS_DIR := models
 CHECKPOINTS_DIR := checkpoints
