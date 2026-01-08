@@ -34,10 +34,10 @@ where:
 ## Implementation Steps
 
 1.  [x] Define Plan.
-2.  [ ] Implement `ConvLTCCell` and `ConvLTC` sequence processor in `models/conv_ltc.py`.
-3.  [ ] Update `training/train_ltc.py` to support `--model_type conv_ltc`.
-4.  [ ] Add Unit Tests in `tests/test_model_suite.py`.
-5.  [ ] Launch Benchmark.
+2.  [x] Implement `ConvLTCCell` and `ConvLTC` sequence processor in `models/conv_ltc.py`.
+3.  [x] Update `training/train_ltc.py` to support `--model_type conv_ltc`.
+4.  [x] Add Unit Tests in `tests/test_model_suite.py`.
+5.  [x] Launch Benchmark.
 
 ## Risk Mitigation
 *   **Memory:** ConvLTC stores dense states for BPTT. If sequence is long, GPU memory explodes.
