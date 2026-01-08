@@ -323,7 +323,7 @@ def main():
         # Create criterion and optimizer
         if model_type == "physics_cnnlstm":
             # Use PhysicsInformedLoss for the physics model
-            criterion = PhysicsInformedLoss(smoothness_weight=0.1)
+            criterion = PhysicsInformedLoss(physics_weight=0.1)
         else:
             criterion = nn.MSELoss()
             
