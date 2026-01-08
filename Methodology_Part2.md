@@ -27,7 +27,42 @@ To use the sparse temperature readings $T_{GT}$ for supervision, we strictly ali
     *   Pattern Matching: We detect all candidate blobs and select the 4-tuple that minimizes an **Axis-Aligned Rectangularity Cost**:
         $$ Cost = \Delta_{sides} + \Delta_{diagonals} + 2 \cdot (\text{Deviation from Horizontal/Vertical}) $$
     *   This ensures we identify the physical sensor grid correctly, rejecting rotated reflections.
-3.  **Output:**
+3.  **Output:** `sensor_coordinates.json` mapping each video ID to 4 specific (x,y) coordinates.
+
+---
+
+## 3. Architecture Phase 2: Dense Map Estimation
+We implemented `ResNetUNet`, a hybrid architecture:
+*   **Encoder:** ResNet18 (pretrained) extracting hierarchical features.
+*   **Decoder:** Transpose Convolutions with skip connections from the encoder to recover spatial details.
+*   **Head:** 1x1 Convolution outputting a single channel heatmap.
+
+## 4. Architecture Phase 3: Temporal Dynamics (Latent-LTC)
+To better model the continuous flow of heat, we progressed to **Latent Liquid Time Constant** networks.
+*   **Motivation:** The Bioheat Equation is a continuous-time PDE. Discrete RNNs struggle with the smooth decay dynamics of perfusion.
+*   **Model:** `LatentLTC_UNet`.
+    *   Frames are encoded to a latent vector $z$.
+    *   $z$ is evolved using an LTC ODE solver.
+    *   The evolved state is decoded to the heatmap.
+
+---
+
+## 5. Loss Function: Hybrid Physics-Informed Loss
+Since we only have 4 pixels of ground truth per image, we cannot use standard MSE. We developed `BioheatHybridLoss`:
+
+$$ L = L_{sparse-MSE} + \lambda \cdot L_{physics} $$
+
+1.  **Sparse MSE:** Calculates error *only* at the 4 known sensor locations ($M_1 \dots M_4$).
+2.  **Physics Residual:** Penalizes deviations from the Bioheat PDE across the *entire* image.
+    $$ R = k\nabla^2 T - w_b c_b (T - T_a) $$
+    The network is encouraged to predict a smooth, physically consistent field even where sensors are absent.
+
+## 6. Physics Prior (Residual Learning)
+To aid convergence, we use a metadata-driven prior.
+*   We generate a Gaussian Heatmap based on the known Wattage and Active Zone.
+*   The network learns the *residual* ($\Delta T$) rather than the absolute temperature.
+*   $T_{pred} = T_{prior} + T_{network}$.
+
     *   `data/level1_cropped/`: Preprocessed video files.
     *   `sensor_coordinates.json`: Specific $(x,y)$ coordinates for M1-M4 in the cropped frame.
 

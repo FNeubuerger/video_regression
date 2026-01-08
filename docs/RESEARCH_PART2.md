@@ -48,6 +48,19 @@ $$ \frac{dx(t)}{dt} = - \left[ \frac{1}{\tau_{sys}} + f(I(t)) \right] \cdot x(t)
 Where the time-constant $\tau$ is input-dependent ("liquid"). This formulation is explicitly inspired by biological synapses and RC circuits.
 
 **Relevance to Bioheat Transfer:**
+The Bioheat Transfer Equation is also a differential equation with a decay term:
+$$ \rho c \frac{\partial T}{\partial t} = \nabla (k \nabla T) - w_b c_b (T - T_a) + Q $$
+The perfusion term $-w_b c_b (T - T_a)$ is mathematically analogous to the leakage term in the LTC formulation. By using LTCs, we hypothesize the network can learn the *continuous-time dynamics* of tissue heating more naturally than discrete RNNs, handling irregular sampling rates and providing better stability.
+
+### Implementation: Latent-LTC
+We implemented a hybrid architecture `LatentLTC_UNet` in `models/latent_ltc.py`:
+1.  **Encoder (ResNet):** Compresses the high-dimensional frame $I_t$ into a compact latent vector $z_t$.
+2.  **Dynamics (LTC/NCP):** The latent state evolves over time according to the LTC ODEs. This models the physics in a reduced dimensionality.
+3.  **Decoder (U-Net):** The evolved latent state is decoded back into the dense temperature map.
+
+This enables us to model the *physics* in the latent space (fast, temporal) while maintaining high-resolution spatial outputs.
+
+---
 The Bioheat Transfer Equation (BHTE) is a PDE describing diffusion:
 $$ \rho c \frac{\partial T}{\partial t} = \nabla \cdot (k \nabla T) + Q_{source} - Q_{perfusion} $$
 

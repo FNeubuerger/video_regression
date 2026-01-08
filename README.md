@@ -28,8 +28,9 @@ We evaluate and compare several architectures tailored for this task:
 
 1.  **CNNLSTM (Hybrid):** A custom, lightweight architecture combining Convolutional Neural Networks for spatial feature extraction and LSTMs for temporal dynamics.
 2.  **Physics-Informed CNN-LSTM:** Incorporates physical laws (temporal smoothness of heat diffusion) directly into the loss function.
-3.  **Pretrained ResNet:** A transfer learning approach using ImageNet features.
-4.  **Uncertainty Models:**
+3.  **ResNet-UNet (Dense):** Encoder-Decoder architecture for estimating full $64 \times 64$ temperature heatmaps from video frames.
+4.  **Latent-LTC (ODES):** Advanced architecture using Liquid Time Constant networks to model the continuous-time physics of heat diffusion in a latent space.
+5.  **Uncertainty Models:**
     *   **Deep Ensembles:** Multiple models trained with different initializations.
     *   **Bayesian Neural Networks:** Probabilistic weights to estimate epistemic uncertainty.
 
