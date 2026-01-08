@@ -37,9 +37,9 @@ To guide the model given the sparse data, we incorporate strong physical priors.
 **Assumption:** Heating is localized to the "Active Zone" (video center) and diffuses outwards. High heat is never expected at the far edges.
 
 **Strategy:**
-Instead of predicting $T(x,y)$ from zero, we predict a **residual correction** to a Physics Prior:
+Instead of predicting $T(x,y)$ from zero, we predict a **residual correction** to a Physics Prior (Optional):
 $$ \hat{T}(x,y) = T_{prior}(x,y) + \Delta T_{net}(x,y) $$
-*   **$T_{prior}$**: A 2D Gaussian map centered on the Active Zone input, scaled by the known input power.
+*   **$T_{prior}$**: A 2D Gaussian map centered on the Active Zone input, scaled by the known input power (default). Can be disabled ($T_{prior}=0$) to test pure data-driven learning.
 *   **$\Delta T_{net}$**: The dense output from the U-Net.
 *   **Benefit:** This eases the optimization landscape. The network effectively learns "how does this specific tissue/video deviate from the ideal Gaussian diffusion?"
 

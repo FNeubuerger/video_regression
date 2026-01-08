@@ -1,0 +1,18 @@
+\subsection{Advanced Temporal Modeling: Liquid Time Constants}
+While Recurrent Neural Networks (RNNs) and Long Short-Term Memory (LSTM) networks are standard for time-series data, they fundamentally assume discrete time steps. However, the physical process of heat diffusion in biological tissue -- described by the Bioheat Transfer Equation (BHTE) -- is a continuous-time dynamical system.
+\begin{equation}
+    \rho c \frac{\partial T}{\partial t} = \nabla \cdot (k \nabla T) + Q_{source} - w_b c_b (T - T_{art})
+\end{equation}
+To better align our neural architecture with this physical reality, we propose integrating Liquid Time Constant (LTC) networks \cite{lechner2020neural}. LTCs are a class of continuous-time RNNs where the time constant $\tau$ is not fixed but depends on the input $I(t)$. The hidden state $x(t)$ evolves according to an Ordinary Differential Equation (ODE):
+\begin{equation}
+    \frac{dx(t)}{dt} = - \left[ \frac{1}{\tau_{sys}} + f(I(t)) \right] \cdot x(t) + f(I(t)) \cdot A
+\end{equation}
+This formulation has a striking structural similarity to the perfusion term in the BHTE ($Q_{perfusion} \propto -w_b (T - T_{art})$), which acts as a "leakage" mechanism. By employing LTCs, specifically structured via Neural Circuit Policies (NCPs), we aim to create a model that naturally learns the decay and diffusion dynamics of tissue heating, offering potentially superior generation to irregular sampling rates and improved stability.
+
+Our proposed architecture, \textbf{Latent-LTC}, operates in a compressed latent space:
+\begin{enumerate}
+    \item \textbf{Encoder}: A ResNet processes the frame $V_t$ into a latent vector $z_t$.
+    \item \textbf{Dynamics}: An LTC layer evolves $z_t \to z_{t+1}$ using the learned ODE dynamics.
+    \item \textbf{Decoder}: A U-Net decoder reconstructs the dense temperature map $\hat{T}_{t+1}$ from the evolved state.
+\end{enumerate}
+Implementation utilizes the \texttt{ncps} library, with experiments forthcoming in Phase 3.

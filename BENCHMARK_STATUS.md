@@ -22,8 +22,26 @@ We have transitioned the codebase to support dense temperature map prediction ($
 2.  **Architecture:**
     *   Implemented `ResNetUNet` (Encoder-Decoder with Skip Connections) in `models/dense_heads.py`.
 
+3.  **Physics Prior (Optional):**
+    *   Implemented a Gaussian Heatmap Prior based on input wattage for Residual Learning ($Pred = Prior + Delta$).
+    *   **Refinement:** Made this strictly optional (`--no_physics_prior`) to ensure the model can be trained purely on data if metadata is missing or assumptions fail.
+
+4.  **Testing Infrastructure:**
+    *   Established `tests/` directory with `pytest` suite.
+    *   Covered: Dataset loading (shapes/metadata), Model Architecture (I/O shapes), and Physics Logic.
+
+5.  **Hybrid Physics Training:**
+    *   Implemented `BioheatHybridLoss` in `physics/hybrid_loss.py` (MSE + Bioheat PDE Residual).
+    *   Created `training/train_unet_hybrid.py` to train with PDE constraints.
+
 ### Next Steps (Implementation Plan)
-1.  **Hybrid Loss Function:** Implement `HybridLoss = MSE_Sparse + lambda * PDE_Dense`.
-2.  **Training Loop:** Create training script for the U-Net.
-3.  **Baseline Training:** Train a standard U-Net with Sparse MSE only (no physics).
-4.  **Physics Training:** Train Physics-Informed U-Net.
+1.  **Benchmarks Running:** `unet_noprior`, `unet_prior`, and `unet_hybrid` are training in tmux.
+2.  **Evaluate Results:** Compare convergence and final MSE.
+3.  **Part 3 (Time):**
+    *   **Documentation:** Added a new section to the paper (`ltc_section.tex`) justifying the use of Liquid Time Constant (LTC) networks via the Bioheat Transfer Equation.
+    *   **Implementation:** Implemented `models/latent_ltc.py` (Latent-Space Dynamics) and `training/train_ltc.py`.
+    *   **Status:** Launched `ltc_unet_seq16_hybrid` benchmark.
+
+4.  **Verification:**
+    *   **Test Suite:** Expanded `tests/test_model_suite.py` covering all Part 2 and Part 3 architectures (`ResNetUNet`, `LatentLTC_UNet`, `CNNLSTM`, `SimpleResNet`).
+    *   **Status:** All tests passing.
