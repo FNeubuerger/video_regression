@@ -7,13 +7,54 @@ import sys
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from skimage.metrics import structural_similarity as ssim
-from scipy.spatial.distance import directed_hausdorff
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from utils.heatmap_dataset import TemperatureHeatmapDataset
 from utils.model_registry import MODEL_REGISTRY
+
+def calculate_uncertainty_metrics(pred_mean, pred_std, true_map, mask_map):
+    """
+    Calculates uncertainty metrics: NLL, PICP, MPIW.
+    Only evaluates on the masked regions (sensors) or full map if available.
+    
+    Args:
+        pred_mean (np.ndarray): (H, W) Predicted Mean
+        pred_std (np.ndarray): (H, W) Predicted Std Dev
+        true_map (np.ndarray): (H, W) Ground Truth
+        mask_map (np.ndarray): (H, W) Mask
+    """
+    # Select valid pixels
+    valid_mask = mask_map > 0
+    if np.sum(valid_mask) == 0:
+        return {}
+        
+    y_true = true_map[valid_mask]
+    y_pred = pred_mean[valid_mask]
+    y_std = pred_std[valid_mask] + 1e-6 # Avoid div by zero
+    
+    # 1. NLL (Gaussian)
+    # NLL = 0.5 * log(2*pi*sigma^2) + (y - mu)^2 / (2*sigma^2)
+    nll = 0.5 * np.log(2 * np.pi * y_std**2) + (y_true - y_pred)**2 / (2 * y_std**2)
+    avg_nll = np.mean(nll)
+    
+    # 2. PICP (Prediction Interval Coverage Probability)
+    # 95% CI is mu +/- 1.96 * sigma
+    ci_lower = y_pred - 1.96 * y_std
+    ci_upper = y_pred + 1.96 * y_std
+    within_ci = (y_true >= ci_lower) & (y_true <= ci_upper)
+    picp = np.mean(within_ci)
+    
+    # 3. MPIW (Mean Prediction Interval Width)
+    width = ci_upper - ci_lower
+    mpiw = np.mean(width)
+    
+    return {
+        'nll': avg_nll,
+        'picp': picp,
+        'mpiw': mpiw
+    }
 
 def calculate_metrics(pred_map, true_map, mask_map, safe_threshold=43.0, ablation_threshold=50.0):
     """
@@ -61,25 +102,39 @@ def calculate_metrics(pred_map, true_map, mask_map, safe_threshold=43.0, ablatio
     
     return metrics
 
-def evaluate_dense(model_name, checkpoint_path, device='cuda', save_plots=False):
-    print(f"Evaluating {model_name} on Dense Metrics...")
+def evaluate_dense(model_name, checkpoint_path, device='cuda', save_plots=False, num_mc_samples=20):
+    print(f"Evaluating {model_name} on Dense Metrics (MC Samples={num_mc_samples})...")
     
     # Load Model
     if model_name not in MODEL_REGISTRY:
         raise ValueError(f"Model {model_name} not found in registry")
         
     ModelClass, kwargs = MODEL_REGISTRY[model_name]
-    model = ModelClass(**kwargs)
     
-    # Load Checkpoint
-    if not os.path.exists(checkpoint_path):
-        print(f"Checkpoint not found: {checkpoint_path}")
-        return
-        
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
-    model.load_state_dict(checkpoint)
+    # Attempt to load model with default registry args (usually 5 channels)
+    try:
+        model = ModelClass(**kwargs)
+        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        model.load_state_dict(checkpoint)
+        print("Loaded model with default registry configuration.")
+        input_channels = kwargs.get('n_channels', 3)
+    except Exception as e:
+        print(f"Failed to load with registry args ({e}). Trying n_channels=3 compatibility mode...")
+        # Fallback for models trained with 3 channel input (legacy/hybrid script)
+        if 'n_channels' in kwargs:
+            kwargs['n_channels'] = 3
+        model = ModelClass(**kwargs)
+        model.load_state_dict(checkpoint)
+        input_channels = 3
+        print("Loaded model with n_channels=3.")
+
     model.to(device)
     model.eval()
+    
+    # Determine if Bayesian/Variational
+    is_variational = getattr(model, 'variational', False)
+    # Ensure dropout is ON if we rely on MC Dropout (Deep Ensembles uses multiple models, BNN uses variational layers)
+    # For Variational layers (BayesByBackprop), calling forward() samples weights.
     
     # Load Dataset
     # We use validation data
@@ -91,15 +146,13 @@ def evaluate_dense(model_name, checkpoint_path, device='cuda', save_plots=False)
     )
     
     # Evaluate
-    # Since we don't have dense GT for the real dataset, we are somewhat limited.
-    # We will compute:
-    # 1. Sparse MSE (Accuracy at sensors)
-    # 2. Physics Compliance (TV Norm, Peak bounds)
-    
     results = {
         'sparse_rmse': [],
         'peak_error': [],
-        'tv_norm': []
+        'tv_norm': [],
+        'nll': [],
+        'picp': [],
+        'mpiw': []
     }
     
     with torch.no_grad():
@@ -107,57 +160,67 @@ def evaluate_dense(model_name, checkpoint_path, device='cuda', save_plots=False)
             frame, target_map, mask_map, temps, prior = dataset[i]
             
             # Prepare Input
-            if "UNet" in model_name:
-                # 5-channel Input (RGB + Flow)
-                # But dataset returns 3-channel frame?
-                # Does TemperatureHeatmapDataset return Flow?
-                # Check dataset.py -> __getitem__ returns: frame_tensor (3ch), target_map, mask, temps, prior
-                # Wait, the UNet expects 5 channels!
-                # We need to compute flow on the fly or load it.
-                # For now, let's just pad with zeros to avoid crash, OR update dataset to return flow.
-                # Project constraint: The dataset typically handles flow computation if configured.
-                # Currently dataset seems to only load frames.
-                
-                # Mock flow for now to test pipeline
-                # (1, 5, 64, 64)
+            # Dataset returns (3, H, W). 
+            if input_channels == 5:
+                # Pad if we promised 5 channels but only have 3
+                # Ideally we load optical flow, but for now we pad
                 inp = torch.zeros((1, 5, 64, 64)).to(device)
                 inp[0, :3] = frame.to(device)
             else:
                 inp = frame.unsqueeze(0).to(device)
                 
-            # Forward
-            if "hybrid" in model_name or "prior" in model_name:
-                 # Some models might expect prior input? 
-                 # Referring to train_unet_hybrid.py, the model just takes input. 
-                 # The hybrid loss takes the prior. 
-                 # But if the model is Residual (Pred = Prior + Delta), it needs Prior?
-                 # Checked models/dense_heads.py -> ResNetUNet is standard.
-                 pass
+            # MC Sampling for Uncertainty
+            preds_stack = []
             
-            output = model(inp)
+            # If not variational, we just run once (unless using MC Dropout, but let's assume BNN specific)
+            passes = num_mc_samples if is_variational else 1
             
-            # Post-Process
-            pred_map = output.squeeze().cpu().numpy()
+            for _ in range(passes):
+                if is_variational:
+                    # Expect tuple (pred, kl)
+                    out, _ = model(inp)
+                else:
+                    out = model(inp)
+                    
+                preds_stack.append(out.squeeze().cpu().numpy())
+            
+            preds_stack = np.array(preds_stack) # (N, H, W)
+            
+            pred_mean = np.mean(preds_stack, axis=0) # (H, W)
+            pred_std = np.std(preds_stack, axis=0)   # (H, W)
+            
             target_map_np = target_map.squeeze().numpy()
             mask_map_np = mask_map.squeeze().numpy()
             
-            # Metrics
-            m = calculate_metrics(pred_map, target_map_np, mask_map_np)
-            
+            # Deterministic Metrics (using Mean)
+            m = calculate_metrics(pred_mean, target_map_np, mask_map_np)
             for k, v in m.items():
                 results[k].append(v)
+                
+            # Uncertainty Metrics
+            if is_variational:
+                u_m = calculate_uncertainty_metrics(pred_mean, pred_std, target_map_np, mask_map_np)
+                for k, v in u_m.items():
+                    results[k].append(v)
             
             if save_plots and i < 5:
-                plt.figure(figsize=(10, 4))
-                plt.subplot(1, 3, 1)
-                plt.imshow(pred_map, cmap='inferno')
-                plt.title("Prediction")
+                plt.figure(figsize=(15, 5))
+                plt.subplot(1, 4, 1)
+                plt.imshow(pred_mean, cmap='inferno')
+                plt.title("Prediction (Mean)")
                 plt.colorbar()
-                plt.subplot(1, 3, 2)
+                
+                plt.subplot(1, 4, 2)
+                plt.imshow(pred_std, cmap='viridis')
+                plt.title("Uncertainty (Std)")
+                plt.colorbar()
+                
+                plt.subplot(1, 4, 3)
                 plt.imshow(target_map_np, cmap='inferno')
                 plt.title("Sparse GT")
                 plt.colorbar()
-                plt.subplot(1, 3, 3)
+                
+                plt.subplot(1, 4, 4)
                 plt.imshow(prior.squeeze(), cmap='jet')
                 plt.title("Physics Prior")
                 plt.savefig(f"results/plots/dense_eval_{model_name}_{i}.png")
@@ -166,13 +229,17 @@ def evaluate_dense(model_name, checkpoint_path, device='cuda', save_plots=False)
     # Aggregate
     print("\nResults:")
     for k, v in results.items():
-        print(f"{k}: {np.mean(v):.4f}")
+        if len(v) > 0:
+            print(f"{k}: {np.mean(v):.4f}")
+        else:
+            print(f"{k}: N/A")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--checkpoint", type=str, required=True)
     parser.add_argument("--visualize", action="store_true")
+    parser.add_argument("--mc_samples", type=int, default=20, help="Number of MC samples for BNN")
     args = parser.parse_args()
     
-    evaluate_dense(args.model, args.checkpoint, save_plots=args.visualize)
+    evaluate_dense(args.model, args.checkpoint, save_plots=args.visualize, num_mc_samples=args.mc_samples)

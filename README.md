@@ -55,11 +55,36 @@ python training/train_unet_sparse.py --run_name unet_prior --epochs 50
 python training/train_unet_hybrid.py --run_name unet_hybrid --epochs 50 --lambda_physics 0.001
 ```
 
-### Part 3: Latent Dynamics (LTC)
-Train the Latent Liquid Time Constant model:
+### Part 3: Latent Dynamics & Uncertainty
+Train the Latent Liquid Time Constant model and Bayesian variants:
 ```bash
+# Deterministic Latent LTC
 python training/train_ltc.py --run_name ltc_model --epochs 50
+
+# Bayesian U-Net
+./run_part3_benchmarks.sh
 ```
+
+## 📉 Evaluation & Uncertainty Quantification
+
+We provide comprehensive evaluation scripts to assess model accuracy and calibration.
+
+### Dense Map Evaluation
+To evaluate dense heatmap prediction and get uncertainty metrics (NLL, PICP, MPIW):
+
+```bash
+python evaluation/evaluate_dense.py \
+    --model ResNetUNet \
+    --checkpoint checkpoints/bayesian_unet.pth \
+    --visualize \
+    --mc_samples 20
+```
+
+This script calculates:
+*   **RMSE:** Root Mean Squared Error at sensor locations.
+*   **NLL:** Negative Log Likelihood (Calibration).
+*   **PICP:** Prediction Interval Coverage Probability (Target: 0.95).
+*   **MPIW:** Mean Prediction Interval Width (Sharpness).
 
 The project includes a full deployment pipeline using **ONNX Runtime** to ensure real-time performance on edge devices.
 

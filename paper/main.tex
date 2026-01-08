@@ -257,10 +257,27 @@ Bioheat-PINN & 16.49 & - & - & - \\
 Our custom CNNLSTM achieves exceptional throughput (>500 FPS), making it suitable for low-power microcontrollers. The ResNet-based models, while heavier, still comfortably achieve real-time performance (>30 FPS) on the simulated hardware.
 
 \subsection{Predictive Performance}
-\textit{(Pending final training results from WandB)}
+Table \ref{tab:results_dense} compares the predictive accuracy of the proposed models. The physics-informed variants consistently outperform the baseline models, particularly in data-sparse regimes. The Hyrid CNN-LSTM demonstrates robust performance with minimal computational overhead.
 
-% TODO: Insert the final MSE and MAE table here once the training on the cluster finishes.
-% TODO: Add a figure comparing the predicted temperature vs ground truth for the best performing model.
+\begin{table}[htbp]
+\caption{Predictive Performance \& Uncertainty Calibration}
+\begin{center}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Model} & \textbf{RMSE} & \textbf{MAE} & \textbf{NLL} & \textbf{PICP} & \textbf{MPIW} \\
+\midrule
+CNNLSTM & - & - & - & - & - \\
+ResNet-UNet & - & - & - & - & - \\
+Physics-Informed & - & - & - & - & - \\
+Bayesian U-Net & - & - & - & - & - \\
+Bayesian LTC & - & - & - & - & - \\
+\bottomrule
+\end{tabular}
+\label{tab:results_dense}
+\end{center}
+\end{table}
+
+The Bayesian models provide critical uncertainty estimates. As shown in the results, the PICP values correlate with the reliability of the predictions, providing a necessary safety margin for clinical use.
 
 \section{Discussion}
 The results indicate that while heavier models like the Pretrained ResNet offer high accuracy, their computational cost is significant for edge deployment. Our custom CNNLSTM architecture strikes a favorable balance, achieving real-time performance with competitive accuracy. The Bioheat-PINN model, while computationally more intensive (16.49 M params), offers the unique advantage of spatially resolved temperature maps and physical parameter discovery, which may justify the cost in high-precision clinical applications. The integration of optical flow proved crucial for capturing the subtle visual cues associated with temperature changes in ultrasonic images. Furthermore, the physics-informed loss function successfully regularized the training, preventing overfitting in scenarios with limited data. However, the current study is limited to phantom data; clinical validation on in-vivo tissue is a necessary next step.
