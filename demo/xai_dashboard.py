@@ -196,22 +196,23 @@ def run_dashboard(video_path, model_name, checkpoint_path, output_path, device_n
         vis_frame = cv2.resize(frame, display_size)
         
         # 2. Prediction Heatmap
-        # Normalize pred to 0-255 (assuming temp range 20-60?)
-        # Let's auto-scale for vis
-        # pred_vis = (pred_resized - 30) / (60 - 30) * 255 ??
-        # Or Just use min/max of frame
-        if pred_resized.max() != pred_resized.min():
-            pred_norm = (pred_resized - pred_resized.min()) / (pred_resized.max() - pred_resized.min())
-        else:
-            pred_norm = pred_resized 
+        # Fixed normalization (20-60) to prevent flickering of the heatmap base
+        pred_norm = np.clip((pred_resized - 20) / (60 - 20), 0, 1)
             
         pred_heatmap = (cm.inferno(pred_norm)[:, :, :3] * 255).astype(np.uint8)
         pred_heatmap = cv2.cvtColor(pred_heatmap, cv2.COLOR_RGB2BGR)
         
         # 3. Attribution Overlay
-        # Normalize attr
-        if attr_np.max() != 0: attr_np /= attr_np.max()
-        attr_overlay = apply_heatmap(attr_np, vis_frame)
+        # Normalize attr with running max to reduce flicker
+        curr_max = attr_np.max()
+        if 'running_max' not in locals(): running_max = curr_max
+        
+        # Soft update of max scaling factor
+        running_max = 0.95 * running_max + 0.05 * curr_max if curr_max > 0 else running_max
+        if running_max < 1e-5: running_max = 1.0
+        
+        attr_norm = np.clip(attr_np / running_max, 0, 1)
+        attr_overlay = apply_heatmap(attr_norm, vis_frame)
         
         # Combine
         combined = np.hstack([vis_frame, pred_heatmap, attr_overlay])

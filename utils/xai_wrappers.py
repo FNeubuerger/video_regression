@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 
 class RegressionWrapper(nn.Module):
     """
@@ -22,32 +23,45 @@ class RegressionWrapper(nn.Module):
         self.roi_coords = roi_coords
         
     def forward(self, x):
+        # Handle numpy input (Quantus often passes numpy)
+        if isinstance(x, np.ndarray):
+            device = next(self.model.parameters()).device
+            x = torch.tensor(x, dtype=torch.float32).to(device)
+        elif isinstance(x, torch.Tensor):
+            device = next(self.model.parameters()).device
+            if x.device != device:
+               x = x.to(device)
+
         # x shape: (B, C, H, W) or (B, T, C, H, W)
         output = self.model(x)
         
         # Handle tuple return (Variational models return (pred, kl))
         if isinstance(output, tuple):
             output = output[0]
-        
-        # Ensure output is (B, H, W) or (B, 1, H, W)
-        if output.dim() == 4 and output.shape[1] == 1:
-            output = output.squeeze(1)
-        
-        # If output is already scalar/vector (B, ) or (B, 1), just return it
-        if output.dim() <= 2:
-            if output.dim() == 1:
-                 return output.unsqueeze(1) # (B, 1)
-            return output # (B, 1)
 
-        # Aggregation
+        # Check if output is already scalar (B) or (B, 1) or (B, C)
+        # If it is spatial (B, C, H, W) where H,W > 1, we aggregate.
+        # But checks for spatial output need to be careful.
+        
+        is_spatial = output.ndim >= 3 and output.shape[-1] > 1 and output.shape[-2] > 1
+        
+        if not is_spatial:
+            # Already scalar/vector. Ensure (B, 1) for Quantus.
+            if output.ndim == 1:
+                output = output.unsqueeze(1)
+            elif output.ndim == 2 and output.shape[1] > 1:
+                 # If (B, C) and C>1, we might need to pick one? 
+                 # But for now assume single target regression or handled by target_mode?
+                 # Actually if simple regression, just return.
+                 pass
+            return output
+
+        # Aggregation for spatial outputs
         if self.target_mode == 'mean':
             # Mean temperature across the map
-            return output.mean(dim=(1, 2)).unsqueeze(1) # Return (B, 1)
+            return output.mean(dim=(-2, -1)).view(output.shape[0], -1) 
             
         elif self.target_mode == 'max':
-            # Peak temperature (differentiable approx or hard max?)
-            # Hard max is fine for gradients usually, but let's just take max value
-            # Note: Captum expects scalar per batch item
             vals = output.view(output.shape[0], -1)
             return vals.max(dim=1).values.unsqueeze(1)
             
@@ -56,9 +70,9 @@ class RegressionWrapper(nn.Module):
                 raise ValueError("roi_coords must be provided for 'roi' mode")
             x, y = self.roi_coords
             # Check bounds
-            if x < 0 or x >= output.shape[2] or y < 0 or y >= output.shape[1]:
+            if x < 0 or x >= output.shape[-1] or y < 0 or y >= output.shape[-2]:
                  raise ValueError(f"ROI coords {self.roi_coords} out of bounds for output {output.shape}")
-            return output[:, y, x].unsqueeze(1)
+            return output[..., y, x].unsqueeze(1)
             
         else:
             raise ValueError(f"Unknown target_mode: {self.target_mode}")

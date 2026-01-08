@@ -36,17 +36,40 @@ def generate_explanations(model_name, checkpoint_path, output_dir="results/xai",
         
     ModelClass, kwargs = MODEL_REGISTRY[model_name]
     
-    # Check n_channels compatibility (same logic as eval script)
+    # Load Checkpoint logic to auto-detect parameters
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    if 'model_state_dict' in checkpoint:
+        state_dict = checkpoint['model_state_dict']
+    else:
+        state_dict = checkpoint
+        
+    # Auto-detect variational
+    is_variational = any("bottleneck.conv_mu" in k for k in state_dict.keys())
+    if is_variational:
+         print("Detected Variational Checkpoint. Enabling variational=True.")
+         kwargs['variational'] = True
+         
+    # Auto-detect channels
+    # Check conv1 weight shape in state_dict
+    if 'base_model.conv1.weight' in state_dict:
+        w = state_dict['base_model.conv1.weight']
+        if w.shape[1] == 3:
+             print("Detected 3-channel checkpoint. Overriding n_channels=3.")
+             kwargs['n_channels'] = 3
+        elif w.shape[1] == 5:
+             kwargs['n_channels'] = 5
+
     try:
         model = ModelClass(**kwargs)
-        checkpoint = torch.load(checkpoint_path, map_location='cpu')
-        model.load_state_dict(checkpoint)
+        model.load_state_dict(state_dict)
         input_channels = kwargs.get('n_channels', 3)
-    except:
+    except Exception as e:
+        print(f"Instantiation failed: {e}")
+        # Last ditch effort
         kwargs['n_channels'] = 3
+        kwargs['variational'] = False
         model = ModelClass(**kwargs)
-        checkpoint = torch.load(checkpoint_path, map_location='cpu')
-        model.load_state_dict(checkpoint)
+        model.load_state_dict(state_dict)
         input_channels = 3
         
     model.to(device)

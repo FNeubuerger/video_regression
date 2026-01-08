@@ -29,3 +29,10 @@ For `spatial_convection_bioheat` and `spatial_metabolic_bioheat`, we also ensure
 - [ ] **Bayesian LTC:** Implement Variational Encoder for `LatentLTC_UNet`.
 - [ ] **Evaluation:** Run comparative analysis between Physics-Informed U-Net and Latent LTC.
 
+## XAI & Interpretability (Paper Section)
+- [x] **Justification:** Created `research/XAI_PAPER_CONTRIBUTION.md` outlining the scientific value.
+- [x] **Metric Implementation:** `evaluation/evaluate_xai.py` implemented with Quantus metrics (Faithfulness, Robustness, Complexity).
+- [ ] **Fix Memory Error:** `FaithfulnessCorrelation` causing OOM on 224x224 grid. Need to reduce subset size or switch to superpixel perturbation.
+- [ ] **Dashboard Fix:** `demo/xai_dashboard.py` flickers. Need to implement proper cropping/normalization pipeline.
+- [ ] **Single-Frame Vis:** Generate high-quality static explanation figures for the paper (easier than video).
+
