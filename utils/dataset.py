@@ -11,6 +11,7 @@ import torch
 from torch.utils.data import Dataset
 from PIL import Image
 import numpy as np
+import json
 from torchvision import transforms
 from typing import List, Tuple, Optional
 import random
@@ -34,13 +35,29 @@ class TemperatureSequenceDataset(Dataset):
     """
     
     def __init__(self, data_dir="data", sequence_length=5, transform=None, 
-                 stride=1, image_size=(128, 128), use_optical_flow=True):
+                 stride=1, image_size=(128, 128), use_optical_flow=True,
+                 use_artifact_masking=False):
         self.data_dir = data_dir
         self.sequence_length = sequence_length
         self.stride = stride
         self.image_size = image_size
         self.use_optical_flow = use_optical_flow
+        self.use_artifact_masking = use_artifact_masking
         
+        # Load sensor coordinates if masking is enabled
+        self.sensor_coords = None
+        if use_artifact_masking:
+            json_path = os.path.join(data_dir, "sensor_coordinates.json")
+            if os.path.exists(json_path):
+                with open(json_path, 'r') as f:
+                    self.sensor_coords = json.load(f)
+            else:
+                # Try level1_cropped
+                json_path = os.path.join(data_dir, "level1_cropped", "sensor_coordinates.json")
+                if os.path.exists(json_path):
+                    with open(json_path, 'r') as f:
+                        self.sensor_coords = json.load(f)
+
         # Default transform if none provided
         if transform is None:
             self.transform = transforms.Compose([
@@ -123,7 +140,45 @@ class TemperatureSequenceDataset(Dataset):
     
     def __len__(self) -> int:
         return len(self.sequences)
-    
+
+    def _get_artifact_mask(self, image_path: str) -> torch.Tensor:
+        """Generate a binary mask identifying sensor artifacts."""
+        h, w = self.image_size
+        mask = torch.zeros((1, h, w), dtype=torch.float32)
+        
+        if not self.sensor_coords:
+            return mask
+            
+        # Identify which sequence directory we are in
+        # Image path: /data/sequence_1/frame_...
+        parent_dir = os.path.basename(os.path.dirname(image_path))
+        
+        if parent_dir in self.sensor_coords:
+            coords = self.sensor_coords[parent_dir]
+            
+            # Find original size to scale correctly
+            # Often it's (848, 480) or similar. Let's try to infer from the sequence
+            # or use hardcoded common ones if missing.
+            # For simplicity, we assume the detector's coordinates match the dataset's relative positions.
+            orig_w, orig_h = coords.get('original_size', (848, 480))
+            scale_x = w / orig_w
+            scale_y = h / orig_h
+            
+            for sensor, data in coords.items():
+                if sensor in ['M1', 'M2', 'M3', 'M4']:
+                    cx, cy = data['center']
+                    nx = int(cx * scale_x)
+                    ny = int(cy * scale_y)
+                    
+                    radius = int(max(2, 4 * (w / 256))) # Scale radius with image size
+                    
+                    y_min = max(0, ny - radius)
+                    y_max = min(h, ny + radius + 1)
+                    x_min = max(0, nx - radius)
+                    x_max = min(w, nx + radius + 1)
+                    mask[0, y_min:y_max, x_min:x_max] = 1.0
+        return mask
+
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Get a sequence of images and their corresponding temperatures.
@@ -156,6 +211,13 @@ class TemperatureSequenceDataset(Dataset):
         # Stack images into a tensor
         images_tensor = torch.stack(images)  # Shape: (sequence_length, channels, height, width)
         
+        # Apply artifact masking if requested
+        if self.use_artifact_masking:
+            # We use the first image in the sequence to determine the mask
+            # (Assuming sensor positions are static within a sequence)
+            mask = self._get_artifact_mask(image_paths[0])
+            images_tensor = images_tensor * (1.0 - mask)
+
         # Apply Optical Flow if requested
         if self.use_optical_flow:
             # preprocess_frame_with_flow expects (T, C, H, W) and returns (T, C+2, H, W)

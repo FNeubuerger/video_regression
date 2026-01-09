@@ -24,8 +24,19 @@ def generate_performance_table(metrics_df, edge_df_long, output_file):
         else:
              high_end = high_end.groupby('key').first().reset_index()
 
+    # Manual mapping for models with same base architecture
+    name_map = {
+        'spatialbioheat': 'spatialresnet',
+        'spatialconvection': 'spatialresnet',
+        'spatialmetabolic': 'spatialresnet',
+        'bioheatpinn': 'spatialphysicscnnlstm',
+        'convectionbioheat': 'spatialphysicscnnlstm',
+        'metabolicbioheat': 'spatialphysicscnnlstm'
+    }
+    metrics_df['merge_key'] = metrics_df['key'].apply(lambda x: name_map.get(x, x))
+    
     # Merge
-    merged = pd.merge(metrics_df, high_end, on='key', suffixes=('', '_edge'))
+    merged = pd.merge(metrics_df, high_end, left_on='merge_key', right_on='key', suffixes=('', '_edge'))
     
     # Add Metadata (Params, GFLOPs) manually if missing
     meta_data = {
@@ -33,28 +44,51 @@ def generate_performance_table(metrics_df, edge_df_long, output_file):
         'pretrainedcnnlstm': {'Params (M)': 11.52, 'GFLOPs': 0.47},
         'simpleresnet': {'Params (M)': 11.45, 'GFLOPs': 0.16},
         'physicscnnlstm': {'Params (M)': 0.13, 'GFLOPs': 0.08},
+        'bioheatpinn': {'Params (M)': 16.49, 'GFLOPs': 0.8},
+        'convectionbioheat': {'Params (M)': 16.50, 'GFLOPs': 0.82},
+        'metabolicbioheat': {'Params (M)': 16.51, 'GFLOPs': 0.83},
         'bayesianresnet': {'Params (M)': 11.45, 'GFLOPs': 0.16}, 
         'fullbayesianresnet': {'Params (M)': 22.9, 'GFLOPs': 0.32},
         'bayesiancnnlstm': {'Params (M)': 0.12, 'GFLOPs': 0.08},
         'spatialphysicscnnlstm': {'Params (M)': 16.49, 'GFLOPs': 0.8},
+        'spatialresnet': {'Params (M)': 11.45, 'GFLOPs': 0.16},
     }
     
-    merged['Params (M)'] = merged['key'].map(lambda x: meta_data.get(x, {}).get('Params (M)', 0))
-    merged['GFLOPs'] = merged['key'].map(lambda x: meta_data.get(x, {}).get('GFLOPs', 0))
+    merged['key_meta'] = merged['key'].apply(lambda x: x if x in meta_data else 'spatialresnet')
+    
+    # Assign Metadata
+    merged['Params (M)'] = merged['key_meta'].map(lambda x: meta_data.get(x, {}).get('Params (M)', 0))
+    merged['GFLOPs'] = merged['key_meta'].map(lambda x: meta_data.get(x, {}).get('GFLOPs', 0))
+
+    # Handle the "Ladder of Physics" specific categories for sorting/grouping in the paper
+    def get_tier(name):
+        name = name.lower()
+        if 'bayesian' in name or 'full' in name: return 'Tier 3: Uncertainty'
+        if 'bioheat' in name or 'convection' in name or 'metabolic' in name or 'physics' in name: return 'Tier 2: Physics-Informed'
+        return 'Tier 1: Baselines'
+    
+    merged['Tier'] = merged['Model'].apply(get_tier)
+    merged = merged.sort_values(by=['Tier', 'MAE (°C)'])
     
     # Prepare LaTeX string
     latex = r"""
 \begin{table}[h]
 \centering
-\caption{Comparison of Model Performance and Computational Efficiency. Metrics include Mean Absolute Error (MAE), Root Mean Square Error (RMSE), and ^2$ Score on the test set. Efficiency metrics include Parameter count, FLOPs, and Inference Speed on high-end hardware.}
+\caption{Comparison of Model Performance and Computational Efficiency across the "Ladder of Physics". Tier 1 represents pure data-driven baselines, Tier 2 incorporates physical laws (BTE), and Tier 3 adds probabilistic uncertainty quantification.}
 \label{tab:performance_comparison}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{lcccccc}
+\begin{tabular}{llcccccc}
 \hline
-\textbf{Model} & \textbf{MAE} (K) $\downarrow$ & \textbf{RMSE} (K) $\downarrow$ & \textbf{^2$} $\uparrow$ & \textbf{Params} (M) $\downarrow$ & \textbf{GFLOPs} $\downarrow$ & \textbf{FPS} (Sim) $\uparrow$ \ \hline
+\textbf{Tier} & \textbf{Model} & \textbf{MAE} (K) $\downarrow$ & \textbf{RMSE} (K) $\downarrow$ & \textbf{$R^2$} $\uparrow$ & \textbf{Params} (M) $\downarrow$ & \textbf{GFLOPs} $\downarrow$ & \textbf{FPS} $\uparrow$ \ \hline
 """
     
+    current_tier = ""
     for _, row in merged.iterrows():
+        tier = row['Tier']
+        if tier != current_tier:
+            latex += r"\hline " + f"\n\\multicolumn{{8}}{{l}}{{\\textit{{{tier}}}}} \\\\ \n"
+            current_tier = tier
+            
         name = row['Model'] # Use original name
         mae = f"{row['MAE (°C)']:.2f}"
         rmse = f"{row['RMSE (°C)']:.2f}"
@@ -65,7 +99,7 @@ def generate_performance_table(metrics_df, edge_df_long, output_file):
         fps_val = row.get('simulated_fps', 0)
         fps = f"{fps_val:.1f}"
         
-        latex += f"{name} & {mae} & {rmse} & {r2} & {params} & {flops} & {fps} \\\n"
+        latex += f"& {name} & {mae} & {rmse} & {r2} & {params} & {flops} & {fps} \\\n"
         
     latex += r"""\hline
 \end{tabular}%

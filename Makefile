@@ -10,9 +10,15 @@ $(shell mkdir -p $(LOG_DIR) $(MODELS_DIR) $(CHECKPOINTS_DIR))
 
 # Targets
 .PHONY: all cnnlstm pretrained_cnnlstm simple_resnet physics_cnnlstm ensemble bayesian full_bayesian spatial_bioheat spatial_convection spatial_metabolic \
-        unet_sparse_noprior unet_sparse_withprior tmux_part2
+        unet_sparse_noprior unet_sparse_withprior tmux_part2 evaluation
 
 all: cnnlstm pretrained_cnnlstm simple_resnet physics_cnnlstm ensemble bayesian full_bayesian spatial_bioheat spatial_convection spatial_metabolic
+
+# --- Evaluation ---
+
+evaluation:
+	@echo "Starting Unified Evaluation..."
+	$(PYTHON) evaluation/run_unified_evaluation.py --samples 20 2>&1 | tee $(LOG_DIR)/evaluation.log
 
 # --- Part 2: Dense Map Estimation ---
 

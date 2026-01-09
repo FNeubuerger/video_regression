@@ -8,6 +8,7 @@ import json
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from torch.utils.data import DataLoader
+from torchvision import transforms
 import pandas as pd
 import seaborn as sns
 
@@ -99,7 +100,12 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
         if not os.path.exists(checkpoint_path):
             raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
             
-        state_dict = torch.load(checkpoint_path, map_location=device)
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+            state_dict = checkpoint['model_state_dict']
+        else:
+            state_dict = checkpoint
+            
         model.load_state_dict(state_dict)
         model.to(device)
         model.eval()
@@ -109,7 +115,19 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
     # Use 'test' split if available, otherwise use a subset of data
     # Assuming data_dir has sequence folders. We'll use the standard dataset class.
     # Ideally we should have a separate test set. For now, we'll use the dataset class.
-    dataset = TemperatureRegressionDataset(data_dir=data_dir, sequence_length=5)
+    
+    transform = transforms.Compose([
+        transforms.Resize((64, 64)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    dataset = TemperatureRegressionDataset(
+        data_dir=data_dir, 
+        sequence_length=5,
+        image_size=(64, 64),
+        transform=transform
+    )
     
     # Create a simple train/test split (80/20) for demonstration if no explicit test set
     # In a real scenario, we would load a specific test set.
@@ -135,6 +153,28 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
         for images, targets in tqdm(test_loader, desc="Evaluating"):
             images = images.to(device)
             
+            # Extract number of expected channels from model
+            # Most models expect 3 (RGB) or 5 (RGB + Flow)
+            sample_model = models[0]
+            if hasattr(sample_model, "n_channels"):
+                target_ch = sample_model.n_channels
+            elif hasattr(sample_model, "input_channels"):
+                target_ch = sample_model.input_channels
+            elif hasattr(sample_model, "encoder_backbone") and isinstance(sample_model.encoder_backbone[0], nn.Conv2d):
+                target_ch = sample_model.encoder_backbone[0].in_channels
+            elif hasattr(sample_model, "enc_conv1") and isinstance(sample_model.enc_conv1, nn.Conv2d):
+                target_ch = sample_model.enc_conv1.in_channels
+            else:
+                target_ch = images.shape[2] if images.dim() == 5 else images.shape[1]
+
+            # Slice images if needed
+            if images.dim() == 5: # [B, T, C, H, W]
+                if images.shape[2] > target_ch:
+                    images = images[:, :, :target_ch, :, :]
+            elif images.dim() == 4: # [B, C, H, W]
+                if images.shape[1] > target_ch:
+                    images = images[:, :target_ch, :, :]
+
             # Monte Carlo Sampling or Ensemble Averaging
             batch_preds = []
             
@@ -145,8 +185,19 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
                     out = model(images)
                     if isinstance(out, tuple):
                         out = out[0]
+                    
+                    # Handle spatial output (Batch, [Time], H, W)
+                    if out.dim() == 4: # (Batch, Time, H, W)
+                        out = out[:, -1, :, :]
+                    
+                    if out.dim() == 3: # (Batch, H, W)
+                        # For peak temperature comparison, take max
+                        out = torch.amax(out, dim=[1, 2])
+                    
+                    # Final check for sequence of scalars (Batch, Time)
                     if out.dim() > 1 and out.shape[1] > 1:
                          out = out[:, -1]
+                    
                     batch_preds.append(out.cpu().numpy())
             else:
                 # For single model (Bayesian), we run it num_samples times
@@ -155,8 +206,19 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
                     out = model(images)
                     if isinstance(out, tuple):
                         out = out[0]
+                    
+                    # Handle spatial output (Batch, [Time], H, W)
+                    if out.dim() == 4: # (Batch, Time, H, W)
+                        out = out[:, -1, :, :]
+                    
+                    if out.dim() == 3: # (Batch, H, W)
+                        # For peak temperature comparison, take max
+                        out = torch.amax(out, dim=[1, 2])
+                    
+                    # Final check for sequence of scalars (Batch, Time)
                     if out.dim() > 1 and out.shape[1] > 1:
                          out = out[:, -1]
+                         
                     batch_preds.append(out.cpu().numpy())
             
             # Stack predictions: (num_samples, batch_size)
@@ -245,14 +307,27 @@ def main():
     parser.add_argument("--samples", type=int, default=50, help="Number of Monte Carlo samples")
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--limit", type=int, default=None, help="Limit number of test samples for quick evaluation")
+    parser.add_argument("--force", action="store_true", help="Force re-evaluation even if results exist")
     
     args = parser.parse_args()
     
     if not args.checkpoint and not args.ensemble_dir:
         parser.error("Either --checkpoint or --ensemble_dir must be provided.")
     
+    # Determine output name
+    if args.ensemble_dir:
+        run_name = "Ensemble"
+    else:
+        # Use checkpoint filename as run name (minus extension)
+        run_name = os.path.splitext(os.path.basename(args.checkpoint))[0]
+
+    # Check if results already exist
+    metrics_path = os.path.join(args.output_dir, f"{run_name}_metrics.json")
+    if os.path.exists(metrics_path) and not args.force:
+        print(f"Results already exist at {metrics_path}. Skipping evaluation. Use --force to override.")
+        return
+
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print(f"Using device: {device}")
     
     metrics, targets, means, stds = evaluate_model(
         args.model, 

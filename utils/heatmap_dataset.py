@@ -14,7 +14,8 @@ class TemperatureHeatmapDataset(Dataset):
                  raw_dir="data/level0_raw", 
                  transform=None,
                  target_size=(256, 256),
-                 use_physics_prior=True):
+                 use_physics_prior=True,
+                 use_artifact_masking=False):
         """
         Args:
             data_dir: Directory containing cropped MP4 videos and sensor_coordinates.json
@@ -22,12 +23,14 @@ class TemperatureHeatmapDataset(Dataset):
             transform: Optional transform to be applied on a sample.
             target_size: Tuple (H, W) to resize frames and coordinates to.
             use_physics_prior: If True, generates Gaussian heatmap based on wattage. If False, returns zeros.
+            use_artifact_masking: If True, returns a mask identifying sensor regions to be ignored.
         """
         self.data_dir = data_dir
         self.raw_dir = raw_dir
         self.transform = transform
         self.target_size = target_size
         self.use_physics_prior = use_physics_prior
+        self.use_artifact_masking = use_artifact_masking
         
         # Load Sensor Coordinates
         json_path = os.path.join(data_dir, "sensor_coordinates.json")
@@ -251,6 +254,7 @@ class TemperatureHeatmapDataset(Dataset):
         
         target_map = torch.zeros((1, th, tw), dtype=torch.float32)
         mask_map = torch.zeros((1, th, tw), dtype=torch.float32)
+        artifact_mask = torch.zeros((1, th, tw), dtype=torch.float32)
         
         sensor_labels = ['M1', 'M2', 'M3', 'M4']
         temp_values = item['temps']
@@ -269,22 +273,27 @@ class TemperatureHeatmapDataset(Dataset):
             nx = min(max(nx, 0), tw - 1)
             ny = min(max(ny, 0), th - 1)
             
-            # Assign
+            # Assign target
             val = float(temp_values[k])
+            if not np.isnan(val):
+                target_map[0, ny, nx] = val
+                mask_map[0, ny, nx] = 1.0
             
-            if np.isnan(val):
-                continue
-            
-            # We can use a small radius or single pixel
-            # For UNet training, maybe single pixel is hard. 
-            # Let's do 3x3 block or gaussian? 
-            # Issue #10 says "Sparse MSE Loss: Calculates error only at the 4 specific pixel coordinates".
-            # So single pixel is fine if loss handles it.
-            
-            target_map[0, ny, nx] = val
-            mask_map[0, ny, nx] = 1.0
-            
+            # Update Artifact Mask (region around sensor)
+            if self.use_artifact_masking:
+                radius = 4 # roughly 9x9 block for 256x256
+                y_min = max(0, ny - radius)
+                y_max = min(th, ny + radius + 1)
+                x_min = max(0, nx - radius)
+                x_max = min(tw, nx + radius + 1)
+                artifact_mask[0, y_min:y_max, x_min:x_max] = 1.0
+        
+        if self.use_artifact_masking:
+            # Zero out pixels in frame where artifact_mask is 1.0
+            # Need to broadcast (1, H, W) to (3, H, W)
+            frame_tensor = frame_tensor * (1.0 - artifact_mask)
+
         # Prior Map
-        prior = item['prior_map'] # (1, H, W) is already a tensor
+        prior = item['prior_map']
             
-        return frame_tensor, target_map, mask_map, torch.tensor(temp_values, dtype=torch.float32), prior
+        return frame_tensor, target_map, mask_map, torch.tensor(temp_values, dtype=torch.float32), prior, artifact_mask

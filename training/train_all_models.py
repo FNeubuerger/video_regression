@@ -227,6 +227,7 @@ def main():
     parser.add_argument("--models", nargs='+', 
                        choices=['cnnlstm', 'pretrained_cnnlstm', 'simple_resnet', 'physics_cnnlstm', 'all'],
                        default=['all'], help="Models to train")
+    parser.add_argument("--masked", action="store_true", help="Enable thermometer artifact masking")
     args = parser.parse_args()
     
     # Model parameters - optimized for speed
@@ -234,7 +235,12 @@ def main():
     frame_shape = (64, 64, 5)
     time_steps = 3
     
-    print("=== Preparing Dataset ===")
+    # Ensure masked directory exists
+    if args.masked:
+        os.makedirs("models/masked", exist_ok=True)
+        os.makedirs("checkpoints/masked", exist_ok=True)
+    
+    print(f"=== Preparing Dataset (Masked: {args.masked}) ===")
     
     # Define transforms
     transform = transforms.Compose([
@@ -249,7 +255,8 @@ def main():
         sequence_length=time_steps,
         transform=transform,
         image_size=(64, 64),
-        use_optical_flow=True
+        use_optical_flow=True,
+        use_artifact_masking=args.masked
     )
     
     # Split dataset
@@ -295,10 +302,18 @@ def main():
         models_to_train = args.models
     
     # Initialize WandB
-    wandb.init(project="video-temperature-regression", name="standard-models-benchmark")
+    run_name = "standard-models-benchmark"
+    if args.masked:
+        run_name += "-masked"
+    wandb.init(project="video-temperature-regression", name=run_name, config=args)
     
     # Training results
     results = {}
+    
+    # Ensure directories exist
+    os.makedirs("models", exist_ok=True)
+    if args.masked:
+        os.makedirs("models/masked", exist_ok=True)
     
     for model_type in models_to_train:
         print(f"\n{'='*50}")
@@ -306,15 +321,18 @@ def main():
         print(f"{'='*50}")
 
         # Check if we should skip this model
-        model_path = f"checkpoints/{model_type}_model.pth"
+        if args.masked:
+            model_path = f"models/masked/{model_type}_model.pth"
+            save_path = f"models/masked/{model_type}_model.pth"
+        else:
+            model_path = f"models/{model_type}_model.pth"
+            save_path = f"models/{model_type}_model.pth"
+        
         should_rerun = config["force_rerun"].get(model_type, False)
         
         # Force rerun if requested via args (implicit in this script usage)
-        # But we respect the config file primarily.
-        # If the user moved files to archive, os.path.exists will be false, so it will retrain.
-        
         if os.path.exists(model_path) and not should_rerun:
-            print(f"Model {model_type} already exists and force_rerun is False. Skipping.")
+            print(f"Model {model_type} already exists at {model_path} and force_rerun is False. Skipping.")
             continue
         
         # Create model
@@ -340,7 +358,8 @@ def main():
                 val_loader=val_loader,
                 device=device,
                 num_epochs=args.epochs,
-                patience=args.patience
+                patience=args.patience,
+                model_save_path=save_path
             )
             
             results[model_type] = history

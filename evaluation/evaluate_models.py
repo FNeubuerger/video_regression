@@ -24,6 +24,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.backbones import CNNLSTM, PretrainedCNNLSTM, SimpleResNet, SpatialResNet
+from physics.models import PhysicsCNNLSTM, SpatialPhysicsCNNLSTM
 from utils.dataset import TemperatureSequenceDataset
 import warnings
 warnings.filterwarnings('ignore')
@@ -46,7 +47,7 @@ class ModelEvaluator:
         self.transform = transforms.Compose([
             transforms.Resize((64, 64)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485], std=[0.229])
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
         self.dataset = TemperatureSequenceDataset(
@@ -87,23 +88,34 @@ class ModelEvaluator:
             if model_name == "CNNLSTM":
                 model = CNNLSTM(frame_shape=frame_shape, time_steps=time_steps)
                 # Load weights before DataParallel wrapping
-                model.load_state_dict(torch.load(model_path, map_location='cpu'))
+                model.load_state_dict(torch.load(model_path, map_location=self.device))
                 
             elif model_name == "PretrainedCNNLSTM":
                 # Recreate the pretrained CNN
                 pretrained_cnn = resnet18(weights='IMAGENET1K_V1')
                 pretrained_cnn.fc = torch.nn.Linear(pretrained_cnn.fc.in_features, 1)
                 model = PretrainedCNNLSTM(pretrained_cnn, frame_shape=frame_shape, time_steps=time_steps)
-                model.load_state_dict(torch.load(model_path, map_location='cpu'))
+                model.load_state_dict(torch.load(model_path, map_location=self.device))
                 
             elif model_name == "SimpleResNet":
                 model = SimpleResNet(frame_shape=frame_shape)
-                model.load_state_dict(torch.load(model_path, map_location='cpu'))
+                model.load_state_dict(torch.load(model_path, map_location=self.device))
                 
             elif model_name in ["SpatialBioheat", "SpatialConvection", "SpatialMetabolic"]:
+                # These were likely trained with SpatialResNet but check the state dict keys
+                # if they have 'lstm' they should be SpatialPhysicsCNNLSTM
                 model = SpatialResNet(frame_shape=frame_shape)
-                state_dict = torch.load(model_path, map_location='cpu')
+                state_dict = torch.load(model_path, map_location=self.device)
                 model.load_state_dict(state_dict)
+
+            elif model_name in ["BioheatPINN", "ConvectionBioheat", "MetabolicBioheat"]:
+                model = SpatialPhysicsCNNLSTM(frame_shape=frame_shape, time_steps=time_steps)
+                state_dict = torch.load(model_path, map_location=self.device)
+                model.load_state_dict(state_dict)
+
+            elif model_name == "PhysicsCNNLSTM":
+                model = PhysicsCNNLSTM(frame_shape=frame_shape, time_steps=time_steps)
+                model.load_state_dict(torch.load(model_path, map_location=self.device))
 
             else:
                 raise ValueError(f"Unknown model name: {model_name}")
@@ -330,10 +342,14 @@ class ModelEvaluator:
                 for name, model in loaded_models.items():
                     outputs = model(images)
                     
-                    # Handle spatial output
-                    if name in ["SpatialBioheat", "SpatialConvection", "SpatialMetabolic"]:
-                        if outputs.dim() == 4:
-                            outputs = outputs[:, -1, :, :]
+                    # Handle spatial output or temporal sequence output
+                    if name in ["SpatialBioheat", "SpatialConvection", "SpatialMetabolic", "BioheatPINN", "ConvectionBioheat", "MetabolicBioheat", "PhysicsCNNLSTM"]:
+                        # If output has time dimension (Batch, Time, ...) or (Batch, Time)
+                        if outputs.dim() >= 2:
+                            # Take the last time step
+                            outputs = outputs[:, -1]
+                        
+                        # If spatial map (Batch, 4, 4), average over spatial dimensions
                         if outputs.dim() == 3:
                             outputs = outputs.mean(dim=[1, 2])
                     
@@ -372,6 +388,33 @@ class ModelEvaluator:
                 'within_5c': within_5c,
                 'num_samples': len(true_values)
             })
+
+            # Save individual JSON for generate_tables.py
+            os.makedirs("results/uncertainty_eval", exist_ok=True)
+            json_path = f"results/uncertainty_eval/{name.lower()}_metrics.json"
+            if name == "BioheatPINN": json_path = "results/uncertainty_eval/advanced_bioheat_model_metrics.json"
+            elif name == "ConvectionBioheat": json_path = "results/uncertainty_eval/convection_bioheat_model_metrics.json"
+            elif name == "MetabolicBioheat": json_path = "results/uncertainty_eval/metabolic_bioheat_model_metrics.json"
+            elif name == "CNNLSTM": json_path = "results/uncertainty_eval/cnnlstm_model_metrics.json"
+            elif name == "PretrainedCNNLSTM": json_path = "results/uncertainty_eval/pretrained_cnnlstm_model_metrics.json"
+            elif name == "SimpleResNet": json_path = "results/uncertainty_eval/simple_resnet_model_metrics.json"
+            elif name == "PhysicsCNNLSTM": json_path = "results/uncertainty_eval/physics_cnnlstm_model_metrics.json"
+            elif name == "SpatialBioheat": json_path = "results/uncertainty_eval/spatial_bioheat_model_metrics.json"
+            elif name == "SpatialConvection": json_path = "results/uncertainty_eval/spatial_convection_model_metrics.json"
+            elif name == "SpatialMetabolic": json_path = "results/uncertainty_eval/spatial_metabolic_model_metrics.json"
+
+            import json
+            with open(json_path, 'w') as f:
+                # Filter out numpy arrays and ensure float/int are serializable
+                json_data = {}
+                for k, v in results[-1].items():
+                    if isinstance(v, np.ndarray):
+                        continue
+                    if hasattr(v, 'item'): # Handle numpy scalars
+                        json_data[k] = v.item()
+                    else:
+                        json_data[k] = v
+                json.dump(json_data, f, indent=4)
             
         # Clean up
         for model in loaded_models.values():
@@ -410,6 +453,10 @@ def main():
         "CNNLSTM": os.path.join(args.models_dir, "cnnlstm_model.pth"),
         "PretrainedCNNLSTM": os.path.join(args.models_dir, "pretrained_cnnlstm_model.pth"),
         "SimpleResNet": os.path.join(args.models_dir, "simple_resnet_model.pth"),
+        "PhysicsCNNLSTM": os.path.join(args.models_dir, "physics_cnnlstm_model.pth"),
+        "BioheatPINN": os.path.join(args.models_dir, "advanced_bioheat_model.pth"),
+        "ConvectionBioheat": os.path.join(args.models_dir, "convection_bioheat_model.pth"),
+        "MetabolicBioheat": os.path.join(args.models_dir, "metabolic_bioheat_model.pth"),
         "SpatialBioheat": os.path.join(args.models_dir, "spatial_bioheat_resnet.pth"),
         "SpatialConvection": os.path.join(args.models_dir, "spatial_convection_bioheat_resnet.pth"),
         "SpatialMetabolic": os.path.join(args.models_dir, "spatial_metabolic_bioheat_resnet.pth")
@@ -421,12 +468,52 @@ def main():
         batch_size=args.batch_size
     )
     
+    # Check for existing results to skip
+    metrics_path = "results/metrics_comparison.csv"
+    if os.path.exists(metrics_path):
+        try:
+            existing_df = pd.read_csv(metrics_path)
+            existing_models = existing_df['Model'].tolist()
+            print(f"Found existing results for: {existing_models}")
+            
+            # Filter model_configs to only include those not in existing_models
+            # EXCEPT if the user wants a full rerun
+            new_configs = {name: path for name, path in model_configs.items() if name not in existing_models}
+            
+            if not new_configs:
+                print("All models already evaluated. Use --force to rerun if needed (not implemented).")
+                # We still need to run the table generation etc from existing data if we want
+                # But for now let's just proceed with empty new_configs and see
+            else:
+                print(f"Evaluating {len(new_configs)} new models: {list(new_configs.keys())}")
+                model_configs = new_configs
+        except Exception as e:
+            print(f"Error reading existing metrics: {e}")
+
     # Run evaluation
     results = evaluator.run_evaluation(model_configs)
     
     if results:
+        # If we have new results, merge with old ones
+        if os.path.exists(metrics_path):
+            existing_df = pd.read_csv(metrics_path)
+            new_df = pd.DataFrame([{
+                'Model': r['model_name'],
+                'RMSE (°C)': f"{r['rmse']:.3f}",
+                'MAE (°C)': f"{r['mae']:.3f}",
+                'R² Score': f"{r['r2_score']:.3f}",
+                'Correlation': f"{r['correlation']:.3f}",
+                'Within 1°C (%)': f"{r['within_1c']:.1f}",
+                'Within 2°C (%)': f"{r['within_2c']:.1f}",
+                'Within 5°C (%)': f"{r['within_5c']:.1f}",
+                'Test Samples': r['num_samples']
+            } for r in results])
+            
+            combined_df = pd.concat([existing_df, new_df]).drop_duplicates(subset=['Model'], keep='last')
+            combined_df.to_csv(metrics_path, index=False)
+            print(f"Updated {metrics_path} with new results.")
+        
         print(f"\nEvaluation complete! Results saved in 'results/' directory.")
-        print(f"Evaluated {len(results)} models on {results[0]['num_samples']} test samples.")
     
     return results
 
