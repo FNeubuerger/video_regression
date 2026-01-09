@@ -446,6 +446,7 @@ def main():
     parser.add_argument("--data_dir", type=str, default="data", help="Data directory")
     parser.add_argument("--batch_size", type=int, default=64, help="Batch size for evaluation")
     parser.add_argument("--models_dir", type=str, default="models", help="Directory containing model checkpoints")
+    parser.add_argument('--force', action='store_true', help='Force rerun of all models')
     args = parser.parse_args()
     
     # Define model configurations
@@ -470,25 +471,26 @@ def main():
     
     # Check for existing results to skip
     metrics_path = "results/metrics_comparison.csv"
-    if os.path.exists(metrics_path):
+    if os.path.exists(metrics_path) and not args.force:
         try:
             existing_df = pd.read_csv(metrics_path)
             existing_models = existing_df['Model'].tolist()
             print(f"Found existing results for: {existing_models}")
             
             # Filter model_configs to only include those not in existing_models
-            # EXCEPT if the user wants a full rerun
             new_configs = {name: path for name, path in model_configs.items() if name not in existing_models}
             
             if not new_configs:
-                print("All models already evaluated. Use --force to rerun if needed (not implemented).")
-                # We still need to run the table generation etc from existing data if we want
-                # But for now let's just proceed with empty new_configs and see
+                print("All models already evaluated. Use --force to rerun.")
             else:
                 print(f"Evaluating {len(new_configs)} new models: {list(new_configs.keys())}")
                 model_configs = new_configs
         except Exception as e:
             print(f"Error reading existing metrics: {e}")
+    elif args.force:
+        print("Force option enabled, rerunning all evaluations.")
+        if os.path.exists(metrics_path):
+            os.remove(metrics_path) # Clear old results
 
     # Run evaluation
     results = evaluator.run_evaluation(model_configs)
