@@ -191,7 +191,8 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
                         out = out[:, -1, :, :]
                     
                     if out.dim() == 3: # (Batch, H, W)
-                        out = out.mean(dim=[1, 2])
+                        # For peak temperature comparison, take max
+                        out = torch.amax(out, dim=[1, 2])
                     
                     # Final check for sequence of scalars (Batch, Time)
                     if out.dim() > 1 and out.shape[1] > 1:
@@ -211,7 +212,8 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
                         out = out[:, -1, :, :]
                     
                     if out.dim() == 3: # (Batch, H, W)
-                        out = out.mean(dim=[1, 2])
+                        # For peak temperature comparison, take max
+                        out = torch.amax(out, dim=[1, 2])
                     
                     # Final check for sequence of scalars (Batch, Time)
                     if out.dim() > 1 and out.shape[1] > 1:
