@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
+from utils.flow_utils import preprocess_frame_with_flow
 
 class SequenceHeatmapDataset(Dataset):
     def __init__(self, 
@@ -17,7 +18,8 @@ class SequenceHeatmapDataset(Dataset):
                  sequence_length=16,
                  stride=8,
                  use_physics_prior=True,
-                 use_artifact_masking=False):
+                 use_artifact_masking=False,
+                 use_optical_flow=False):
         """
         Args:
             data_dir: Directory containing cropped MP4 videos and sensor_coordinates.json
@@ -28,6 +30,7 @@ class SequenceHeatmapDataset(Dataset):
             stride: Step size between sequences (for sliding window).
             use_physics_prior: If True, returns Gaussian heatmap as prior.
             use_artifact_masking: If True, returns a mask identifying sensor regions to be ignored.
+            use_optical_flow: If True, appends 2 channels of dense optical flow (total 5 channels).
         """
         self.data_dir = data_dir
         self.raw_dir = raw_dir
@@ -37,6 +40,7 @@ class SequenceHeatmapDataset(Dataset):
         self.stride = stride
         self.use_physics_prior = use_physics_prior
         self.use_artifact_masking = use_artifact_masking
+        self.use_optical_flow = use_optical_flow
         
         # Reuse logic to identify sensor map
         json_path = os.path.join(data_dir, "sensor_coordinates.json")
@@ -241,7 +245,6 @@ class SequenceHeatmapDataset(Dataset):
                 # artifact_mask is (1, H, W), frame_tensor is (3, H, W)
                 frame_tensor = frame_tensor * (1.0 - artifact_mask)
 
-            frames.append(frame_tensor)
             sparse_targets.append(sparse_map)
             priors.append(meta['prior_map'])
             
@@ -254,6 +257,10 @@ class SequenceHeatmapDataset(Dataset):
                     torch.zeros((self.sequence_length, 1, H, W)))
 
         frames_t = torch.stack(frames) # (Seq, C, H, W)
+
+        if self.use_optical_flow:
+            frames_t = preprocess_frame_with_flow(frames_t)
+
         targets_t = torch.stack(sparse_targets) # (Seq, 1, H, W)
         priors_t = torch.stack(priors) # (Seq, 1, H, W)
         

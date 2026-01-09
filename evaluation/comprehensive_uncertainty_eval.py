@@ -16,6 +16,8 @@ import seaborn as sns
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from utils.dataset import TemperatureRegressionDataset
+from utils.sequence_dataset import SequenceHeatmapDataset
+from utils.heatmap_dataset import TemperatureHeatmapDataset
 from utils.model_registry import MODEL_REGISTRY
 
 def compute_uncertainty_metrics(targets, means, stds):
@@ -112,9 +114,7 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
         models.append(model)
     
     # 2. Load Data
-    # Use 'test' split if available, otherwise use a subset of data
-    # Assuming data_dir has sequence folders. We'll use the standard dataset class.
-    # Ideally we should have a separate test set. For now, we'll use the dataset class.
+    is_dense_model = "UNet" in model_name or "LTC" in model_name
     
     transform = transforms.Compose([
         transforms.Resize((64, 64)),
@@ -122,12 +122,26 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    dataset = TemperatureRegressionDataset(
-        data_dir=data_dir, 
-        sequence_length=5,
-        image_size=(64, 64),
-        transform=transform
-    )
+    if "LTC" in model_name:
+        dataset = SequenceHeatmapDataset(
+            data_dir=data_dir, 
+            sequence_length=10, # Match training
+            image_size=(64, 64),
+            transform=transform
+        )
+    elif "UNet" in model_name:
+        dataset = TemperatureHeatmapDataset(
+            data_dir=data_dir,
+            image_size=(64, 64),
+            transform=transform
+        )
+    else:
+        dataset = TemperatureRegressionDataset(
+            data_dir=data_dir, 
+            sequence_length=5,
+            image_size=(64, 64),
+            transform=transform
+        )
     
     # Create a simple train/test split (80/20) for demonstration if no explicit test set
     # In a real scenario, we would load a specific test set.
@@ -150,11 +164,17 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
     all_targets = []
     
     with torch.no_grad():
-        for images, targets in tqdm(test_loader, desc="Evaluating"):
+        for batch in tqdm(test_loader, desc="Evaluating"):
+            if len(batch) == 5:  # SequenceHeatmapDataset/TemperatureHeatmapDataset
+                images, _, priors, targets, _ = batch
+                priors = priors.to(device)
+            else:
+                images, targets = batch
+                priors = None
+
             images = images.to(device)
             
             # Extract number of expected channels from model
-            # Most models expect 3 (RGB) or 5 (RGB + Flow)
             sample_model = models[0]
             if hasattr(sample_model, "n_channels"):
                 target_ch = sample_model.n_channels
@@ -178,48 +198,68 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
             # Monte Carlo Sampling or Ensemble Averaging
             batch_preds = []
             
-            if ensemble_dir:
-                # For ensembles, we run each model once (deterministic)
-                # The "samples" are the ensemble members
-                for model in models:
+            for model in models if ensemble_dir else [models[0]] * (1 if not num_samples else num_samples):
+                if ensemble_dir:
                     out = model(images)
-                    if isinstance(out, tuple):
-                        out = out[0]
-                    
-                    # Handle spatial output (Batch, [Time], H, W)
-                    if out.dim() == 4: # (Batch, Time, H, W)
-                        out = out[:, -1, :, :]
-                    
-                    if out.dim() == 3: # (Batch, H, W)
-                        # For peak temperature comparison, take max
-                        out = torch.amax(out, dim=[1, 2])
-                    
-                    # Final check for sequence of scalars (Batch, Time)
+                else: 
+                    # Bayesian sampling loop handled by outer loop logic above
+                    out = models[0](images)
+
+                if isinstance(out, tuple):
+                    out = out[0]
+                
+                # Add physics prior if available (for residual learning models)
+                if is_dense_model and priors is not None:
+                    # Match shapes for prior addition
+                    if out.dim() == 5 and priors.dim() == 4:
+                        out = out + priors.unsqueeze(1)
+                    else:
+                        out = out + priors
+                
+                # Handle various output shapes to get (Batch,) peak temperature
+                if out.dim() == 5: # (Batch, Time, C, H, W)
+                    out = out[:, -1] # -> (Batch, C, H, W)
+                
+                if out.dim() == 4: # (Batch, C, H, W)
+                    # Take spatial max
+                    out = torch.amax(out, dim=[2, 3]) # -> (Batch, C)
+                    # If multiple channels, take max over channels (usually just 1)
                     if out.dim() > 1 and out.shape[1] > 1:
-                         out = out[:, -1]
-                    
-                    batch_preds.append(out.cpu().numpy())
+                        out = torch.amax(out, dim=1)
+                    else:
+                        out = out.squeeze(-1) if out.dim() > 1 else out
+                
+                if out.dim() == 3: # (Batch, H, W)
+                    out = torch.amax(out, dim=[1, 2])
+                
+                if out.dim() == 2: # (Batch, Time) or (Batch, 1)
+                    out = out[:, -1]
+                
+                batch_preds.append(out.cpu().numpy())
+                if ensemble_dir and model == models[-1]: break # Avoid extra loops for ensemble
+            
+            # Stack predictions: (num_samples, batch_size)
+            batch_preds = np.stack(batch_preds, axis=0)
+            
+            # Compute statistics
+            batch_mean = np.mean(batch_preds, axis=0)
+            batch_std = np.std(batch_preds, axis=0)
+            
+            all_means.append(batch_mean)
+            all_stds.append(batch_std)
+            
+            # Handle target shape for dense models (take spatial max for scalar metric)
+            if targets.dim() > 1:
+                if targets.dim() == 4: # (B, C, H, W)
+                    targets_scalar = torch.amax(targets, dim=[2, 3])
+                    if targets_scalar.dim() > 1: targets_scalar = targets_scalar[:, 0]
+                elif targets.dim() == 3: # (B, H, W)
+                    targets_scalar = torch.amax(targets, dim=[1, 2])
+                else:
+                    targets_scalar = targets
+                all_targets.append(targets_scalar.numpy())
             else:
-                # For single model (Bayesian), we run it num_samples times
-                model = models[0]
-                for _ in range(num_samples):
-                    out = model(images)
-                    if isinstance(out, tuple):
-                        out = out[0]
-                    
-                    # Handle spatial output (Batch, [Time], H, W)
-                    if out.dim() == 4: # (Batch, Time, H, W)
-                        out = out[:, -1, :, :]
-                    
-                    if out.dim() == 3: # (Batch, H, W)
-                        # For peak temperature comparison, take max
-                        out = torch.amax(out, dim=[1, 2])
-                    
-                    # Final check for sequence of scalars (Batch, Time)
-                    if out.dim() > 1 and out.shape[1] > 1:
-                         out = out[:, -1]
-                         
-                    batch_preds.append(out.cpu().numpy())
+                all_targets.append(targets.numpy())
             
             # Stack predictions: (num_samples, batch_size)
             batch_preds = np.stack(batch_preds, axis=0)
@@ -318,10 +358,12 @@ def main():
     if args.ensemble_dir:
         run_name = "Ensemble"
     else:
-        # Use checkpoint filename as run name (minus extension)
-        run_name = os.path.splitext(os.path.basename(args.checkpoint))[0]
-
-    # Check if results already exist
+        # Use model name combined with checkpoint name to avoid overwrites
+        ckpt_name = os.path.splitext(os.path.basename(args.checkpoint))[0]
+        run_name = f"{args.model}_{ckpt_name}"
+    
+    # Save metrics
+    os.makedirs(args.output_dir, exist_ok=True)
     metrics_path = os.path.join(args.output_dir, f"{run_name}_metrics.json")
     if os.path.exists(metrics_path) and not args.force:
         print(f"Results already exist at {metrics_path}. Skipping evaluation. Use --force to override.")

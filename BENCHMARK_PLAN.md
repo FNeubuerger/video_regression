@@ -8,38 +8,38 @@ We are currently training **20+ distinct models** across four primary categories
 
 ### A. Temporal Models (Sequence-based)
 *Input: Sequence of 5 Frames (RGB + Optical Flow)*
-- [x] **CNNLSTM** (Part 1, Baseline)
-- [x] **Pretrained CNNLSTM** (Retraining)
-- [x] **Physics CNNLSTM** (Retraining)
-- [x] **Bioheat PINN** (PDE: Diff+Perf)
-- [x] **Convection Bioheat** (PDE: +Flow)
-- [x] **Metabolic Bioheat** (PDE: +Source)
+- [x] **CNNLSTM** (RMSE: 17.91°C, MAE: 8.41°C)
+- [x] **Pretrained CNNLSTM** (MAE: 19.59°C)
+- [x] **Physics CNNLSTM** (MAE: 1.58°C)
+- [x] **Bioheat PINN** (MAE: 0.23°C)
+- [x] **Convection Bioheat** (MAE: 0.24°C, Best RMSE: 0.61°C)
+- [x] **Metabolic Bioheat** (MAE: 0.21°C, Best MAE)
 
 ### B. Spatial Models (Frame-based)
 *Input: Single Frame (RGB + Optical Flow)*
-- [x] **Simple ResNet** (Validated)
-- [x] **Spatial Bioheat** (Validated)
-- [x] **Spatial Convection** (Validated)
-- [x] **Spatial Metabolic** (Validated)
+- [x] **Simple ResNet** (MAE: 1.51°C)
+- [x] **Spatial Bioheat** (MAE: 1.24°C)
+- [x] **Spatial Convection** (MAE: 1.61°C)
+- [x] **Spatial Metabolic** (MAE: 1.02°C)
 
 ### C. Dense Map Models (Part 2: U-Net)
 *Input: Frame/Sequence with Dense Output ($H \times W$)*
-- [x] **U-Net Baseline** (Sparse Supervision)
-- [x] **U-Net + Physics Prior** (Gaussian Prior)
-- [x] **Hybrid U-Net** (PDE Loss in Loss Function)
+- [x] **U-Net Baseline** (In Progress: Integrated)
+- [x] **U-Net + Physics Prior** (Integrated)
+- [x] **Hybrid U-Net** (Integrated)
 
 ### D. Time & Dynamics (Part 3: LTC/ODES)
-- [x] **ConvLTC** (Closed-form Continuous, Hybrid)
-- [x] **Latent LTC U-Net** (Latent Physics Dynamics)
+- [x] **ConvLTC** (Integrated)
+- [x] **Latent LTC U-Net** (Integrated, MAE: 54°C - Needs Calibration)
 
 ### E. Uncertainty Models
 - [x] **Ensemble**
-- [x] **Bayesian Head**
-- [x] **Full Bayesian** (ResNet)
+- [x] **Bayesian Head** (PICP: 0.90)
+- [x] **Full Bayesian** (ResNet) (PICP: 0.86)
 - [x] **Bayesian PINN**
-- [x] **Bayesian CNNLSTM**
-- [ ] **Bayesian U-Net** (Research Phase: Bottleneck/Decoder Uncertainty)
-- [ ] **Bayesian LTC** (Research Phase: Variational Encoder + Deterministic LTC)
+- [x] **Bayesian CNNLSTM** (PICP: 0.97)
+- [x] **Bayesian U-Net** (Integrated)
+- [x] **Bayesian LTC** (Integrated)
 
 ---
 
