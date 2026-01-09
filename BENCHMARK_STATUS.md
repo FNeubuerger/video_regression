@@ -1,54 +1,43 @@
 # Benchmark Status Report
 
-**Date:** January 8, 2026
-**Status:** Part 1 Retraining & Part 2/3 Benchmark Execution
+**Date:** January 9, 2026
+**Overall Status:** Phase 2 (Physics) Completed; Phase 3 (Uncertainty) in Progress.
 
-## Part 1 Summary (Vector Regression)
-Evaluation of single-value regression models is complete.
-*   **Best Model:** Simple ResNet (RMSE 1.86°C).
-*   **Physics Result:** Spatial Bioheat (RMSE 1.88°C) validated the PDE approach.
-*   **Active Tasks:**
-    *   `physics_cnnlstm`: Retraining in progress (Epoch 3/50, Loss ~724).
-    *   `pretrained_cnnlstm`: Retraining in progress (Epoch 21/50, Loss ~650).
+## Project Performance Overview
 
-## Part 2 Status: Dense Map Estimation
-We have transitioned the codebase to support dense temperature map prediction ($H \times W$ heatmap output instead of scalar).
+The following table summarizes the performance across all major model variants tested in the repository.
 
-### Completed Work
-1.  **Refactored Data Pipeline (Level 0 $\to$ Level 1):**
-    *   **Preprocessing:** Implemented dynamic "Active Zone" cropping ($Y_{peak} \pm 180$) to standardize inputs.
-    *   **Sensor Localization:** Implemented robust Axis-Aligned 4-sensor detection on clean, averaged frames.
-    *   **Dataset:** Created `TemperatureHeatmapDataset` that synchronizes video frames with CSV logs and generates sparse supervision masks.
-    *   **Validation:** Generated verification videos confirming sensor alignment and coordinate stability.
+| Part | Category | Model Name | Val RMSE (°C) | Val MAE (°C) | Status |
+| :--- | :--- | :--- | :---: | :---: | :--- |
+| **P1** | **Baselines** | `SimpleResNet` | 2.97 | 1.31 | **Completed** |
+| | | `CNNLSTM` | 44.46 | 32.27 | **Completed** |
+| **P2** | **Physics** | `BioheatPINN` (BTE) | **1.15** | **0.26** | **Completed** |
+| | | `ConvectionBioheat` | **0.80** | **0.29** | **Completed** |
+| | | `SpatialMetabolic` | 1.83 | 0.72 | **Completed** |
+| **P3** | **Uncertainty** | `BayesianCNNLSTM` | 34.50* | 28.50* | *Training* |
 
-2.  **Architecture:**
-    *   Implemented `ResNetUNet` (Encoder-Decoder with Skip Connections) in `models/dense_heads.py`.
+---
 
-3.  **Physics Prior (Optional):**
-    *   Implemented a Gaussian Heatmap Prior based on input wattage for Residual Learning ($Pred = Prior + Delta$).
-    *   **Refinement:** Made this strictly optional (`--no_physics_prior`) to ensure the model can be trained purely on data if metadata is missing or assumptions fail.
+## Detailed Component Status
 
-4.  **Testing Infrastructure:**
-    *   Established `tests/` directory with `pytest` suite.
-    *   Covered: Dataset loading (shapes/metadata), Model Architecture (I/O shapes), and Physics Logic.
+### 1. Baselines & Standard Regression (Completed)
+*   **Leader:** `SimpleResNet` (MAE: 1.31 K).
+*   **Observation:** Performance dropped slightly on the full test set compared to initial subsets.
+*   **Update:** Masking logic implemented (Jan 9). Retraining triggered.
 
-5.  **Hybrid Physics Training:**
-    *   Implemented `BioheatHybridLoss` in `physics/hybrid_loss.py` (MSE + Bioheat PDE Residual).
-    *   Created `training/train_unet_hybrid.py` to train with PDE constraints.
+### 2. Physics-Informed Variants (Completed)
+*   **Leader:** `BioheatPINN` (MAE: **0.26 K**).
+*   **Benefit:** Incorporating the Bioheat Transfer Equation (BTE) reduced error by over 80%.
+*   **Update:** Verification of "real learning" vs "cheating" is in progress using masked training.
 
-### Benchmarks (Active)
-The following benchmarks are currently running in `tmux` (session `video_regression_benchmarks`):
-*   `unet_sparse_noprior`: U-Net Baseline (running).
-*   `unet_sparse_withprior`: U-Net + Gaussian Prior (running).
-*   `unet_hybrid_physics`: U-Net + Bioheat PDE Reg (running).
+### 3. Bayesian & Uncertainty Estimation (Active)
+*   **Current Progress:** Evaluating Calibration (PICP) and Sharpness (MPIW).
+*   **Status:** `BayesianCNNLSTM` (MAE 30.1 K) and `BayesianResNet` (MAE 29.6 K) show very high error. They appear to struggle with the raw sequence noise or lack of spatial grounding without masking.
+*   **Update:** Masked retraining is critical to see if these models stabilize.
 
-### Next Steps (Implementation Plan)
-1.  **Evaluate Results:** Compare convergence and final MSE once training completes.
-2.  **Part 3 (Time):**
-    *   **Documentation:** Added a new section to the paper (`ltc_section.tex`) justifying the use of Liquid Time Constant (LTC) networks via the Bioheat Transfer Equation.
-    *   **Implementation:** Implemented `models/latent_ltc.py` (Latent-Space Dynamics) and `training/train_ltc.py`.
-    *   **Status:** Active. `ltc_unet_seq16_hybrid` and `conv_ltc_seq16_hybrid` are training.
 
-3.  **Verification:**
-    *   **Test Suite:** Expanded `tests/test_model_suite.py` covering all Part 2 and Part 3 architectures (`ResNetUNet`, `LatentLTC_UNet`, `CNNLSTM`, `SimpleResNet`).
-    *   **Status:** All tests passing.
+## Next High-Level Actions
+1.  **Masked Retraining:** Relaunch [training/train_all_models.py](training/train_all_models.py) with `--masked` flag to establish clean benchmarks.
+2.  **Uncertainty Evaluation:** Run [evaluation/comprehensive_uncertainty_eval.py](evaluation/comprehensive_uncertainty_eval.py) on finished Bayesian models.
+3.  **XAI Validation:** Compare masked vs unmasked attributions (Issue #46).
+4.  **Paper Prep:** Update results tables in the LaTeX manuscript with the latest metrics.

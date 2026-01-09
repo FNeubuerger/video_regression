@@ -23,16 +23,15 @@ try:
     from models.latent_ltc import LatentLTC_UNet
     from models.conv_ltc import ConvLTC_Model
 
-    # NOTE: ResNetUNet takes n_channels=5 (RGB + 2 Flow)
-    MODEL_REGISTRY["ResNetUNet"] = (ResNetUNet, {"n_channels": 5, "n_classes": 1})
+    # NOTE: ResNetUNet takes n_channels=3 (RGB)
+    MODEL_REGISTRY["ResNetUNet"] = (ResNetUNet, {"n_channels": 3, "n_classes": 1, "variational": False})
     
-    # NOTE: LatentLTC_UNet takes Sequence inputs, but benchmark_model might try to init it once
-    # However, LatentLTC_UNet.__init__ takes (n_channels=3, latent_dim, ncp_units)
-    # Why n_channels=3? If we use Flow, it should be 5. Let's assume 5 for consistency.
-    MODEL_REGISTRY["LatentLTC_UNet"] = (LatentLTC_UNet, {"n_channels": 5, "latent_dim": 128, "ncp_units": 160})
+    # NOTE: LatentLTC_UNet takes Sequence inputs
+    # The trained checkpoint from Part 3 used n_channels=3, 160 units, and VAE
+    MODEL_REGISTRY["LatentLTC_UNet"] = (LatentLTC_UNet, {"n_channels": 3, "latent_dim": 128, "ncp_units": 160, "variational": True})
 
     # ConvLTC
-    MODEL_REGISTRY["ConvLTC"] = (ConvLTC_Model, {"input_channels": 5, "hidden_channels": 32, "output_channels": 1})
+    MODEL_REGISTRY["ConvLTC"] = (ConvLTC_Model, {"input_channels": 3, "hidden_channels": 32, "output_channels": 1})
 
 except ImportError as e:
     print(f"Warning: Could not import Part 2/3 models: {e}")

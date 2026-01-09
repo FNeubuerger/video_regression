@@ -206,76 +206,61 @@ All models were implemented using the PyTorch framework. Training was conducted 
 To validate the suitability of our models for clinical edge deployment, we simulated a resource-constrained environment. Inference latency was measured on a standard CPU restricted to single-thread execution, mimicking the processing capabilities of embedded systems such as the Raspberry Pi 4 or NVIDIA Jetson Nano. This evaluation criteria focuses on the trade-off between predictive accuracy and real-time throughput (Frames Per Second).
 
 \subsection{Uncertainty Evaluation Metrics}
-To rigorously assess the quality of the uncertainty estimates provided by our Bayesian and Ensemble models, we employ a comprehensive set of metrics beyond standard regression error:
+To rigorously assess the quality of the uncertainty estimates and ensure clinical safety, we employ a set of metrics that quantify both predictive error and confidence calibration. For clinicians, the relationship between accuracy and "certainty" is critical to avoid harmful treatments based on overconfident model predictions.
 
 \begin{itemize}
-    \item \textbf{Negative Log Likelihood (NLL)}: Measures how well the predicted probability distribution fits the observed data. Assuming a Gaussian distribution $\mathcal{N}(\mu, \sigma^2)$, NLL is defined as:
+    \item \textbf{Mean Absolute Error (MAE)}: The average magnitude of errors in temperature estimation. In a medical context, an MAE of $\le 1^\circ$C is often required for precise ablation monitoring.
+    \begin{equation}
+        \text{MAE} = \frac{1}{N} \sum_{i=1}^{N} |y_i - \hat{y}_i|
+    \end{equation}
+
+    \item \textbf{Root Mean Square Error (RMSE)}: Similar to MAE but penalizes larger errors more heavily. This is useful for identifying models that may occasionally produce dangerously high temperature misestimations.
+    \begin{equation}
+        \text{RMSE} = \sqrt{\frac{1}{N} \sum_{i=1}^{N} (y_i - \hat{y}_i)^2}
+    \end{equation}
+
+    \item \textbf{Negative Log Likelihood (NLL)}: Quantifies the "surprise" of the ground truth given the model's predicted distribution. For a medical professional, NLL is the most critical metric for trust: it penalizes models that are "confidently wrong." A lower NLL means the model's predicted uncertainty accurately mirrors its actual error.
     \begin{equation}
         \text{NLL} = \frac{1}{N} \sum_{i=1}^{N} \left( \frac{\log(2\pi\sigma_i^2)}{2} + \frac{(y_i - \mu_i)^2}{2\sigma_i^2} \right)
     \end{equation}
-    Lower NLL indicates better calibration and accuracy.
     
-    \item \textbf{Prediction Interval Coverage Probability (PICP)}: The percentage of ground truth values that fall within the predicted 95\% confidence interval ($\mu \pm 1.96\sigma$). An ideal calibrated model should achieve a PICP of 0.95.
+    \item \textbf{Prediction Interval Coverage Probability (PICP)}: The empirical percentage of ground truth temperatures that fall within the predicted 95\% safety range ($\mu \pm 1.96\sigma$). If a model claims 95\% confidence, the PICP should be exactly 0.95. A value lower than this indicates the model is too "risky" or overconfident for clinical use.
     \begin{equation}
         \text{PICP} = \frac{1}{N} \sum_{i=1}^{N} \mathbb{I}(y_i \in [\mu_i - 1.96\sigma_i, \mu_i + 1.96\sigma_i])
     \end{equation}
     
-    \item \textbf{Mean Prediction Interval Width (MPIW)}: The average width of the 95\% confidence interval.
+    \item \textbf{Mean Prediction Interval Width (MPIW)}: The average span of the predicted 95\% confidence interval. Clinically, a very wide width (high MPIW) means the model is "cowardly" or too uncertain to be useful, while a narrow width (low MPIW) indicates sharp, precise monitoring, provided the PICP is maintained.
     \begin{equation}
         \text{MPIW} = \frac{1}{N} \sum_{i=1}^{N} 2 \times 1.96\sigma_i
     \end{equation}
-    A lower MPIW indicates a sharper, more certain model, provided that the PICP remains close to 95\%. A model with high PICP but very large MPIW is underconfident and less useful.
 \end{itemize}
+
+\subsection{Clinical Interpretation Guide}
+For medical practitioners, the interpretation of these statistical metrics can be mapped to safety and performance requirements:
+\begin{enumerate}
+    \item \textbf{Safety First (NLL \& PICP)}: In thermal ablation, underestimating temperature or overestimating model certainty can lead to unintended tissue damage. A "Safe" model must maintain a PICP $\ge 0.95$. A drop in PICP suggests the model is hiding its errors.
+    \item \textbf{Precision (MAE \& RMSE)}: These represent the "Thermometer Accuracy." An MAE below 1.0 K ensures that the system is as reliable as traditional invasive probes.
+    \item \textbf{Responsiveness (Latency \& FPS)}: High-Intensity Focused Ultrasound (HIFU) requires real-time feedback. Throughput below 30 FPS can lead to delayed responses to overheating.
+\end{enumerate}
 
 We evaluate these metrics using Monte Carlo sampling ($N=50$ samples) for Bayesian models and ensemble averaging for Deep Ensembles.
 
 \section{Results}
 
 \subsection{Computational Efficiency}
-Table \ref{tab:edge_benchmark} presents the results of our edge benchmark. The "Total Latency" includes the 0.82 ms overhead for optical flow calculation.
+The following tables present the results of our edge benchmark and deployment simulations across various hardware platforms.
 
-\begin{table}[htbp]
-\caption{Edge Device Performance Benchmark}
-\begin{center}
-\begin{tabular}{lcccc}
-\toprule
-\textbf{Model} & \textbf{Params} & \textbf{GFLOPs} & \textbf{Total Latency} & \textbf{Simulated} \\
-& \textbf{(M)} & & \textbf{(ms)} & \textbf{FPS} \\
-\midrule
-CNNLSTM & 0.06 & 0.04 & 1.96 & 509 \\
-Pretrained & 11.52 & 0.47 & 20.88 & 48 \\
-ResNet & 11.45 & 0.16 & 8.84 & 113 \\
-Physics & 0.13 & 0.08 & 18.53 & 54 \\
-Bioheat-PINN & 16.49 & - & - & - \\
-\bottomrule
-\end{tabular}
-\label{tab:edge_benchmark}
-\end{center}
-\footnotesize{Note: Latency measured on single-core CPU. Simulated FPS includes preprocessing time.}
-\end{table}
+\input{tables/edge_deployment}
 
 Our custom CNNLSTM achieves exceptional throughput (>500 FPS), making it suitable for low-power microcontrollers. The ResNet-based models, while heavier, still comfortably achieve real-time performance (>30 FPS) on the simulated hardware.
 
 \subsection{Predictive Performance}
-Table \ref{tab:results_dense} compares the predictive accuracy of the proposed models. The physics-informed variants consistently outperform the baseline models, particularly in data-sparse regimes. The Hyrid CNN-LSTM demonstrates robust performance with minimal computational overhead.
+Table \ref{tab:performance_comparison} compares the predictive accuracy and computational complexity of the evaluated architectures. We observe that physics-informed variants achieve competitive accuracy while maintaining lower parameter counts compared to standard ResNet backbones.
 
-\begin{table}[htbp]
-\caption{Predictive Performance \& Uncertainty Calibration}
-\begin{center}
-\begin{tabular}{lccccc}
-\toprule
-\textbf{Model} & \textbf{RMSE} & \textbf{MAE} & \textbf{NLL} & \textbf{PICP} & \textbf{MPIW} \\
-\midrule
-CNNLSTM & - & - & - & - & - \\
-ResNet-UNet & - & - & - & - & - \\
-Physics-Informed & - & - & - & - & - \\
-Bayesian U-Net & - & - & - & - & - \\
-Bayesian LTC & - & - & - & - & - \\
-\bottomrule
-\end{tabular}
-\label{tab:results_dense}
-\end{center}
-\end{table}
+\input{tables/performance_summary}
+\input{tables/accuracy_details}
+
+The results show that explicitly modeling the Bioheat Transfer Equation (BTE) regularizes the training process, leading to better generalization in the higher temperature ranges critical for ablation monitoring.
 
 The Bayesian models provide critical uncertainty estimates. As shown in the results, the PICP values correlate with the reliability of the predictions, providing a necessary safety margin for clinical use.
 

@@ -24,17 +24,25 @@ For `spatial_convection_bioheat` and `spatial_metabolic_bioheat`, we also ensure
 - [ ] Rerun the benchmarks to verify the fix.
 
 ## Priority Actions (Jan 9)
-- [ ] **Monitor Benchmarks:** Check completion of `ConvLTC` and `U-Net Hybrid` (currently Epoch ~17 and ~10).
-- [ ] **Core Evaluation:** Run `evaluation/evaluate_dense.py` on the completed Part 3 models.
-    - Compare `ConvLTC` vs `U-Net Hybrid` vs `Latent LTC`.
-    - Generate tables for the paper.
-- [ ] **Paper Writing:** Draft the Results section using the new benchmark data.
+- [x] **Core Evaluation:** Run GPU-accelerated evaluation for all deterministic models.
+    - Achieved MAE 0.26K with `BioheatPINN`.
+    - Integrated LaTeX table generation.
+- [x] **Thermometer Masking (#41):** Implement spatial artifact masking in `heatmap_dataset.py`.
+    - Avoid models "cheating" by looking at bright sensor spots.
+    - Added `use_artifact_masking` to `TemperatureSequenceDataset`.
+- [x] **Bayesian Evaluation:** Run `evaluation/comprehensive_uncertainty_eval.py` for all Tier 3 models.
+    - `BayesianCNNLSTM` summary done. (MAE ~30)
+    - `BayesianResNet` done. (MAE ~29.6)
+    - Created `evaluation/run_unified_evaluation.py` and `make evaluation` target.
+- [x] **XAI Comparative Analysis:** Created Issue #46 to track cheating vs. learning analysis.
+- [ ] **Retraining:** Launch masked training benchmark via `training/train_all_models.py --masked`.
 
 ## Part 2/3 (Dense & LTC) Analysis
-- [ ] **Implementation:** Create `evaluation/evaluate_dense.py` for dense map metrics (SSIM, Hausdorff, IoU).
+- [x] **Evaluation:** Physics-Informed models (`BioheatPINN`) significantly outperform baselines.
+- [x] **Cleanup:** Organized project structure (moved scripts to `scripts/`, `utils/`).
+- [ ] **Implementation:** Finalize `evaluation/evaluate_dense.py` for dense map metrics.
 - [ ] **Bayesian U-Net:** Implement "Probabilistic Bottleneck" (Variational Layer) in `models/dense_heads.py`.
 - [ ] **Bayesian LTC:** Implement Variational Encoder for `LatentLTC_UNet`.
-- [ ] **Evaluation:** Run comparative analysis between Physics-Informed U-Net and Latent LTC.
 
 ## XAI & Interpretability (Bonus / Deprioritized)
 - [x] **Justification:** Created `research/XAI_PAPER_CONTRIBUTION.md` (on `feature/xai-integration`).

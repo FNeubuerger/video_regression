@@ -16,7 +16,8 @@ class SequenceHeatmapDataset(Dataset):
                  target_size=(64, 64),
                  sequence_length=16,
                  stride=8,
-                 use_physics_prior=True):
+                 use_physics_prior=True,
+                 use_artifact_masking=False):
         """
         Args:
             data_dir: Directory containing cropped MP4 videos and sensor_coordinates.json
@@ -26,6 +27,7 @@ class SequenceHeatmapDataset(Dataset):
             sequence_length: Number of frames per sequence.
             stride: Step size between sequences (for sliding window).
             use_physics_prior: If True, returns Gaussian heatmap as prior.
+            use_artifact_masking: If True, returns a mask identifying sensor regions to be ignored.
         """
         self.data_dir = data_dir
         self.raw_dir = raw_dir
@@ -34,6 +36,7 @@ class SequenceHeatmapDataset(Dataset):
         self.sequence_length = sequence_length
         self.stride = stride
         self.use_physics_prior = use_physics_prior
+        self.use_artifact_masking = use_artifact_masking
         
         # Reuse logic to identify sensor map
         json_path = os.path.join(data_dir, "sensor_coordinates.json")
@@ -202,6 +205,7 @@ class SequenceHeatmapDataset(Dataset):
             current_temps = meta['temps'][log_idx]
             
             sparse_map = torch.zeros((1, self.target_size[0], self.target_size[1]), dtype=torch.float32)
+            artifact_mask = torch.zeros((1, self.target_size[0], self.target_size[1]), dtype=torch.float32)
             
             orig_h, orig_w = meta['original_size']
             scale_y = self.target_size[0] / orig_h
@@ -211,7 +215,6 @@ class SequenceHeatmapDataset(Dataset):
             for s_idx, label in enumerate(sensor_labels):
                 if label not in meta['sensor_pos']: continue
                 
-                # Careful: The JSON keys might be "M1", "M2"... matching order
                 center = meta['sensor_pos'][label]['center']
                 sx, sy = center[0], center[1]
                 
@@ -222,9 +225,23 @@ class SequenceHeatmapDataset(Dataset):
                 
                 temp_val = current_temps[s_idx]
                 val = float(temp_val)
-                if np.isnan(val): continue
-                sparse_map[0, py, px] = val
+                if not np.isnan(val):
+                    sparse_map[0, py, px] = val
                 
+                if self.use_artifact_masking:
+                    radius = 2 # Small radius for 64x64
+                    y_min = max(0, py - radius)
+                    y_max = min(self.target_size[0], py + radius + 1)
+                    x_min = max(0, px - radius)
+                    x_max = min(self.target_size[1], px + radius + 1)
+                    artifact_mask[0, y_min:y_max, x_min:x_max] = 1.0
+            
+            if self.use_artifact_masking:
+                # Zero out the artifact regions in the input frame
+                # artifact_mask is (1, H, W), frame_tensor is (3, H, W)
+                frame_tensor = frame_tensor * (1.0 - artifact_mask)
+
+            frames.append(frame_tensor)
             sparse_targets.append(sparse_map)
             priors.append(meta['prior_map'])
             

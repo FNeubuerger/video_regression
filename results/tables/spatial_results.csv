@@ -1,0 +1,5 @@
+Display Name,MSE,MAE,RMSE,NLL,PICP_95,MPIW_95
+Spatial Bioheat,,,,,,
+Spatial Metabolic,,,,,,
+Spatial Convection,,,,,,
+Simple ResNet,,,,,,
