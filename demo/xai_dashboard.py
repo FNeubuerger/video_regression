@@ -1,3 +1,4 @@
+from xml.parsers.expat import model
 import cv2
 import torch
 import numpy as np
@@ -101,6 +102,10 @@ def run_dashboard(video_path, model_name, checkpoint_path, output_path, device_n
     
     # 1. Load Model
     model, wrapper, input_channels = load_model_for_xai(model_name, checkpoint_path, device)
+
+    # testing which model has been loaded
+    print("MODEL TYPE:", type(model))
+    print("MODEL STRUCTURE:\n", model)
     
     # Setup GradCAM
     # Try different layers
