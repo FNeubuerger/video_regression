@@ -22,7 +22,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from utils.dataset import TemperatureSequenceDataset
 from models.backbones import CNNLSTM, SimpleResNet, PretrainedCNNLSTM, SpatialResNet
-from models.bayesian import BayesianResNet, FullBayesianResNet, BayesianSpatialResNet
+from models.bayesian import BayesianResNet, FullBayesianResNet, BayesianSpatialResNet, BayesianCNNLSTM
 from models.conv_ltc import ConvLTC
 from physics.models import SpatialPhysicsCNNLSTM, PhysicsCNNLSTM
 from physics.loss import PhysicsInformedLoss
@@ -124,6 +124,9 @@ def run_loso_fold(holdout_seq, model_type, args):
     elif model_type == "FullBayesianResNet":
         model = FullBayesianResNet(frame_shape=frame_shape)
         criterion = torch.nn.MSELoss()
+    elif model_type == "BayesianCNNLSTM":
+        model = BayesianCNNLSTM(frame_shape=frame_shape)
+        criterion = torch.nn.MSELoss()
     elif model_type == "ConvLTC":
         model = ConvLTC(in_channels=5, hidden_channels=32)
         criterion = torch.nn.MSELoss()
@@ -206,7 +209,7 @@ def run_loso_fold(holdout_seq, model_type, args):
     mae = np.mean(np.abs(errors))
     rmse = np.sqrt(np.mean(np.square(errors)))
     
-    print(f"Fold {holdout_seq} Results: MAE={mae:.4f}, RMSE={rmse:.4f}")
+    print(f"Fold {holdout_seq} Results: MAE={mae:.4f} K, RMSE={rmse:.4f} K")
     return {"fold": holdout_seq, "mae": float(mae), "rmse": float(rmse)}
 
 def main():
@@ -240,7 +243,8 @@ def main():
     print("="*60)
     print(df.to_string(index=False))
     print("-" * 60)
-    print(f"MEAN MAE:  {df['mae'].mean():.4f} ± {df['mae'].std():.4f}")
+    print(f"MEAN MAE:  {df['mae'].mean():.4f} \pm {df['mae'].std():.4f} K")
+    print(f"MEAN RMSE: {df['rmse'].mean():.4f} \pm {df['rmse'].std():.4f} K")
     
     os.makedirs("results", exist_ok=True)
     output_path = f"results/loso_{args.model}_{'masked' if args.masked else 'unmasked'}.csv"

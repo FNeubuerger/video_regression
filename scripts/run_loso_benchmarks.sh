@@ -7,9 +7,10 @@ VENV_PATH="/mnt/data2/video_regression/.venv/bin/python"
 
 # Standard set of models to benchmark
 # Options: CNNLSTM, PretrainedCNNLSTM, SimpleResNet, PhysicsCNNLSTM, 
-#          ConvectionBioheat, SpatialResNet, BayesianResNet, ConvLTC
+#          ConvectionBioheat, SpatialResNet, BayesianResNet, 
+#          FullBayesianResNet, BayesianCNNLSTM, ConvLTC
 
-MODELS=("CNNLSTM" "PhysicsCNNLSTM" "ConvectionBioheat" "SimpleResNet")
+MODELS=("CNNLSTM" "PretrainedCNNLSTM" "PhysicsCNNLSTM" "ConvectionBioheat" "SimpleResNet" "SpatialResNet" "BayesianResNet" "FullBayesianResNet" "BayesianCNNLSTM" "ConvLTC")
 EPOCHS=10   # Reduced for full benchmark run
 BATCH_SIZE=32
 
@@ -26,6 +27,9 @@ for MODEL in "${MODELS[@]}"; do
     # We run in background using tmux sessions for each model 
     # to avoid terminal blocking and allow for parallel execution
     SESSION_NAME="loso_${MODEL,,}"
+    
+    # Kill session if it already exists to ensure a fresh run
+    tmux kill-session -t $SESSION_NAME 2>/dev/null
     
     tmux new-session -d -s $SESSION_NAME \
         "$VENV_PATH evaluation/loso_cross_validation.py --model $MODEL --epochs $EPOCHS --batch_size $BATCH_SIZE --masked"

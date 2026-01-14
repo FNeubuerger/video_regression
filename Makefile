@@ -10,7 +10,31 @@ $(shell mkdir -p $(LOG_DIR) $(MODELS_DIR) $(CHECKPOINTS_DIR))
 
 # Targets
 .PHONY: all cnnlstm pretrained_cnnlstm simple_resnet physics_cnnlstm ensemble bayesian full_bayesian spatial_bioheat spatial_convection spatial_metabolic \
-        unet_sparse_noprior unet_sparse_withprior tmux_part2 evaluation
+        unet_sparse_noprior unet_sparse_withprior tmux_part2 evaluation \
+        loso_all loso_temporal loso_spatial loso_uncertainty
+
+# --- LOSO Cross-Validation ---
+
+loso_all:
+	@echo "Starting LOSO for all models in parallel..."
+	bash scripts/run_loso_benchmarks.sh
+
+loso_temporal:
+	@for model in CNNLSTM PretrainedCNNLSTM PhysicsCNNLSTM ConvectionBioheat ConvLTC; do \
+		bash scripts/run_loso_benchmarks.sh $$model; \
+	done
+
+loso_spatial:
+	@for model in SimpleResNet SpatialResNet; do \
+		bash scripts/run_loso_benchmarks.sh $$model; \
+	done
+
+loso_uncertainty:
+	@for model in BayesianResNet FullBayesianResNet BayesianCNNLSTM; do \
+		bash scripts/run_loso_benchmarks.sh $$model; \
+	done
+
+# --- General ---
 
 all: cnnlstm pretrained_cnnlstm simple_resnet physics_cnnlstm ensemble bayesian full_bayesian spatial_bioheat spatial_convection spatial_metabolic
 
