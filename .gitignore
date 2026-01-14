@@ -190,3 +190,5 @@ wandb/
 *.onnx
 #ignore videos
 *.mp4
+#ignore pdf files in literature
+literature/*.pdf
