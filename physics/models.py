@@ -144,6 +144,16 @@ class SpatialPhysicsCNNLSTM(nn.Module):
             nn.Linear(512, 16), # 4x4 map
             nn.ReLU()
         )
+        
+        # Issue #41: Tissue Parameter Head
+        # Predicts spatial maps for Perfusion (alpha) and Conductivity (beta)
+        # We use a summary of the CNN features to predict static tissue properties
+        self.param_head = nn.Sequential(
+            nn.Linear(512 * 2 * 2, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32), # (alpha, beta) for each of the 4x4 pixels = 32 values
+            nn.Sigmoid()
+        )
 
     def forward(self, x):
         # x: (batch, time_steps, channels, H, W)
@@ -152,6 +162,14 @@ class SpatialPhysicsCNNLSTM(nn.Module):
         # CNN Feature Extraction
         c_in = x.view(batch_size * time_steps, C, H, W)
         features = self.cnn(c_in) # (B*T, 512, 2, 2)
+        
+        # Issue #41: Extract static Tissue Parameters using features from first frame
+        # (Alternatively, average features across time)
+        feat_static = features.view(batch_size, time_steps, 512, 2, 2)[:, 0] 
+        param_out = self.param_head(feat_static.reshape(batch_size, -1)) # (B, 32)
+        param_maps = param_out.view(batch_size, 2, 4, 4)
+        alpha_map = param_maps[:, 0:1] # (B, 1, 4, 4)
+        beta_map = param_maps[:, 1:2]  # (B, 1, 4, 4)
         
         # Flatten for LSTM
         features_flat = features.view(batch_size, time_steps, -1)
@@ -164,5 +182,4 @@ class SpatialPhysicsCNNLSTM(nn.Module):
         map_flat = self.spatial_decoder(lstm_out) # (batch, time, 16)
         temp_map = map_flat.view(batch_size, time_steps, 4, 4)
         
-        return temp_map
-
+        return temp_map, alpha_map, beta_map

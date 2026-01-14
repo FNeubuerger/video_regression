@@ -37,6 +37,12 @@ For `spatial_convection_bioheat` and `spatial_metabolic_bioheat`, we also ensure
 - [x] **XAI Comparative Analysis:** Created Issue #46 to track cheating vs. learning analysis.
 - [ ] **Retraining:** Launch masked training benchmark via `training/train_all_models.py --masked`.
 
+## LOSO Cross-Validation (#47)
+- [x] **Implementation:** `evaluation/loso_cross_validation.py` created with fold-based logic.
+- [ ] **Rerun Benchmarks:** Execute full training/evaluation pipeline for all models using LOSO to prove setup generalization.
+    - [ ] Compare LOSO results (Generalization) vs. Random Split results (Memorization).
+    - [ ] Maintain legacy benchmark results for internal comparison.
+
 ## Part 2/3 (Dense & LTC) Analysis
 - [x] **Evaluation:** Physics-Informed models (`BioheatPINN`) significantly outperform baselines.
 - [x] **Cleanup:** Organized project structure (moved scripts to `scripts/`, `utils/`).

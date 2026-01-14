@@ -241,9 +241,9 @@ class ModelEvaluator:
             max_val = max(true_values.max(), predictions.max())
             plt.plot([min_val, max_val], [min_val, max_val], 'r--', lw=2, label='Perfect Prediction')
             
-            plt.xlabel('True Temperature (°C)')
-            plt.ylabel('Predicted Temperature (°C)')
-            plt.title(f'{result["model_name"]}\nR² = {result["r2_score"]:.3f}, RMSE = {result["rmse"]:.2f}°C')
+            plt.xlabel('True Temperature $T/K$')
+            plt.ylabel('Predicted Temperature $T/K$')
+            plt.title(f'{result["model_name"]}\nR² = {result["r2_score"]:.3f}, RMSE = {result["rmse"]:.2f} K')
             plt.legend()
             plt.grid(True, alpha=0.3)
         
@@ -255,9 +255,9 @@ class ModelEvaluator:
             
             plt.hist(errors, bins=50, alpha=0.7, density=True)
             plt.axvline(0, color='red', linestyle='--', linewidth=2)
-            plt.xlabel('Prediction Error (°C)')
+            plt.xlabel('Prediction Error $\Delta T/K$')
             plt.ylabel('Density')
-            plt.title(f'{result["model_name"]}\nError Distribution\nMAE = {result["mae"]:.2f}°C')
+            plt.title(f'{result["model_name"]}\nError Distribution\nMAE = {result["mae"]:.2f} K')
             plt.grid(True, alpha=0.3)
         
         # 3. Metrics comparison bar plot

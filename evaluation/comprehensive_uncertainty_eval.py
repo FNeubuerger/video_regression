@@ -307,8 +307,8 @@ def plot_results(targets, means, stds, model_name, output_dir):
     plt.figure(figsize=(10, 6))
     plt.errorbar(targets, means, yerr=stds, fmt='o', alpha=0.2, label='Predictions')
     plt.plot([min(targets), max(targets)], [min(targets), max(targets)], 'r--', label='Ideal')
-    plt.xlabel('Ground Truth Temperature')
-    plt.ylabel('Predicted Temperature')
+    plt.xlabel('Ground Truth Temperature $T/K$')
+    plt.ylabel('Predicted Temperature $T/K$')
     plt.title(f'{model_name}: Predicted vs Actual with Uncertainty')
     plt.legend()
     plt.savefig(os.path.join(output_dir, f'{model_name}_calibration.png'))
@@ -318,8 +318,8 @@ def plot_results(targets, means, stds, model_name, output_dir):
     errors = np.abs(targets - means)
     plt.figure(figsize=(10, 6))
     plt.scatter(stds, errors, alpha=0.3)
-    plt.xlabel('Predicted Uncertainty (Std Dev)')
-    plt.ylabel('Absolute Error')
+    plt.xlabel('Predicted Uncertainty $\sigma/K$')
+    plt.ylabel('Absolute Error $|T_{pred} - T_{gt}|/K$')
     plt.title(f'{model_name}: Uncertainty vs Error')
     
     # Add correlation coefficient

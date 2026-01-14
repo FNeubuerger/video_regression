@@ -21,28 +21,32 @@ class AdvancedBioHeatLoss(nn.Module):
                  arterial_temp=37.0,
                  learnable_params=True,
                  dx=1.0, # Spatial step size (mm)
-                 dt=1.0): # Time step size (s)
+                 dt=1.0, # Time step size (s)
+                 spatial_params=False,
+                 frame_shape=(64, 64)): 
         super().__init__()
         self.mse = nn.MSELoss()
         self.physics_weight = physics_weight
         self.T_a = arterial_temp
         self.dt = dt
         self.dx = dx
+        self.spatial_params = spatial_params
         
         # Learnable Parameters
         # We use Log-space to ensure positivity
+        param_shape = (1, 1, *frame_shape) if spatial_params else (1,)
+        
         if learnable_params:
-            self.log_alpha = nn.Parameter(torch.log(torch.tensor(initial_perfusion)))
-            self.log_beta = nn.Parameter(torch.log(torch.tensor(initial_conductivity)))
-            # Metabolic rate can be zero, so we don't use log space for it, or we use a small epsilon
-            # Let's assume it's positive and use log space for stability, initialized to a small value if 0
+            self.log_alpha = nn.Parameter(torch.log(torch.full(param_shape, initial_perfusion)))
+            self.log_beta = nn.Parameter(torch.log(torch.full(param_shape, initial_conductivity)))
+            
             init_qm = initial_metabolic_rate if initial_metabolic_rate > 1e-6 else 1e-6
-            self.log_qm = nn.Parameter(torch.log(torch.tensor(init_qm)))
+            self.log_qm = nn.Parameter(torch.log(torch.full(param_shape, init_qm)))
         else:
-            self.register_buffer('log_alpha', torch.log(torch.tensor(initial_perfusion)))
-            self.register_buffer('log_beta', torch.log(torch.tensor(initial_conductivity)))
+            self.register_buffer('log_alpha', torch.log(torch.full(param_shape, initial_perfusion)))
+            self.register_buffer('log_beta', torch.log(torch.full(param_shape, initial_conductivity)))
             init_qm = initial_metabolic_rate if initial_metabolic_rate > 1e-6 else 1e-6
-            self.register_buffer('log_qm', torch.log(torch.tensor(init_qm)))
+            self.register_buffer('log_qm', torch.log(torch.full(param_shape, init_qm)))
 
     @property
     def alpha(self):
@@ -89,7 +93,7 @@ class AdvancedBioHeatLoss(nn.Module):
         T_y = (T_padded[:, :, 2:, 1:-1] - T_padded[:, :, :-2, 1:-1]) / (2 * self.dx)
         return T_x, T_y
 
-    def forward(self, predictions, targets, flow=None, mask=None):
+    def forward(self, predictions, targets, flow=None, mask=None, alpha_map=None, beta_map=None):
         """
         Args:
             predictions: 
@@ -98,9 +102,10 @@ class AdvancedBioHeatLoss(nn.Module):
             targets: (batch, time) or (batch, 1)
             flow: Optional (batch, time, 2, H_in, W_in) - Optical Flow field
             mask: Optional (batch, 1, H, W) - Spatial mask for artifacts
+            alpha_map: Optional (batch, 1, H, W) - Learnable perfusion map (Issue #41)
+            beta_map: Optional (batch, 1, H, W) - Learnable conductivity map (Issue #41)
         """
         # 1. Data Fidelity (MSE)
-        # ... existingGAP code ...
         if predictions.dim() == 4: # (B, T, H, W)
             pred_scalar = predictions.mean(dim=(2, 3)) # Global Average Pooling
         else:
@@ -124,12 +129,17 @@ class AdvancedBioHeatLoss(nn.Module):
                 
                 # Spatial Diffusion Term
                 lap_T = self.laplacian(T_current)
-                diffusion_term = self.beta * lap_T
+                
+                # Use provided maps or scalar parameters
+                curr_beta = beta_map if beta_map is not None else self.beta
+                curr_alpha = alpha_map if alpha_map is not None else self.alpha
+                
+                diffusion_term = curr_beta * lap_T
                 
                 # Convection Term
                 convection_term = 0.0
                 if flow is not None:
-                    B, T, H, W = T_current.shape
+                    B, T_raw, H, W = T_current.shape
                     flow_flat = flow.view(-1, 2, flow.shape[-2], flow.shape[-1])
                     flow_down = torch.nn.functional.adaptive_avg_pool2d(flow_flat, (H, W))
                     flow_down = flow_down.view(B, flow.shape[1], 2, H, W)
@@ -140,15 +150,24 @@ class AdvancedBioHeatLoss(nn.Module):
                     convection_term = v_x * T_x + v_y * T_y
                     
                 # Residual
-                perfusion_term = -self.alpha * (T_current - self.T_a)
+                perfusion_term = -curr_alpha * (T_current - self.T_a)
                 metabolic_term = self.qm
+                
                 residual = dT_dt + convection_term - (diffusion_term + perfusion_term + metabolic_term)
                 
                 # Apply Mask if provided
                 if mask is not None:
-                    # mask is (B, 1, H, W), residual is (B, T-1, H, W)
-                    # Broadcase mask to match time steps
-                    residual = residual * (1.0 - mask)
+                    # mask is (B, 1, H_in, W_in), residual is (B, T-1, H, W)
+                    # Downsample mask to match residual resolution
+                    B, _, H_in, W_in = mask.shape
+                    _, _, H, W = residual.shape
+                    if H_in != H or W_in != W:
+                        mask_down = torch.nn.functional.adaptive_avg_pool2d(mask, (H, W))
+                    else:
+                        mask_down = mask
+                        
+                    # Broadcase mask to match time steps (residual has T-1 frames)
+                    residual = residual * (1.0 - mask_down)
                 
                 physics_loss = torch.mean(residual ** 2)
             else:
@@ -194,5 +213,5 @@ class AdvancedBioHeatLoss(nn.Module):
             physics_loss = torch.mean(residual ** 2)
             total_loss += self.physics_weight * physics_loss
 
-        return total_loss, self.alpha.item(), self.beta.item()
+        return total_loss
 

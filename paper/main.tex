@@ -168,6 +168,9 @@ Finally, we introduce a metabolic heat generation term $Q_{met}$ to account for 
 \end{equation}
 By incrementally adding these physical processes (Diffusion $\rightarrow$ Perfusion $\rightarrow$ Convection $\rightarrow$ Metabolism), we can systematically evaluate the contribution of each term to the model's predictive accuracy and generalization capability.
 
+\subsubsection{Inverse Physics and Spatial Parameter Discovery}
+Beyond temperature regression, our spatial model enables \textit{Inverse Physics} by treating the material properties $\alpha$ (perfusion) and $\beta$ (thermal conductivity) as learnable spatial maps. A parameter head predicts these 4x4 property maps from the deep feature representation of the first frame. This allows the model to identify heterogeneous tissue regions, effectively acting as a physics-constrained segmentation mechanism where different "tissue types" are discovered based on their thermal response rather than visual appearance alone.
+
 \input{ltc_section}
 
 \subsection{Uncertainty Quantification}
@@ -200,7 +203,10 @@ This formulation ensures that the model's predictions are data-driven, physicall
 \section{Experimental Setup}
 
 \subsection{Training Configuration}
-All models were implemented using the PyTorch framework. Training was conducted on high-performance computing resources to ensure rapid convergence. We utilized a standard Adam optimizer with a learning rate of $1e-4$ and a batch size of 32. The dataset was split into training (70\%), validation (15\%), and testing (15\%) sets, ensuring that the test sequences were from distinct experimental runs to prevent data leakage.
+All models were implemented using the PyTorch framework. Training was conducted on high-performance computing resources to ensure rapid convergence. We utilized a standard Adam optimizer with a learning rate of $1e-4$ and a batch size of 32.
+
+\subsection{Leave-One-Sequence-Out (LOSO) Validation}
+To rigorously assess the generalizability of our physics-informed models, we employ a Leave-One-Sequence-Out (LOSO) cross-validation strategy. Unlike standard random splitting, which can lead to over-optimistic performance due to temporal correlation within the same experimental run, LOSO ensures that the model is tested on entirely unseen experimental subjects. We iterate through each of the seven distinct experimental sequences in our dataset, holding one out as the test set while training on the remaining six. This approach provides a true measure of the model's ability to normalize across subject-specific variants in tissue properties and ultrasonic artifacts.
 
 \subsection{Edge Inference Evaluation}
 To validate the suitability of our models for clinical edge deployment, we simulated a resource-constrained environment. Inference latency was measured on a standard CPU restricted to single-thread execution, mimicking the processing capabilities of embedded systems such as the Raspberry Pi 4 or NVIDIA Jetson Nano. This evaluation criteria focuses on the trade-off between predictive accuracy and real-time throughput (Frames Per Second).

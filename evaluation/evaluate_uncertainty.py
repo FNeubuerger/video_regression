@@ -92,14 +92,14 @@ def plot_uncertainty(targets, means, stds, title, save_path):
         stds = stds[indices]
         
     plt.plot(targets, label='Ground Truth', color='black', linewidth=2)
-    plt.errorbar(range(len(targets)), means, yerr=stds, fmt='o', alpha=0.5, label='Prediction ± Std Dev')
+    plt.errorbar(range(len(targets)), means, yerr=stds, fmt='o', alpha=0.5, label='Prediction $\pm$ Std Dev')
     
     plt.title(title)
     plt.xlabel('Sample Index (Sorted by Temperature)')
-    plt.ylabel('Temperature')
+    plt.ylabel('Temperature $T/K$')
     plt.legend()
     plt.grid(True, alpha=0.3)
-    plt.savefig(save_path)
+    plt.savefig(save_path, dpi=300)
     plt.close()
     print(f"Plot saved to {save_path}")
 

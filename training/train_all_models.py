@@ -18,6 +18,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.backbones import CNNLSTM, PretrainedCNNLSTM, SimpleResNet
 from physics import PhysicsCNNLSTM, PhysicsInformedLoss
+from physics.models import SpatialPhysicsCNNLSTM
+from physics.bioheat_loss import AdvancedBioHeatLoss
 from utils.dataset import TemperatureSequenceDataset
 import torch
 import torch.nn as nn
@@ -43,6 +45,8 @@ def create_model(model_type, frame_shape, time_steps):
         return SimpleResNet(frame_shape=frame_shape)
     elif model_type == "physics_cnnlstm":
         return PhysicsCNNLSTM(frame_shape=frame_shape, time_steps=time_steps, pretrained=True)
+    elif model_type == "spatial_physics_cnnlstm":
+        return SpatialPhysicsCNNLSTM(frame_shape=frame_shape, time_steps=time_steps, pretrained=True)
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
@@ -112,14 +116,27 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
             if mask is not None:
                 mask = mask.to(device, non_blocking=True)
             
+            # Extract Optical Flow if using AdvancedBioHeatLoss (5-channel input)
+            flow = None
+            if isinstance(criterion_instance, PhysicsInformedLoss) and images.shape[2] == 5:
+                # images is (B, T, C, H, W). Last 2 channels are flow
+                flow = images[:, :, 3:, :, :]
+            
             optimizer_instance.zero_grad()
             
             if scaler is not None:
                 with autocast('cuda'):
                     outputs = model_instance(images)
-                    # Handle physics model output (sequence) vs scalar label
-                    if isinstance(criterion_instance, PhysicsInformedLoss):
-                        loss = criterion_instance(outputs, labels.float(), mask=mask)
+                    
+                    # Handle multiple outputs (Spatial Map + Physics Params) (Issue #41)
+                    alpha_map, beta_map = None, None
+                    if isinstance(outputs, tuple) and len(outputs) == 3:
+                        outputs, alpha_map, beta_map = outputs
+                        
+                    # Handle physics model output
+                    if isinstance(criterion_instance, (PhysicsInformedLoss, AdvancedBioHeatLoss)):
+                        loss = criterion_instance(outputs, labels.float(), flow=flow, mask=mask,
+                                                 alpha_map=alpha_map, beta_map=beta_map)
                     else:
                         loss = criterion_instance(outputs, labels.float())
                 
@@ -133,8 +150,15 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                 scaler.update()
             else:
                 outputs = model_instance(images)
+                
+                # Handle multiple outputs (Spatial Map + Physics Params) (Issue #41)
+                alpha_map, beta_map = None, None
+                if isinstance(outputs, tuple) and len(outputs) == 3:
+                    outputs, alpha_map, beta_map = outputs
+                    
                 if isinstance(criterion_instance, PhysicsInformedLoss):
-                    loss = criterion_instance(outputs, labels.float(), mask=mask)
+                    loss = criterion_instance(outputs, labels.float(), flow=flow, mask=mask,
+                                             alpha_map=alpha_map, beta_map=beta_map)
                 else:
                     loss = criterion_instance(outputs, labels.float())
                 loss.backward()
@@ -176,14 +200,32 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                 if scaler is not None:
                     with autocast('cuda'):
                         outputs = model_instance(images)
-                        if isinstance(criterion_instance, PhysicsInformedLoss):
-                            loss = criterion_instance(outputs, labels.float(), mask=mask)
+                        
+                        # Handle multiple outputs (Spatial Map + Physics Params)
+                        alpha_map, beta_map = None, None
+                        if isinstance(outputs, tuple) and len(outputs) == 3:
+                            outputs, alpha_map, beta_map = outputs
+                            
+                        if isinstance(criterion_instance, (PhysicsInformedLoss, AdvancedBioHeatLoss)):
+                            # Extract flow if present (channels 3 and 4)
+                            flow = images[:, :, 3:, :, :] if images.shape[2] >= 5 else None
+                            loss = criterion_instance(outputs, labels.float(), flow=flow, mask=mask, 
+                                                     alpha_map=alpha_map, beta_map=beta_map)
                         else:
                             loss = criterion_instance(outputs, labels.float())
                 else:
                     outputs = model_instance(images)
+                    
+                    # Handle multiple outputs (Spatial Map + Physics Params)
+                    alpha_map, beta_map = None, None
+                    if isinstance(outputs, tuple) and len(outputs) == 3:
+                        outputs, alpha_map, beta_map = outputs
+                        
                     if isinstance(criterion_instance, PhysicsInformedLoss):
-                        loss = criterion_instance(outputs, labels.float(), mask=mask)
+                        # Extract flow if present (channels 3 and 4)
+                        flow = images[:, :, 3:, :, :] if images.shape[2] >= 5 else None
+                        loss = criterion_instance(outputs, labels.float(), flow=flow, mask=mask,
+                                                 alpha_map=alpha_map, beta_map=beta_map)
                     else:
                         loss = criterion_instance(outputs, labels.float())
                 
@@ -255,7 +297,7 @@ def main():
     parser.add_argument("--patience", type=int, default=config["training_params"].get("patience", 10), help="Early stopping patience")
     parser.add_argument("--batch_size", type=int, default=config["training_params"].get("batch_size", 128), help="Batch size")
     parser.add_argument("--models", nargs='+', 
-                       choices=['cnnlstm', 'pretrained_cnnlstm', 'simple_resnet', 'physics_cnnlstm', 'all'],
+                       choices=['cnnlstm', 'pretrained_cnnlstm', 'simple_resnet', 'physics_cnnlstm', 'spatial_physics_cnnlstm', 'all'],
                        default=['all'], help="Models to train")
     parser.add_argument("--masked", action="store_true", help="Enable thermometer artifact masking")
     args = parser.parse_args()
@@ -327,7 +369,13 @@ def main():
     
     # Determine which models to train
     if 'all' in args.models:
-        models_to_train = ['cnnlstm', 'pretrained_cnnlstm', 'simple_resnet', 'physics_cnnlstm']
+        models_to_train = [
+            'cnnlstm', 
+            'pretrained_cnnlstm', 
+            'simple_resnet', 
+            'physics_cnnlstm',
+            'spatial_physics_cnnlstm'
+        ]
     else:
         models_to_train = args.models
     
@@ -370,10 +418,21 @@ def main():
         
         # Create criterion and optimizer
         if model_type == "physics_cnnlstm":
-            # Use PhysicsInformedLoss for the physics model
+            # Use PhysicsInformedLoss for the basic physics model
             criterion = PhysicsInformedLoss(physics_weight=0.1)
+        elif model_type == "spatial_physics_cnnlstm":
+            # Use AdvancedBioHeatLoss for the spatial physics model (Issue #41, #42)
+            criterion = AdvancedBioHeatLoss(
+                physics_weight=0.1, 
+                spatial_params=True, 
+                learnable_params=True,
+                frame_shape=(4, 4) # Matches SpatialPhysicsCNNLSTM output
+            )
         else:
             criterion = nn.MSELoss()
+            
+        # Ensure criterion is on device (crucial for learnable physics parameters)
+        criterion = criterion.to(device)
             
         optimizer = torch.optim.AdamW(model.parameters(), lr=0.003, weight_decay=1e-4)
         

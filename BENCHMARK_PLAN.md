@@ -83,7 +83,24 @@ We will perform the following pairwise and group comparisons to validate our hyp
 
 ---
 
-## 3. Evaluation Metrics & Strategy
+## 4. Inverse Physics & Generalization Validation
+
+### Section 4.1: Spatial Parameter Discovery (Inverse Modeling)
+*Hypothesis: Learning heterogeneous tissue properties ($\alpha, \beta$) spatially reveals subsurface structures and improves PDE adherence.*
+
+| Model | Novelty | Comparison Goal |
+| :--- | :--- | :--- |
+| **Convection Bioheat** | Scalar $\alpha, \beta$ | Baseline physics with uniform parameters. |
+| **Spatial Physics CNNLSTM** | $4\times 4$ Property Maps | Does discovering tissue heterogeneity improve local temp accuracy? |
+
+### Section 4.2: LOSO Cross-Validation
+*Hypothesis: Random-split validation overestimates performance; Leave-One-Sequence-Out (LOSO) reveals true generalization across subjects.*
+
+1.  **Baseline vs. Spatial Physics**: Compare standard CNN-LSTM against Inverse Physics model under LOSO.
+2.  **Generalization Gap**: Quantify $| RMSE_{random} - RMSE_{LOSO} |$ to establish the "Reliability Score" of physics-informed models.
+
+
+## 5. Evaluation Metrics & Strategy
 
 ### A. Scalar Metrics (Regression)
 1.  **RMSE/MAE**: Accuracy of Peak Temperature ($T_{max}$).

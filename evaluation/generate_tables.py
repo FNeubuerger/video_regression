@@ -14,10 +14,15 @@ def generate_tables(results_dir="results/uncertainty_eval", output_dir="results/
     for f in json_files:
         with open(f, 'r') as file:
             metrics = json.load(file)
+            # Standardize keys to uppercase for the consolidated table
+            standardized_metrics = {}
+            for k, v in metrics.items():
+                standardized_metrics[k.upper()] = v
+            
             # Extract model name from filename
             model_name = os.path.basename(f).replace("_metrics.json", "")
-            metrics['Model'] = model_name
-            data.append(metrics)
+            standardized_metrics['Model'] = model_name
+            data.append(standardized_metrics)
             
     if not data:
         print("No results found.")
@@ -31,23 +36,24 @@ def generate_tables(results_dir="results/uncertainty_eval", output_dir="results/
     
     model_map = {
         # Temporal
-        "cnnlstm_model": ("CNNLSTM", "Temporal"),
-        "pretrained_cnnlstm_model": ("Pretrained CNNLSTM", "Temporal"),
-        "physics_cnnlstm_model": ("Physics CNNLSTM", "Temporal"),
-        "advanced_bioheat_model": ("Bioheat PINN", "Temporal"),
-        "convection_bioheat_model": ("Convection Bioheat", "Temporal"),
-        "metabolic_bioheat_model": ("Metabolic Bioheat", "Temporal"),
+        "cnnlstm": ("CNNLSTM", "Temporal"),
+        "pretrained_cnnlstm": ("Pretrained CNNLSTM", "Temporal"),
+        "physics_cnnlstm": ("Physics CNNLSTM", "Temporal"),
+        "advanced_bioheat": ("Bioheat PINN", "Temporal"),
+        "convection_bioheat": ("Convection Bioheat", "Temporal"),
+        "metabolic_bioheat": ("Metabolic Bioheat", "Temporal"),
         
         # Spatial
-        "simple_resnet_model": ("Simple ResNet", "Spatial"),
-        "spatial_bioheat_model": ("Spatial Bioheat", "Spatial"),
-        "spatial_convection_model": ("Spatial Convection", "Spatial"),
-        "spatial_metabolic_model": ("Spatial Metabolic", "Spatial"),
+        "simple_resnet": ("Simple ResNet", "Spatial"),
+        "spatial_bioheat": ("Spatial Bioheat", "Spatial"),
+        "spatial_convection": ("Spatial Convection", "Spatial"),
+        "spatial_metabolic": ("Spatial Metabolic", "Spatial"),
         
         # Uncertainty
         "Ensemble": ("Ensemble", "Uncertainty"),
         "bayesian_resnet": ("Bayesian Head", "Uncertainty"),
         "full_bayesian_resnet": ("Full Bayesian", "Uncertainty"),
+        "bayesian_pinn": ("Bayesian PINN", "Uncertainty"),
         "bayesian_pinn": ("Bayesian PINN", "Uncertainty"),
         "bayesian_cnnlstm": ("Bayesian CNNLSTM", "Uncertainty"),
         "bayesian_metabolic_pinn": ("Bayesian Metabolic PINN", "Uncertainty"),
@@ -70,12 +76,21 @@ def generate_tables(results_dir="results/uncertainty_eval", output_dir="results/
     df['Display Name'] = df['Model'].apply(get_display_name)
     df['Category'] = df['Model'].apply(get_category)
     
-    # Reorder columns
+    # Reorder columns and rename for units
     cols = ['Category', 'Display Name', 'MSE', 'MAE', 'RMSE', 'NLL', 'PICP_95', 'MPIW_95']
     df = df[cols]
     
-    # Sort by Category and RMSE
-    df = df.sort_values(by=['Category', 'RMSE'])
+    # Rename columns with units for scientific clarity
+    df = df.rename(columns={
+        'MSE': 'MSE ($K^2$)',
+        'MAE': 'MAE (K)',
+        'RMSE': 'RMSE (K)',
+        'MPIW_95': 'MPIW$_{95}$ (K)',
+        'PICP_95': 'PICP$_{95}$'
+    })
+    
+    # Sort by Category and RMSE (using renamed column)
+    df = df.sort_values(by=['Category', 'RMSE (K)'])
     
     # 3. Generate Tables
     
