@@ -49,7 +49,7 @@ def create_model(model_type, frame_shape, time_steps):
 
 def train_model_with_validation(model_instance, model_name, criterion_instance, optimizer_instance, 
                                train_loader, val_loader, device, num_epochs=50, patience=10, 
-                               model_save_path=None):
+                               model_save_path=None, masked=False):
     """
     Train a model with validation and early stopping.
     
@@ -98,8 +98,12 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
             if len(batch) == 3:
                 images, labels, mask = batch
                 # Apply masking for the input if requested
-                if args.masked and mask is not None:
-                    images = images * (1.0 - mask)
+                if masked and mask is not None:
+                    # Handle broadcasting for 5D sequence data (B, T, C, H, W)
+                    if images.dim() == 5:
+                        images = images * (1.0 - mask.unsqueeze(1))
+                    else:
+                        images = images * (1.0 - mask)
             else:
                 images, labels = batch
                 mask = None
@@ -155,8 +159,12 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                 if len(batch) == 3:
                     images, labels, mask = batch
                     # Apply masking for the input if requested
-                    if args.masked and mask is not None:
-                        images = images * (1.0 - mask)
+                    if masked and mask is not None:
+                        # Handle broadcasting for 5D sequence data
+                        if images.dim() == 5:
+                            images = images * (1.0 - mask.unsqueeze(1))
+                        else:
+                            images = images * (1.0 - mask)
                 else:
                     images, labels = batch
                     mask = None
@@ -381,7 +389,8 @@ def main():
                 device=device,
                 num_epochs=args.epochs,
                 patience=args.patience,
-                model_save_path=save_path
+                model_save_path=save_path,
+                masked=args.masked
             )
             
             results[model_type] = history

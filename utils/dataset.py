@@ -278,8 +278,8 @@ class TemperatureRegressionDataset(Dataset):
             images: Tensor of shape (sequence_length, channels, height, width)
             target_temp: Tensor containing single temperature value
         """
-        # Get images from base dataset (ignore its default mean target)
-        images, _ = self.base_dataset[idx]
+        # Get from base dataset (handles masking automatically)
+        res = self.base_dataset[idx]
         
         # Get raw temperatures from the sequence data
         _, temperatures = self.base_dataset.sequences[idx]
@@ -297,7 +297,11 @@ class TemperatureRegressionDataset(Dataset):
         # Ensure target_temp is a scalar tensor
         target_temp = torch.tensor(target_temp, dtype=torch.float32)
         
-        return images, target_temp
+        if len(res) == 3:
+            images, _, mask = res
+            return images, target_temp, mask
+            
+        return res[0], target_temp
     
     def get_sample_info(self, idx: int) -> dict:
         """Get information about a specific sample for debugging."""

@@ -29,7 +29,8 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
     
     # Config
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # ... existing code ...
+    sequence_length = 5
+    
     # Data
     print("Loading dataset...")
     dataset = TemperatureSequenceDataset(
@@ -170,7 +171,12 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
         # Save best model
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
-            torch.save(model.state_dict(), "models/bayesian_pinn.pth")
+            save_path = "models/bayesian_pinn.pth"
+            if masked:
+                os.makedirs("models/masked", exist_ok=True)
+                save_path = "models/masked/bayesian_pinn.pth"
+            torch.save(model.state_dict(), save_path)
+            print(f"Saved best model to {save_path}")
             
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

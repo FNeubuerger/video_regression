@@ -184,7 +184,11 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
             if mask is not None:
                 mask = mask.to(device)
                 # Apply masking for the input
-                images = images * (1.0 - (mask.unsqueeze(1) if mask.dim() == 3 else mask))
+                # Handle broadcasting for sequence data: images (B, T, C, H, W), mask (B, 1, H, W)
+                if images.dim() == 5:
+                    images = images * (1.0 - mask.unsqueeze(1))
+                else:
+                    images = images * (1.0 - (mask.unsqueeze(1) if mask.dim() == 3 else mask))
             # Extract number of expected channels from model
             sample_model = models[0]
             if hasattr(sample_model, "n_channels"):

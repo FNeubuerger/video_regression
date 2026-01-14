@@ -154,6 +154,15 @@ class ModelEvaluator:
                 images = images.to(self.device, non_blocking=True)
                 labels = labels.to(self.device, non_blocking=True)
                 
+                # Apply mask if this is a masked model
+                if "_masked" in model_name and mask is not None:
+                    mask = mask.to(self.device, non_blocking=True)
+                    # Handle broadcasting for sequence data: images (B, T, C, H, W), mask (B, 1, H, W)
+                    if images.dim() == 5:
+                        images = images * (1.0 - mask.unsqueeze(1))
+                    else:
+                        images = images * (1.0 - mask)
+                
                 # Forward pass
                 outputs = model(images)
                 
