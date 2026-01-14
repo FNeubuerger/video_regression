@@ -284,7 +284,7 @@ def run_dashboard(video_path, model_name, checkpoint_path, output_path, device_n
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--video", type=str, required=True)
-    parser.add_argument("--model", type=str, default="ResNetUNet")
+    parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--checkpoint", type=str, required=True)
     parser.add_argument("--output", type=str, default="dashboard_output.mp4")
     args = parser.parse_args()
