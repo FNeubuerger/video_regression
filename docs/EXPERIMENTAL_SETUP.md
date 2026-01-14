@@ -1,9 +1,11 @@
-das agar wird mit 100ml kaltem wasser vermischt und für 10 Minuten quellen gelassen
 **Phantom composition**
 
 - **Bulk composition:** 600 mL deionized water, 30 g agar (~5% w/v).
-- **Protein additive:** egg white added at 30 wt% (see verification tasks below for exact basis).
+  
+- **Protein additive:** egg white added at 30 wt% (percentage relative to total phantom mass).
 
+- **Changes in recipe over time:** Limitation of the amount of agar to 20g/25g; Series of measurements with different phantom compositions still pending
+  
 **Phantom preparation (proposed protocol)**
 
 - **Hydration:** Mix agar powder with 100 mL cold water and allow to hydrate for 10 min.
@@ -18,7 +20,7 @@ das agar wird mit 100ml kaltem wasser vermischt und für 10 Minuten quellen gela
 **Antenna and generator**
 
 - **Generator:** SABERWAVE ECO-200G (ECO Medical Technology, Nanjing, China). Described as a CE-marked 2.45 GHz water-cooled microwave ablation system.
-- **Operating note:** Original notes list 30 W for 5–10 min; antenna geometry/specification not recorded — see verification tasks.
+- **Operating note:** Original notes list 30 W for 10 min, also experiments with higher power (increase by 5 W each new measurement cycle) for 5 min exist; antenna geometry/specification not recorded — see verification tasks.
 
 **Experimental setup & instrumentation**
 
@@ -41,13 +43,12 @@ das agar wird mit 100ml kaltem wasser vermischt und für 10 Minuten quellen gela
 **Actionable to‑dos & lab follow‑ups**
 
 - [ ] Verify SABERWAVE ECO‑200G technical documentation (datasheet, antenna model(s), active tip geometry, recommended power/time settings, water-cooling requirements, and CE documentation).
-- [ ] Confirm interpretation of “30 wt% egg white” (percentage relative to total phantom mass or other basis) and justification for its use; search phantom literature for similar protein-doped agar phantoms.
+- [ ] Confirm interpretation of “30 wt% egg white” (percentage relative to total phantom mass or other basis) and justification for its use
+- [ ] search phantom literature for similar protein-doped agar phantoms.
 - [ ] Reproduce the phantom at small scale and record exact masses, volumes, temperatures, and timings; document variability across replicates.
-- [ ] Inspect and, if necessary, calibrate the COMEM Optocon fiber‑optic thermometer; obtain calibration certificate and verify the 250 ms sampling configuration.
 - [ ] Test VScan Air → tablet → screen-capture workflow: verify continuous recording capability, frame integrity, Bluetooth reliability, and temporal alignment with temperature logs.
 - [ ] Measure or obtain acoustic and thermal properties of the phantom (speed of sound, attenuation, thermal diffusivity) from literature or laboratory measurements.
 - [ ] Verify the 3D‑printed holder material compatibility with heating and microwave exposure; document mounting reproducibility.
-- [ ] Perform equipment and safety checks: hotplate/stirrer functionality, water‑cooling loop integrity for the MWA system, and availability of PPE.
 
 ---
 
@@ -59,8 +60,6 @@ Last edited: 9 January 2026
 - Menikou, E. & Damianou, C., "Acoustic and thermal characterization of agar based phantoms used for evaluating focused ultrasound exposures," Journal of Therapeutic Ultrasound (2017). Methods for measuring acoustic/thermal properties and use of protein additives: https://link.springer.com/article/10.1186/s40349-017-0093-z
 - Dabbagh, A. et al., "Tissue‑Mimicking Gel Phantoms for Thermal Therapy Studies," Ultrasonic Imaging (2014). Review of phantom recipes, measurement techniques, and use of albumen/BSA: https://doi.org/10.1177/0161734614526372
 - Egg‑white phantom methods (recipe & characterization example): Academia preprint PDF (reports 30% egg white effectiveness for ultrasound lesion visualization): https://www.academia.edu/download/98095705/JAKO201518050733492.pdf
-
-- SABERWAVE ECO‑200G (ECO Medical Technology) — vendor/product datasheet NOT located in web search results during initial queries. Suggested next steps: check the manufacturer's regional websites, distributor catalogs (site:.pdf), CE/NANDO and national device registries, archived pages (Wayback Machine), and marketplaces (Alibaba). Useful search terms: "SABERWAVE ECO-200G datasheet", "SaberWave ECO 200 generator", "ECO Medical Technology SABERWAVE".
 
 **Placement of references in this file**
 
