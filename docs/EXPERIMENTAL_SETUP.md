@@ -43,7 +43,7 @@
 **Actionable to‑dos & lab follow‑ups**
 
 - [ ] Verify SABERWAVE ECO‑200G technical documentation (datasheet, antenna model(s), active tip geometry, recommended power/time settings, water-cooling requirements, and CE documentation).
-- [ ] Confirm interpretation of “30 wt% egg white” (percentage relative to total phantom mass or other basis) and justification for its use
+- [x] Confirm interpretation of “30 wt% egg white” (percentage relative to total phantom mass or other basis) and justification for its use
 - [ ] search phantom literature for similar protein-doped agar phantoms.
 - [ ] Reproduce the phantom at small scale and record exact masses, volumes, temperatures, and timings; document variability across replicates.
 - [ ] Test VScan Air → tablet → screen-capture workflow: verify continuous recording capability, frame integrity, Bluetooth reliability, and temporal alignment with temperature logs.
