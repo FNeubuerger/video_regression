@@ -80,6 +80,8 @@ def train_ensemble(num_models=5, epochs=20, batch_size=128):
                 # Use scalars as label if available, else derive from heatmap
                 if scalars is not None:
                     labels = scalars.to(device)
+                    if labels.dim() == 3:
+                        labels = labels[:, -1, :]
                 else:
                     labels = labels_raw.to(device)
                     if labels.dim() == 4:
@@ -159,6 +161,8 @@ def train_bayesian(epochs=30, batch_size=128, kl_weight=0.1):
             
             if scalars is not None:
                 labels = scalars.to(device)
+                if labels.dim() == 3:
+                    labels = labels[:, -1, :]
             else:
                 labels = labels_raw.to(device)
                 if labels.dim() == 4:
@@ -233,6 +237,8 @@ def train_full_bayesian(epochs=30, batch_size=128, kl_weight=0.1):
             images = images.to(device)
             if scalars is not None:
                 labels = scalars.to(device)
+                if labels.dim() == 3:
+                     labels = labels[:, -1, :]
             else:
                 labels = labels_raw.to(device)
                 if labels.dim() == 4:
