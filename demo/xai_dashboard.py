@@ -1,4 +1,3 @@
-from xml.parsers.expat import model
 import cv2
 import torch
 import numpy as np
