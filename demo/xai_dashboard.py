@@ -174,7 +174,7 @@ def run_dashboard(video_path, model_name, checkpoint_path, output_path, device_n
         input_rgb = cv2.cvtColor(input_frame, cv2.COLOR_BGR2RGB)
         
         input_tensor = transforms.ToTensor()(input_rgb)
-        input_tensor = normalize(input_tensor[:1] if input_tensor.shape[0] > 1 else input_tensor)
+        input_tensor = normalize(input_tensor)
         
         if input_channels == 5:
             frame_tensor = torch.zeros((5, 64, 64))
