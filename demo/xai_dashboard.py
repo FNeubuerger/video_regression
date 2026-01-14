@@ -9,6 +9,7 @@ import time
 from torchvision import transforms
 from tqdm import tqdm
 import matplotlib.cm as cm
+from collections import deque
 
 # Add parent directory to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -36,6 +37,10 @@ def apply_heatmap(attr_map, frame, alpha=0.6):
     # Overlay
     overlay = cv2.addWeighted(frame, 1 - alpha, heatmap, alpha, 0)
     return overlay
+
+def is_sequence_model(model_name):
+    sequence_keywords = ['lstm', 'cnnlstm', 'sequence']
+    return any(kw in model_name.lower() for kw in sequence_keywords)
 
 def load_model_for_xai(model_name, checkpoint_path, device):
     if model_name not in MODEL_REGISTRY:
@@ -107,6 +112,9 @@ def run_dashboard(video_path, model_name, checkpoint_path, output_path, device_n
     print("MODEL TYPE:", type(model))
     print("MODEL STRUCTURE:\n", model)
     
+    is_seq_model = is_sequence_model(model_name)
+    print(f"Sequence model detected: {is_seq_model}")
+    
     # Setup GradCAM
     # Try different layers
     target_layer = None
@@ -142,9 +150,12 @@ def run_dashboard(video_path, model_name, checkpoint_path, output_path, device_n
     if output_path:
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(output_path, fourcc, fps, (out_w, out_h))
-        
-    # Standard Transform (ImageNet)
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    
+    normalize = transforms.Normalize(mean=[0.485], std=[0.229])
+    
+    frame_buffer = deque(maxlen=3)
+    running_max = None
+    attr_smooth = None
     
     pbar = tqdm(total=total_frames)
     
@@ -158,39 +169,76 @@ def run_dashboard(video_path, model_name, checkpoint_path, output_path, device_n
         input_rgb = cv2.cvtColor(input_frame, cv2.COLOR_BGR2RGB)
         
         input_tensor = transforms.ToTensor()(input_rgb)
-        input_tensor = normalize(input_tensor)
+        input_tensor = normalize(input_tensor[:1] if input_tensor.shape[0] > 1 else input_tensor)
         
         if input_channels == 5:
-            # Pad
-            inp = torch.zeros((1, 5, 64, 64)).to(device)
-            inp[0, :3] = input_tensor.to(device)
-            inp.requires_grad = True # For gradients
+            frame_tensor = torch.zeros((5, 64, 64))
+            frame_tensor[:3] = input_tensor
         else:
-            inp = input_tensor.unsqueeze(0).to(device)
-            inp.requires_grad = True
+            frame_tensor = input_tensor
+        
+        frame_buffer.append(frame_tensor)
+        
+        if is_seq_model:
+            if len(frame_buffer) < 3:
+                pbar.update(1)
+                continue
             
+            inp_seq = torch.stack(list(frame_buffer)).unsqueeze(0).to(device)
+            inp_seq.requires_grad = True
+        else:
+            inp = frame_tensor.unsqueeze(0).to(device)
+            inp.requires_grad = True
+            inp_seq = inp
+        
         # Inference & Explanation
         # GradCAM
         try:
-            attr = gradcam.attribute(inp, target=0)
-            # Interpolate to display size
+            attr = gradcam.attribute(inp_seq)
+            
+            if is_seq_model:
+                attr = attr.mean(dim=1)
+            
             attr = LayerGradCam.interpolate(attr, display_size, interpolate_mode='bilinear')
             attr_np = attr.squeeze().detach().cpu().numpy()
-            if attr_np.ndim > 2: attr_np = attr_np.mean(axis=0) # Handle filters
+            if attr_np.ndim > 2: attr_np = attr_np.mean(axis=0)
+            
+            curr_max = attr_np.max()
+            if running_max is None: 
+                running_max = curr_max if curr_max > 0 else 1.0
+            else:
+                running_max = 0.95 * running_max + 0.05 * curr_max if curr_max > 0 else running_max
+            
+            if running_max < 1e-5: running_max = 1.0
+            attr_norm = np.clip(attr_np / running_max, 0, 1)
+            
+            if attr_smooth is None:
+                attr_smooth = attr_norm
+            else:
+                attr_smooth = 0.7 * attr_smooth + 0.3 * attr_norm
             
             # Prediction
-            # Run forward again if needed, or if attributes doesn't improve output
-            # Just visualization
             with torch.no_grad():
-                if input_channels == 5:
+                if is_seq_model:
                     if hasattr(model, 'variational') and model.variational:
-                        pred, _ = model(inp.detach())
+                        pred, _ = model(inp_seq.detach())
                     else:
-                        pred = model(inp.detach())
+                        pred = model(inp_seq.detach())
                 else:
-                    pred = model(inp.detach())
+                    if input_channels == 5:
+                        inp_pred = torch.zeros((1, 5, 64, 64)).to(device)
+                        inp_pred[0, :3] = frame_tensor.to(device)
+                        if hasattr(model, 'variational') and model.variational:
+                            pred, _ = model(inp_pred)
+                        else:
+                            pred = model(inp_pred)
+                    else:
+                        if hasattr(model, 'variational') and model.variational:
+                            pred, _ = model(inp_seq.detach())
+                        else:
+                            pred = model(inp_seq.detach())
                     
-            pred_map = pred.squeeze().cpu().numpy() # 64x64
+            pred_map = pred.squeeze().cpu().numpy()
             pred_resized = cv2.resize(pred_map, display_size)
         except Exception as e:
             print(e)
@@ -208,16 +256,7 @@ def run_dashboard(video_path, model_name, checkpoint_path, output_path, device_n
         pred_heatmap = cv2.cvtColor(pred_heatmap, cv2.COLOR_RGB2BGR)
         
         # 3. Attribution Overlay
-        # Normalize attr with running max to reduce flicker
-        curr_max = attr_np.max()
-        if 'running_max' not in locals(): running_max = curr_max
-        
-        # Soft update of max scaling factor
-        running_max = 0.95 * running_max + 0.05 * curr_max if curr_max > 0 else running_max
-        if running_max < 1e-5: running_max = 1.0
-        
-        attr_norm = np.clip(attr_np / running_max, 0, 1)
-        attr_overlay = apply_heatmap(attr_norm, vis_frame)
+        attr_overlay = apply_heatmap(attr_smooth, vis_frame)
         
         # Combine
         combined = np.hstack([vis_frame, pred_heatmap, attr_overlay])
