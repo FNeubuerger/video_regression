@@ -38,8 +38,14 @@ def apply_heatmap(attr_map, frame, alpha=0.6):
     return overlay
 
 def is_sequence_model(model_name):
-    sequence_keywords = ['lstm', 'cnnlstm', 'sequence']
-    return any(kw in model_name.lower() for kw in sequence_keywords)
+    SEQUENCE_MODELS = {
+        "CNNLSTM",
+        "PretrainedCNNLSTM",
+        "PhysicsCNNLSTM",
+        "SpatialPhysicsCNNLSTM",
+        "BayesianCNNLSTM"
+    }
+    return model_name in SEQUENCE_MODELS
 
 def load_model_for_xai(model_name, checkpoint_path, device):
     if model_name not in MODEL_REGISTRY:
