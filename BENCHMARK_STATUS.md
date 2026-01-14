@@ -1,7 +1,7 @@
 # Benchmark Status Report
 
 **Date:** January 14, 2026
-**Overall Status:** LOSO Cross-Validation initiated for all models; Monitoring pipeline active.
+**Overall Status:** **CRITICAL UPDATE: RE-STARTING ALL BENCHMARKS ON NEW DATASET (level1_cropped).** Prior results were on legacy data. Full retraining initiated.
 
 ## Project Performance Overview
 
@@ -9,31 +9,37 @@ The following table summarizes the performance across all major model variants t
 
 | Part | Category | Model Name | Test RMSE (K) | Test MAE (K) | Status |
 | :--- | :--- | :--- | :---: | :---: | :--- |
-| **P2** | **Inverse Physics** | `SpatialPhysicsCNNLSTM` | -- | -- | **Training (Fold 1)** |
-| **P2** | **Physics** | `ConvectionBioheat` | **0.62** | **0.24** | **Unmasked Leader** |
-| **P3** | **Uncertainty** | `BayesianCNNLSTM` | 1.85 | 0.83 | **Evaluating** |
-| **P4** | **LOSO** | `Baseline CNNLSTM` | 2.45e+3* | -- | **In Progress (Epoch 1)** |
-| **P4** | **LOSO** | `Physics Informed` | 29.8 | -- | **In Progress (Epoch 1)** |
-| **P4** | **LOSO** | `Bayesian ResNet` | 83.7 | -- | **In Progress (Epoch 1)** |
+| **P2** | **Inverse Physics** | `SpatialPhysicsCNNLSTM` | -- | -- | **Pending Retrain** |
+| **P2** | **Physics** | `ConvectionBioheat` | -- | -- | **Pending Retrain** |
+| **P3** | **Uncertainty** | `BayesianCNNLSTM` | -- | -- | **Pending Retrain** |
+| **P4** | **Benchmark** | `Baseline CNNLSTM` | -- | -- | **Pending Retrain** |
+| **P4** | **Benchmark** | `Physics Informed` | -- | -- | **Pending Retrain** |
+| **P4** | **Benchmark** | `Bayesian ResNet` | -- | -- | **Pending Retrain** |
 
-*\*High initial loss expected in first epoch.*
+*> **NOTE:** Previous results have been archived. All models are being retrained on the verified `level1_cropped` dataset to ensure consistency with the new paper methodology.*
 
 ---
 
 ## Detailed Component Status
 
-### 1. LOSO Cross-Validation (Active)
-*   **Update:** Started comprehensive LOSO benchmarks for all 8 major architectures.
-*   **Infrastructure:** parallel tmux sessions managed by `Makefile`.
-*   **Monitoring:** New shell script [scripts/monitor_loso.sh](scripts/monitor_loso.sh) used to track progress across all concurrent sessions.
+### 1. Dataset Migration (Completed)
+*   **Action:** Verified that `training/train_all_models.py` was pointing to legacy data.
+*   **Resolution:** Updated all training and evaluation scripts to use `SequenceHeatmapDataset` pointing to `data/level1_cropped`.
+*   **Verification:** Visualized ROI context and advection fields to confirm alignment.
 
-### 2. Evaluaton Pipeline
+### 2. Full Benchmark Retraining (Active)
+*   **Scope:** Training 8 major architectures from scratch on the new dataset.
+*   **Old Models:** Archived to `models/archive_legacy_data`.
+*   **Strategy:** Retraining Unmasked first, followed by Masked variants.
+
+### 3. Evaluaton Pipeline
 *   **Aggregation:** [evaluation/generate_tables.py](evaluation/generate_tables.py) updated to consolidate LOSO results (Mean $\pm$ Std across sequences).
 *   **Visualization:** New tool [evaluation/visualize_loso.py](evaluation/visualize_loso.py) added to generate boxplots and error heatmaps per sequence.
 *   **Units:** All outputs standardized to SI derived units ($T/K$).
 
 
 ## Next High-Level Actions
-1.  **Monitor Retraining:** Observe `masked_retraining` and `bayesian_pinn_masked` sessions.
-2.  **Scientific Plots:** Extend [evaluation/generate_scientific_plots.py](evaluation/generate_scientific_plots.py) to compare Masked vs Unmasked profiles once training finishes.
-3.  **XAI Validation:** Run GradCAM on the new masked checkpoints (Issue #46).
+1.  **Execute Training:** Run `train_all_models.py` for standard and masked models.
+2.  **Monitor Convergence:** Ensure loss curves on new data look healthy.
+3.  **Scientific Plots:** Extend [evaluation/generate_scientific_plots.py](evaluation/generate_scientific_plots.py) to compare Masked vs Unmasked profiles once training finishes.
+

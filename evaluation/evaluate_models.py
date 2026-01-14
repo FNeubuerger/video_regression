@@ -25,7 +25,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.backbones import CNNLSTM, PretrainedCNNLSTM, SimpleResNet, SpatialResNet
 from physics.models import PhysicsCNNLSTM, SpatialPhysicsCNNLSTM
-from utils.dataset import TemperatureSequenceDataset
+from utils.sequence_dataset import SequenceHeatmapDataset
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -33,7 +33,7 @@ warnings.filterwarnings('ignore')
 class ModelEvaluator:
     """Comprehensive model evaluation and comparison class."""
     
-    def __init__(self, data_dir="data", batch_size=256, device=None):
+    def __init__(self, data_dir="data/level1_cropped", batch_size=256, device=None):
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -44,19 +44,21 @@ class ModelEvaluator:
             print(f"Using {self.n_gpu} GPUs for evaluation!")
         
         # Initialize dataset and data loader
+        # SequenceHeatmapDataset handles resize internally if transform doesn't
+        # But we added logic to utilize transform if passed (PIL)
         self.transform = transforms.Compose([
             transforms.Resize((64, 64)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
-        self.dataset = TemperatureSequenceDataset(
-            data_dir, 
+        self.dataset = SequenceHeatmapDataset(
+            data_dir=data_dir, 
             sequence_length=5, 
             transform=self.transform,
             use_optical_flow=True,
-            image_size=(64, 64),
-            use_artifact_masking=True # Always enable so we can chose to use masks or not
+            target_size=(64, 64),
+            use_artifact_masking=True
         )
         
         # Split dataset (80% train, 20% test)
@@ -146,7 +148,16 @@ class ModelEvaluator:
         with torch.no_grad():
             for batch in tqdm(self.test_loader, desc=f"Testing {model_name}"):
                 if len(batch) == 3:
-                    images, labels, mask = batch
+                    images, labels_raw, priors_or_mask = batch
+                    # SequenceHeatmapDataset: labels_raw is (B, T, 1, 64, 64)
+                    # We usually want the scalar target for RMSE comparison
+                    if labels_raw.dim() == 5: # (B, T, 1, H, W)
+                        # Take frame T (last) and spatial max
+                        labels = labels_raw[:, -1].amax(dim=(1, 2, 3))
+                    elif labels_raw.dim() == 4: # (B, 1, H, W)
+                        labels = labels_raw.amax(dim=(1, 2, 3))
+                    else:
+                        labels = labels_raw
                 else:
                     images, labels = batch
                     mask = None

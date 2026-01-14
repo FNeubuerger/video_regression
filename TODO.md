@@ -1,23 +1,22 @@
-# TODO: Fix Spatial Model Crashes
+# TODO: Project Status & Issues
 
-## Issue
-The spatial models (`spatial_bioheat_resnet`, `spatial_convection_bioheat`, `spatial_metabolic_bioheat`) were crashing during the validation phase of training.
+## Critical Issues
+- [x] **Data Migration**: Models were training on legacy `data/` instead of `data/level1_cropped`.
+    - **Fix**: Updated `SequenceHeatmapDataset` and all training scripts to point to `level1_cropped`.
+    - **Status**: Verified dataset logic and visual alignment.
+- [ ] **Benchmark Integrity**: Re-run all benchmarks on the new dataset.
+    - **Status**: Old results archived. Full retraining initiated (Unmasked & Masked).
+    - **Action**: Monitor training sessions.
 
-**Error:**
-`RuntimeError: The size of tensor a (4) must match the size of tensor b (32) at non-singleton dimension 1`
+## Upcoming Tasks
+- [ ] **Transfer Learning Investigation**: Investigate using archived legacy models as seed weights for the new dataset.
+- [ ] **Scientific Plots**: Re-generate advection and uncertainty plots once new checkpoints are available.
 
-**Cause:**
-The `AdvancedBioHeatLoss` function expects inputs with a temporal dimension (e.g., `(B, T, H, W)`). In the validation loop, the model predictions `(B, 4, 4)` and labels `(B, 1)` were passed directly without adding a dummy temporal dimension. The loss function misinterpreted the spatial dimension `H=4` as the temporal dimension `T=4`, causing a shape mismatch with the labels `(B, 1)`.
+## Resolved
+### Fix Spatial Model Crashes
+- **Issue**: `RuntimeError` due to dimension mismatch in `AdvancedBioHeatLoss`.
+- **Fix**: Added dummy temporal dimension in validation loops.
 
-## Fix
-Updated the validation loops in the following files to unsqueeze predictions and labels, adding a dummy temporal dimension (size 1):
-- `training/train_spatial_bioheat.py`
-- `training/train_spatial_convection_bioheat.py`
-- `training/train_spatial_metabolic_bioheat.py`
-
-For `spatial_convection_bioheat` and `spatial_metabolic_bioheat`, we also ensured that the optical flow is extracted, downsampled, and passed to the loss function during validation, consistent with the training loop.
-
-## Next Steps
 - [x] Fix validation loop in `training/train_spatial_bioheat.py`
 - [x] Fix validation loop in `training/train_spatial_convection_bioheat.py`
 - [x] Fix validation loop in `training/train_spatial_metabolic_bioheat.py`

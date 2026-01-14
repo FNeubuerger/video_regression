@@ -139,9 +139,9 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
             use_artifact_masking=use_masking
         )
     else:
-        dataset = TemperatureRegressionDataset(
-            data_dir=data_dir, 
-            sequence_length=5,
+        # Fallback for generic/legacy models: Use HeatmapDataset (frame-based) on new data
+        dataset = TemperatureHeatmapDataset(
+            data_dir=data_dir,
             image_size=(64, 64),
             transform=transform,
             use_artifact_masking=use_masking
@@ -357,7 +357,7 @@ def main():
     parser.add_argument("--model", type=str, required=True, help="Model name (e.g., BayesianResNet)")
     parser.add_argument("--checkpoint", type=str, help="Path to model checkpoint")
     parser.add_argument("--ensemble_dir", type=str, help="Directory containing ensemble checkpoints")
-    parser.add_argument("--data_dir", type=str, default="data", help="Path to data directory")
+    parser.add_argument("--data_dir", type=str, default="data/level1_cropped", help="Path to data directory")
     parser.add_argument("--output_dir", type=str, default="results/uncertainty_eval", help="Directory to save results")
     parser.add_argument("--samples", type=int, default=50, help="Number of Monte Carlo samples")
     parser.add_argument("--batch_size", type=int, default=32)

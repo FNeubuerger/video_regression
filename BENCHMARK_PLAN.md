@@ -1,45 +1,48 @@
-# Video Temperature Regression: Benchmark & Comparison Plan
+# Video Temperature Regression: Benchmark & Comparison Plan (Dataset Update 2026)
+
+**CRITICAL UPDATE (Jan 14, 2026):** All benchmarks are being reset. We identified that previous models were trained on legacy/raw data. A full migration to `data/level1_cropped` has been completed. The plan below reflects the new rigorous retraining protocol.
 
 This document outlines the suite of 14 active benchmarks and the specific comparative analyses designed to evaluate the contributions of physical constraints, temporal modeling, and uncertainty quantification.
 
 ## 1. Active Benchmarks Overview
 
-We are currently training **20+ distinct models** across four primary categories.
+We are currently retraining **20+ distinct models** on the new 5D Sequence dataset (`level1_cropped`). Comparison against legacy results will be performed to quantify dataset quality improvements.
 
 ### A. Temporal Models (Sequence-based)
 *Input: Sequence of 5 Frames (RGB + Optical Flow)*
-- [x] **CNNLSTM** (RMSE: 17.91°C, MAE: 8.41°C)
-- [x] **Pretrained CNNLSTM** (MAE: 19.59°C)
-- [x] **Physics CNNLSTM** (MAE: 1.58°C)
-- [x] **Bioheat PINN** (MAE: 0.23°C)
-- [x] **Convection Bioheat** (MAE: 0.24°C, Best RMSE: 0.61°C)
-- [x] **Metabolic Bioheat** (MAE: 0.21°C, Best MAE)
+- [ ] **CNNLSTM** (Pending Retrain)
+- [ ] **Pretrained CNNLSTM** (Pending Retrain)
+- [ ] **Physics CNNLSTM** (Pending Retrain)
+- [ ] **Bioheat PINN** (Pending Retrain)
+- [ ] **Convection Bioheat** (Pending Retrain)
+- [ ] **Metabolic Bioheat** (Pending Retrain)
 
 ### B. Spatial Models (Frame-based)
 *Input: Single Frame (RGB + Optical Flow)*
-- [x] **Simple ResNet** (MAE: 1.51°C)
-- [x] **Spatial Bioheat** (MAE: 1.24°C)
-- [x] **Spatial Convection** (MAE: 1.61°C)
-- [x] **Spatial Metabolic** (MAE: 1.02°C)
+- [ ] **Simple ResNet** (Pending Retrain)
+- [ ] **Spatial Bioheat** (Pending Retrain)
+- [ ] **Spatial Convection** (Pending Retrain outputting 4x4 maps)
+- [ ] **Spatial Metabolic** (Pending Retrain outputting 4x4 maps)
 
 ### C. Dense Map Models (Part 2: U-Net)
 *Input: Frame/Sequence with Dense Output ($H \times W$)*
-- [x] **U-Net Baseline** (In Progress: Integrated)
-- [x] **U-Net + Physics Prior** (Integrated)
-- [x] **Hybrid U-Net** (Integrated)
+- [ ] **U-Net Baseline** (Pending Integration)
+- [ ] **U-Net + Physics Prior** (Pending Integration)
+- [ ] **Hybrid U-Net** (Pending Integration)
 
 ### D. Time & Dynamics (Part 3: LTC/ODES)
-- [x] **ConvLTC** (Integrated)
-- [x] **Latent LTC U-Net** (Integrated, MAE: 54°C - Needs Calibration)
+- [ ] **ConvLTC** (Pending)
+- [ ] **Latent LTC U-Net** (Pending)
 
 ### E. Uncertainty Models
-- [x] **Ensemble**
-- [x] **Bayesian Head** (PICP: 0.90)
-- [x] **Full Bayesian** (ResNet) (PICP: 0.86)
-- [x] **Bayesian PINN**
-- [x] **Bayesian CNNLSTM** (PICP: 0.97)
-- [x] **Bayesian U-Net** (Integrated)
-- [x] **Bayesian LTC** (Integrated)
+- [ ] **Ensemble**
+- [ ] **Bayesian Head**
+- [ ] **Full Bayesian** (ResNet)
+- [ ] **Bayesian PINN**
+- [ ] **Bayesian CNNLSTM**
+- [ ] **Bayesian U-Net**
+- [ ] **Bayesian LTC**
+
 
 ---
 

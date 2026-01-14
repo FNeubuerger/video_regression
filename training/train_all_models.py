@@ -20,7 +20,7 @@ from models.backbones import CNNLSTM, PretrainedCNNLSTM, SimpleResNet
 from physics import PhysicsCNNLSTM, PhysicsInformedLoss
 from physics.models import SpatialPhysicsCNNLSTM
 from physics.bioheat_loss import AdvancedBioHeatLoss
-from utils.dataset import TemperatureSequenceDataset
+from utils.sequence_dataset import SequenceHeatmapDataset
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -100,7 +100,16 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
         
         for batch_idx, batch in enumerate(train_progress):
             if len(batch) == 3:
-                images, labels, mask = batch
+                images, labels_raw, mask = batch
+                
+                # Convert heatmap labels to scalar sequence (B, T)
+                if labels_raw.dim() == 5: # (B, T, 1, H, W)
+                    labels = labels_raw.amax(dim=(2, 3, 4))
+                elif labels_raw.dim() == 4: # (B, 1, H, W)
+                    labels = labels_raw.amax(dim=(1, 2, 3))
+                else:
+                    labels = labels_raw
+
                 # Apply masking for the input if requested
                 if masked and mask is not None:
                     # Handle broadcasting for 5D sequence data (B, T, C, H, W)
@@ -142,9 +151,13 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                             outputs = outputs.mean(dim=(1, 2))
                         loss = criterion_instance(outputs, labels.float(), mask=mask)
                     else:
+                        target = labels.float()
+                        if outputs.dim() == 1 and target.dim() == 2:
+                            target = target[:, -1]
+                        
                         if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
                             outputs = outputs.mean(dim=(1, 2))
-                        loss = criterion_instance(outputs, labels.float())
+                        loss = criterion_instance(outputs, target)
                 
                 scaler.scale(loss).backward()
                 
@@ -170,10 +183,13 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                         outputs = outputs.mean(dim=(1, 2))
                     loss = criterion_instance(outputs, labels.float(), mask=mask)
                 else:
-                    if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
-                        outputs = outputs.mean(dim=(1, 2))
-                    loss = criterion_instance(outputs, labels.float())
-                loss.backward()
+                        target = labels.float()
+                        if outputs.dim() == 1 and target.dim() == 2:
+                            target = target[:, -1]
+                        
+                        if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
+                            outputs = outputs.mean(dim=(1, 2))
+                        loss = criterion_instance(outputs, target)
                 
                 # Gradient clipping
                 torch.nn.utils.clip_grad_norm_(model_instance.parameters(), max_norm=1.0)
@@ -193,7 +209,16 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
             val_progress = tqdm(val_loader, desc=f"Epoch [{epoch+1}/{num_epochs}] Validation")
             for batch in val_progress:
                 if len(batch) == 3:
-                    images, labels, mask = batch
+                    images, labels_raw, mask = batch
+                    
+                    # Convert heatmap labels to scalar sequence (B, T)
+                    if labels_raw.dim() == 5: # (B, T, 1, H, W)
+                        labels = labels_raw.amax(dim=(2, 3, 4))
+                    elif labels_raw.dim() == 4: # (B, 1, H, W)
+                        labels = labels_raw.amax(dim=(1, 2, 3))
+                    else:
+                        labels = labels_raw
+
                     # Apply masking for the input if requested
                     if masked and mask is not None:
                         # Handle broadcasting for 5D sequence data
@@ -228,9 +253,13 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                                 outputs = outputs.mean(dim=(1, 2))
                             loss = criterion_instance(outputs, labels.float(), mask=mask)
                         else:
+                            target = labels.float()
+                            if outputs.dim() == 1 and target.dim() == 2:
+                                target = target[:, -1]
+                            
                             if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
                                 outputs = outputs.mean(dim=(1, 2))
-                            loss = criterion_instance(outputs, labels.float())
+                            loss = criterion_instance(outputs, target)
                 else:
                     outputs = model_instance(images)
                     
@@ -247,9 +276,13 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                     elif isinstance(criterion_instance, PhysicsInformedLoss):
                         loss = criterion_instance(outputs, labels.float(), mask=mask)
                     else:
+                        target = labels.float()
+                        if outputs.dim() == 1 and target.dim() == 2:
+                            target = target[:, -1]
+                        
                         if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
                             outputs = outputs.mean(dim=(1, 2))
-                        loss = criterion_instance(outputs, labels.float())
+                        loss = criterion_instance(outputs, target)
                 
                 val_loss += loss.item()
                 val_progress.set_postfix(loss=loss.item())
@@ -344,13 +377,15 @@ def main():
     ])
     
     # Create dataset
-    dataset = TemperatureSequenceDataset(
-        data_dir="data",
+    dataset = SequenceHeatmapDataset(
+        data_dir="data/level1_cropped",
+        raw_dir="data/level0_raw",
         sequence_length=time_steps,
         transform=transform,
-        image_size=(64, 64),
+        target_size=(64, 64),
         use_optical_flow=True,
-        use_artifact_masking=args.masked
+        use_artifact_masking=args.masked,
+        use_physics_prior=False
     )
     
     # Split dataset

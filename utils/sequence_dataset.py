@@ -5,6 +5,7 @@ import cv2
 import pandas as pd
 import numpy as np
 import torch
+from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 from utils.flow_utils import preprocess_frame_with_flow
@@ -196,11 +197,13 @@ class SequenceHeatmapDataset(Dataset):
                 
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame = cv2.resize(frame, (self.target_size[1], self.target_size[0]))
-            frame = frame.astype(np.float32) / 255.0
-            frame_tensor = torch.from_numpy(frame).permute(2, 0, 1) # (C, H, W)
             
             if self.transform:
-                frame_tensor = self.transform(frame_tensor)
+                frame_pil = Image.fromarray(frame)
+                frame_tensor = self.transform(frame_pil)
+            else:
+                frame = frame.astype(np.float32) / 255.0
+                frame_tensor = torch.from_numpy(frame).permute(2, 0, 1) # (C, H, W)
                 
             frames.append(frame_tensor)
             
