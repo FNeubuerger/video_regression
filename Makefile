@@ -11,7 +11,7 @@ $(shell mkdir -p $(LOG_DIR) $(MODELS_DIR) $(CHECKPOINTS_DIR))
 # Targets
 .PHONY: all cnnlstm pretrained_cnnlstm simple_resnet physics_cnnlstm ensemble bayesian full_bayesian spatial_bioheat spatial_convection spatial_metabolic \
         unet_sparse_noprior unet_sparse_withprior tmux_part2 evaluation \
-        loso_all loso_temporal loso_spatial loso_uncertainty
+        loso_all loso_temporal loso_spatial loso_uncertainty monitor visualize_loso
 
 # --- LOSO Cross-Validation ---
 
@@ -33,6 +33,13 @@ loso_uncertainty:
 	@for model in BayesianResNet FullBayesianResNet BayesianCNNLSTM; do \
 		bash scripts/run_loso_benchmarks.sh $$model; \
 	done
+
+monitor:
+	@bash scripts/monitor_loso.sh
+
+visualize_loso:
+	@echo "Generating LOSO Visualization plots..."
+	$(PYTHON) evaluation/visualize_loso.py
 
 # --- General ---
 
