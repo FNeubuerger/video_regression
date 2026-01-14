@@ -56,10 +56,16 @@ def generate_tables(results_dir="results/uncertainty_eval", output_dir="results/
     
     # Apply mapping
     def get_display_name(name):
-        return model_map.get(name, (name, "Other"))[0]
+        is_masked = "_masked" in name or "masked_" in name or "model_masked" in name
+        base_name = name.replace("_masked", "").replace("masked_", "").replace("_model", "")
+        display = model_map.get(base_name, (base_name, "Other"))[0]
+        if is_masked:
+            display += " (Masked)"
+        return display
         
     def get_category(name):
-        return model_map.get(name, (name, "Other"))[1]
+        base_name = name.replace("_masked", "").replace("masked_", "").replace("_model", "")
+        return model_map.get(base_name, (base_name, "Other"))[1]
         
     df['Display Name'] = df['Model'].apply(get_display_name)
     df['Category'] = df['Model'].apply(get_category)

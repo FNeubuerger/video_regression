@@ -21,11 +21,12 @@ class PhysicsInformedLoss(nn.Module):
         self.monotonicity_weight = monotonicity_weight
         self.smoothness_weight = smoothness_weight
 
-    def forward(self, predictions, targets):
+    def forward(self, predictions, targets, mask=None):
         """
         Args:
             predictions: Tensor of shape (batch_size, time_steps)
             targets: Tensor of shape (batch_size, time_steps) or (batch_size, 1)
+            mask: Optional mask (ignored for scalar predictions)
         """
         # 1. Data Fidelity (MSE)
         # If predictions are sequence but targets are scalar (last frame), take last prediction

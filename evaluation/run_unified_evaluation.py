@@ -54,15 +54,24 @@ def main():
         ("BayesianSpatialResNet", "models/bayesian_spatial_convection.pth"),
         ("LatentLTC_UNet", "checkpoints/ltc_unet/best_model.pth"),
         ("ResNetUNet", "checkpoints/unet_hybrid/best_model.pth"),
+        ("BayesianPINN", "models/bayesian_pinn.pth"),
     ]
 
-    # Filter available models
-    available_tasks = []
+    # Add masked variants if they exist
+    masked_bayesian_models = []
     for model_name, checkpoint in bayesian_models:
+        # Check standard checkpoints
+        masked_checkpoint = checkpoint.replace("models/", "models/masked/").replace("checkpoints/", "checkpoints/masked/")
+        if os.path.exists(masked_checkpoint):
+            masked_bayesian_models.append((f"{model_name}_masked", masked_checkpoint))
+    
+    available_tasks = []
+    for model_name, checkpoint in bayesian_models + masked_bayesian_models:
         if os.path.exists(checkpoint):
             available_tasks.append((model_name, checkpoint))
         else:
-            print(f"Skipping {model_name}: Checkpoint {checkpoint} not found.")
+            if "_masked" not in model_name: # Don't warn for missing masked variants
+                print(f"Skipping {model_name}: Checkpoint {checkpoint} not found.")
 
     if available_tasks:
         print(f"\nRunning {len(available_tasks)} uncertainty evaluations with {args.jobs} parallel jobs...")

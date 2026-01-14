@@ -93,6 +93,7 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
             labels = labels.to(device).float() # (B, T)
             if mask is not None:
                 mask = mask.to(device)
+                images = images * (1.0 - mask.unsqueeze(1)) # mask is (B, 1, H, W)
             
             optimizer.zero_grad()
             

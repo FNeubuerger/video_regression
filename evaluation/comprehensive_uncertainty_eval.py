@@ -115,6 +115,7 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
     
     # 2. Load Data
     is_dense_model = "UNet" in model_name or "LTC" in model_name
+    use_masking = "_masked" in model_name
     
     transform = transforms.Compose([
         transforms.Resize((64, 64)),
@@ -127,20 +128,23 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
             data_dir=data_dir, 
             sequence_length=10, # Match training
             image_size=(64, 64),
-            transform=transform
+            transform=transform,
+            use_artifact_masking=use_masking
         )
     elif "UNet" in model_name:
         dataset = TemperatureHeatmapDataset(
             data_dir=data_dir,
             image_size=(64, 64),
-            transform=transform
+            transform=transform,
+            use_artifact_masking=use_masking
         )
     else:
         dataset = TemperatureRegressionDataset(
             data_dir=data_dir, 
             sequence_length=5,
             image_size=(64, 64),
-            transform=transform
+            transform=transform,
+            use_artifact_masking=use_masking
         )
     
     # Create a simple train/test split (80/20) for demonstration if no explicit test set
@@ -165,15 +169,22 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
     
     with torch.no_grad():
         for batch in tqdm(test_loader, desc="Evaluating"):
-            if len(batch) == 5:  # SequenceHeatmapDataset/TemperatureHeatmapDataset
-                images, _, priors, targets, _ = batch
+            if len(batch) >= 5:  # Heatmap datasets
+                images, _, mask, _, priors, _ = batch if len(batch) == 6 else (batch[0], None, batch[1], None, batch[2], None)
                 priors = priors.to(device)
-            else:
+            elif len(batch) == 3: # Regression dataset with mask
+                images, targets, mask = batch
+                priors = None
+            else: # Regression dataset without mask
                 images, targets = batch
+                mask = None
                 priors = None
 
             images = images.to(device)
-            
+            if mask is not None:
+                mask = mask.to(device)
+                # Apply masking for the input
+                images = images * (1.0 - (mask.unsqueeze(1) if mask.dim() == 3 else mask))
             # Extract number of expected channels from model
             sample_model = models[0]
             if hasattr(sample_model, "n_channels"):

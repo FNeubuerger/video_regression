@@ -97,6 +97,9 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
         for batch_idx, batch in enumerate(train_progress):
             if len(batch) == 3:
                 images, labels, mask = batch
+                # Apply masking for the input if requested
+                if args.masked and mask is not None:
+                    images = images * (1.0 - mask)
             else:
                 images, labels = batch
                 mask = None
@@ -111,8 +114,8 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                 with autocast('cuda'):
                     outputs = model_instance(images)
                     # Handle physics model output (sequence) vs scalar label
-                    if model_name == "physics_cnnlstm":
-                        loss = criterion_instance(outputs, labels.float())
+                    if isinstance(criterion_instance, PhysicsInformedLoss):
+                        loss = criterion_instance(outputs, labels.float(), mask=mask)
                     else:
                         loss = criterion_instance(outputs, labels.float())
                 
@@ -126,8 +129,8 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                 scaler.update()
             else:
                 outputs = model_instance(images)
-                if model_name == "physics_cnnlstm":
-                    loss = criterion_instance(outputs, labels.float())
+                if isinstance(criterion_instance, PhysicsInformedLoss):
+                    loss = criterion_instance(outputs, labels.float(), mask=mask)
                 else:
                     loss = criterion_instance(outputs, labels.float())
                 loss.backward()
@@ -151,6 +154,9 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
             for batch in val_progress:
                 if len(batch) == 3:
                     images, labels, mask = batch
+                    # Apply masking for the input if requested
+                    if args.masked and mask is not None:
+                        images = images * (1.0 - mask)
                 else:
                     images, labels = batch
                     mask = None
@@ -162,14 +168,14 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                 if scaler is not None:
                     with autocast('cuda'):
                         outputs = model_instance(images)
-                        if model_name == "physics_cnnlstm":
-                            loss = criterion_instance(outputs, labels.float())
+                        if isinstance(criterion_instance, PhysicsInformedLoss):
+                            loss = criterion_instance(outputs, labels.float(), mask=mask)
                         else:
                             loss = criterion_instance(outputs, labels.float())
                 else:
                     outputs = model_instance(images)
-                    if model_name == "physics_cnnlstm":
-                        loss = criterion_instance(outputs, labels.float())
+                    if isinstance(criterion_instance, PhysicsInformedLoss):
+                        loss = criterion_instance(outputs, labels.float(), mask=mask)
                     else:
                         loss = criterion_instance(outputs, labels.float())
                 

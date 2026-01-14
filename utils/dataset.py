@@ -212,24 +212,20 @@ class TemperatureSequenceDataset(Dataset):
         images_tensor = torch.stack(images)  # Shape: (sequence_length, channels, height, width)
         
         # Apply artifact masking if requested
+        mask = torch.zeros((1, *self.image_size))
         if self.use_artifact_masking:
-            # We use the first image in the sequence to determine the mask
-            # (Assuming sensor positions are static within a sequence)
             mask = self._get_artifact_mask(image_paths[0])
-            images_tensor = images_tensor * (1.0 - mask)
-
+            # Return mask separately, don't apply it here
+        
         # Apply Optical Flow if requested
         if self.use_optical_flow:
-            # preprocess_frame_with_flow expects (T, C, H, W) and returns (T, C+2, H, W)
             images_tensor = preprocess_frame_with_flow(images_tensor)
         
         # Convert temperatures to tensor and take the mean for regression target
         temperatures_tensor = torch.tensor(temperatures, dtype=torch.float32)
-        # Use mean temperature as the regression target
         target_temperature = temperatures_tensor.mean()
         
         if self.use_artifact_masking:
-            mask = self._get_artifact_mask(image_paths[0])
             return images_tensor, target_temperature, mask
         
         return images_tensor, target_temperature

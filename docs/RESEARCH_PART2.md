@@ -72,6 +72,20 @@ This maps conceptually well to LTCs:
 **Architecture: Neural Circuit Policies (NCPs)**
 NCPs are a specific sparse wiring architecture for LTCs (Sensors $\to$ Interneurons $\to$ Command $\to$ Motor). They significantly reduce parameter count and improve interpretability compared to fully connected RNNs.
 
+## 3. Artifact Mitigation & Spatial Masking
+
+**Problem:** Non-tissue objects (antennas, thermometers) appear as bright artifacts in US video. Models tend to "cheat" by learning shortcut correlations between artifact brightness and temperature labels, rather than learning the subtle tissue texture changes.
+
+**Solution: Automated Artifact Masking**
+We implemented a multi-stage spatial masking strategy:
+1.  **Sensor Masking:** Uses `sensor_coordinates.json` to identify the $9 \times 9$ pixel regions around each thermometer.
+2.  **Antenna Detection:** An automated detector uses the **Hough Line Transform** on Canny edges to identify the linear antenna structure in every frame.
+3.  **Input Suppression:** The identified regions are zerod-out in the input frame before being passed to the model.
+4.  **Physics Residual Masking:** The spatial loss residuals (e.g., Laplacian of temperature) are multiplied by $(1 - Mask)$ to ensure the model is only penalized for physics violations in pure tissue regions.
+
+**Experimental Setup:**
+We compare "Masked" vs "Unmasked" training runs across all architectures to quantify the degree of shortcut learning. Successful generalization to masked frames is a requirement for clinical relevance.
+
 ### Implementation Plan (Optional Future Work)
 
 To leverage LTCs for Spatiotemporal Temperature Estimation, we cannot simply use the `ncps` library "out of the box" because it expects 1D vector inputs. We propose two architectures:

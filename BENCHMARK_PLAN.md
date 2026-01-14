@@ -72,6 +72,15 @@ We will perform the following pairwise and group comparisons to validate our hyp
 | **CNNLSTM** | **ConvLTC** | Discrete vs. Continuous recurrence for diffusion processes. |
 | **Latent LTC** | **Hybrid U-Net** | Does explicitly modeling latent dynamics over time beat frame-by-frame estimation? |
 
+### Comparison 4: Shortcut Learning vs. Real Learning (Masking)
+*Hypothesis: Models trained on raw video "cheat" by using bright sensor/antenna artifacts as shortcuts. Masking reveals the true performance on soft tissue features.*
+
+| Model A | Model B | Comparison Goal |
+| :--- | :--- | :--- |
+| **Simple ResNet** | **ResNet (Masked)** | Quantify accuracy drop when shortcuts are removed. |
+| **Bioheat PINN** | **PINN (Masked)** | Does the physics prior compensate for the loss of sensor visual cues? |
+| **Unmasked GradCAM** | **Masked GradCAM** | Visual proof of attention shift from sensors to tissue. |
+
 ---
 
 ## 3. Evaluation Metrics & Strategy

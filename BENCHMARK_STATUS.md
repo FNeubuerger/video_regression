@@ -24,10 +24,12 @@ The following table summarizes the performance across all major model variants t
 ### 1. Baselines & Standard Regression (Completed)
 *   **Leader:** `SimpleResNet` (MAE: 1.31 K).
 *   **Update:** Masking logic (Hough Transform for antennas) fully implemented. Baseline models remain relevant for comparison but unmasked versions likely "cheat" on artifact highlights.
+*   **Implementation:** Automated antenna detection using Hough Transform and thermometer location masking via `sensor_coordinates.json` is now integrated into the dataset loader.
 
 ### 2. Physics-Informed Variants (In Validation)
 *   **Leader:** `BioheatPINN` (MAE: **0.26 K**).
 *   **Update:** `AdvancedBioHeatLoss` now supports spatial masking. Retraining triggered to ensure the physics consistency holds in tissue regions only.
+*   **Stability:** Added `smoothness_weight` and `monotonicity_weight` to the physics loss functions to prevent unphysical oscillations during training.
 
 ### 3. Bayesian & Uncertainty Estimation (Relaunching)
 *   **Status:** Previous Bayesian runs showed high instability (MAE > 30K).

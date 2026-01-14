@@ -55,7 +55,8 @@ class ModelEvaluator:
             sequence_length=5, 
             transform=self.transform,
             use_optical_flow=True,
-            image_size=(64, 64)
+            image_size=(64, 64),
+            use_artifact_masking=True # Always enable so we can chose to use masks or not
         )
         
         # Split dataset (80% train, 20% test)
@@ -84,36 +85,39 @@ class ModelEvaluator:
         frame_shape = (64, 64, 5)
         time_steps = 5
         
+        # Strip masked suffix for model type check
+        base_model_name = model_name.replace("_masked", "")
+        
         try:
-            if model_name == "CNNLSTM":
+            if base_model_name == "CNNLSTM":
                 model = CNNLSTM(frame_shape=frame_shape, time_steps=time_steps)
                 # Load weights before DataParallel wrapping
                 model.load_state_dict(torch.load(model_path, map_location=self.device))
                 
-            elif model_name == "PretrainedCNNLSTM":
+            elif base_model_name == "PretrainedCNNLSTM":
                 # Recreate the pretrained CNN
                 pretrained_cnn = resnet18(weights='IMAGENET1K_V1')
                 pretrained_cnn.fc = torch.nn.Linear(pretrained_cnn.fc.in_features, 1)
                 model = PretrainedCNNLSTM(pretrained_cnn, frame_shape=frame_shape, time_steps=time_steps)
                 model.load_state_dict(torch.load(model_path, map_location=self.device))
                 
-            elif model_name == "SimpleResNet":
+            elif base_model_name == "SimpleResNet":
                 model = SimpleResNet(frame_shape=frame_shape)
                 model.load_state_dict(torch.load(model_path, map_location=self.device))
                 
-            elif model_name in ["SpatialBioheat", "SpatialConvection", "SpatialMetabolic"]:
+            elif base_model_name in ["SpatialBioheat", "SpatialConvection", "SpatialMetabolic"]:
                 # These were likely trained with SpatialResNet but check the state dict keys
                 # if they have 'lstm' they should be SpatialPhysicsCNNLSTM
                 model = SpatialResNet(frame_shape=frame_shape)
                 state_dict = torch.load(model_path, map_location=self.device)
                 model.load_state_dict(state_dict)
 
-            elif model_name in ["BioheatPINN", "ConvectionBioheat", "MetabolicBioheat"]:
+            elif base_model_name in ["BioheatPINN", "ConvectionBioheat", "MetabolicBioheat"]:
                 model = SpatialPhysicsCNNLSTM(frame_shape=frame_shape, time_steps=time_steps)
                 state_dict = torch.load(model_path, map_location=self.device)
                 model.load_state_dict(state_dict)
 
-            elif model_name == "PhysicsCNNLSTM":
+            elif base_model_name == "PhysicsCNNLSTM":
                 model = PhysicsCNNLSTM(frame_shape=frame_shape, time_steps=time_steps)
                 model.load_state_dict(torch.load(model_path, map_location=self.device))
 
@@ -140,7 +144,13 @@ class ModelEvaluator:
         print(f"Evaluating {model_name}...")
         
         with torch.no_grad():
-            for images, labels in tqdm(self.test_loader, desc=f"Testing {model_name}"):
+            for batch in tqdm(self.test_loader, desc=f"Testing {model_name}"):
+                if len(batch) == 3:
+                    images, labels, mask = batch
+                else:
+                    images, labels = batch
+                    mask = None
+                    
                 images = images.to(self.device, non_blocking=True)
                 labels = labels.to(self.device, non_blocking=True)
                 
@@ -331,16 +341,31 @@ class ModelEvaluator:
         all_targets = []
         
         with torch.no_grad():
-            for images, labels in tqdm(self.test_loader, desc="Evaluating all models"):
+            for batch in tqdm(self.test_loader, desc="Evaluating all models"):
+                if len(batch) == 3:
+                    images, labels, mask = batch
+                else:
+                    images, labels = batch
+                    mask = None
+                    
                 images = images.to(self.device, non_blocking=True)
                 labels = labels.to(self.device, non_blocking=True)
+                if mask is not None:
+                    mask = mask.to(self.device, non_blocking=True)
                 
                 # Store targets once
                 all_targets.extend(labels.cpu().numpy())
                 
                 # Run inference for each model
                 for name, model in loaded_models.items():
-                    outputs = model(images)
+                    # Apply masking only if the model is a masked variant
+                    is_masked_variant = "_masked" in name
+                    if is_masked_variant and mask is not None:
+                        model_input = images * (1.0 - mask)
+                    else:
+                        model_input = images
+                        
+                    outputs = model(model_input)
                     
                     # Handle spatial output or temporal sequence output
                     if name in ["SpatialBioheat", "SpatialConvection", "SpatialMetabolic", "BioheatPINN", "ConvectionBioheat", "MetabolicBioheat", "PhysicsCNNLSTM"]:
@@ -462,6 +487,14 @@ def main():
         "SpatialConvection": os.path.join(args.models_dir, "spatial_convection_bioheat_resnet.pth"),
         "SpatialMetabolic": os.path.join(args.models_dir, "spatial_metabolic_bioheat_resnet.pth")
     }
+    
+    # Check for masked variants
+    masked_dir = os.path.join(args.models_dir, "masked")
+    if os.path.exists(masked_dir):
+        for model_name, path in list(model_configs.items()):
+            masked_path = os.path.join(masked_dir, os.path.basename(path))
+            if os.path.exists(masked_path):
+                model_configs[f"{model_name}_masked"] = masked_path
     
     # Initialize evaluator
     evaluator = ModelEvaluator(

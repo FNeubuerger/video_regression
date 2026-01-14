@@ -37,9 +37,9 @@ We evaluate and compare several architectures tailored for this task:
 ## 🏋️ Training
 
 ### Part 1: Vector Regression
-Train the baseline CNN-LSTM or Physics-Informed models:
+Train the baseline CNN-LSTM or Physics-Informed models. Use the `--masked` flag to suppress shortcuts learned from thermometer artifacts:
 ```bash
-python training/train_all_models.py --models cnnlstm --epochs 50
+python training/train_all_models.py --models cnnlstm --epochs 50 --masked
 ```
 
 ### Part 2: Dense Map Estimation (U-Net)
