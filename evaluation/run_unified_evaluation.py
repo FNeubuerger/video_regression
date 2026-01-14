@@ -101,7 +101,7 @@ def main():
     if os.path.exists("evaluation/generate_tables.py"):
         run_command(
             "python evaluation/generate_tables.py",
-            "Consolidating LaTeX Tables"
+            "Consolidating LaTeX Tables and LOSO Results"
         )
 
     # 4. (Optional) Run Visualization comparison
@@ -109,6 +109,13 @@ def main():
         run_command(
             "python paper/viz_performance.py",
             "Generating Final Performance Visualization"
+        )
+        
+    # 5. Run LOSO Visualization
+    if os.path.exists("evaluation/visualize_loso.py"):
+        run_command(
+            "python evaluation/visualize_loso.py",
+            "Generating LOSO Visualization Plots"
         )
 
     print("\n" + "="*80)

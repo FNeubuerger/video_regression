@@ -1,7 +1,7 @@
 # Benchmark Status Report
 
 **Date:** January 14, 2026
-**Overall Status:** LOSO Cross-Validation initiated; Inverse Physics (Spatial Params) in training.
+**Overall Status:** LOSO Cross-Validation initiated for all models; Monitoring pipeline active.
 
 ## Project Performance Overview
 
@@ -9,26 +9,28 @@ The following table summarizes the performance across all major model variants t
 
 | Part | Category | Model Name | Test RMSE (K) | Test MAE (K) | Status |
 | :--- | :--- | :--- | :---: | :---: | :--- |
-| **P2** | **Inverse Physics** | `SpatialPhysicsCNNLSTM` | -- | -- | **Training (GPU 1)** |
+| **P2** | **Inverse Physics** | `SpatialPhysicsCNNLSTM` | -- | -- | **Training (Fold 1)** |
 | **P2** | **Physics** | `ConvectionBioheat` | **0.62** | **0.24** | **Unmasked Leader** |
-| **P2** | **Physics** | `MetabolicBioheat` | **0.84** | **0.21** | **Unmasked Leader** |
 | **P3** | **Uncertainty** | `BayesianCNNLSTM` | 1.85 | 0.83 | **Evaluating** |
-| **P4** | **Validation** | `LOSO (Baseline)` | -- | -- | **Running (GPU 0)** |
-| **P4** | **Validation** | `LOSO (Physics)` | -- | -- | **Running (GPU 1)** |
-| **P4** | **Validation** | `LOSO (Spatial Physics)`| -- | -- | **Running (GPU 1)** |
+| **P4** | **LOSO** | `Baseline CNNLSTM` | 2.45e+3* | -- | **In Progress (Epoch 1)** |
+| **P4** | **LOSO** | `Physics Informed` | 29.8 | -- | **In Progress (Epoch 1)** |
+| **P4** | **LOSO** | `Bayesian ResNet` | 83.7 | -- | **In Progress (Epoch 1)** |
+
+*\*High initial loss expected in first epoch.*
 
 ---
 
 ## Detailed Component Status
 
 ### 1. LOSO Cross-Validation (Active)
-*   **Update:** Started Leave-One-Sequence-Out (LOSO) benchmarks to test spatial normalization performance.
-*   **Infrastructure:** parallel tmux sessions `loso_baseline` and `loso_physics`.
+*   **Update:** Started comprehensive LOSO benchmarks for all 8 major architectures.
+*   **Infrastructure:** parallel tmux sessions managed by `Makefile`.
+*   **Monitoring:** New shell script [scripts/monitor_loso.sh](scripts/monitor_loso.sh) used to track progress across all concurrent sessions.
 
-### 2. Inverse Physics & Spatial Parametrization (Issue #41, #42)
-*   **Progress:** Implemented `SpatialPhysicsCNNLSTM` which predicts learnable perfusion ($\alpha$) and conductivity ($\beta$) maps.
-*   **Advection:** Integrated Dense Optical Flow into the physics loss term.
-*   **Visualization:** New tool [evaluation/visualize_advection.py](evaluation/visualize_advection.py) ready for advection analysis.
+### 2. Evaluaton Pipeline
+*   **Aggregation:** [evaluation/generate_tables.py](evaluation/generate_tables.py) updated to consolidate LOSO results (Mean $\pm$ Std across sequences).
+*   **Visualization:** New tool [evaluation/visualize_loso.py](evaluation/visualize_loso.py) added to generate boxplots and error heatmaps per sequence.
+*   **Units:** All outputs standardized to SI derived units ($T/K$).
 
 
 ## Next High-Level Actions

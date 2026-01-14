@@ -184,6 +184,39 @@ def generate_edge_table(edge_df, output_file):
     print(f"Generated {output_file}")
 
 
+def generate_loso_performance_table(loso_summary_df, output_file):
+    """
+    Generate a LaTeX table for LOSO results for the paper.
+    """
+    # Prepare LaTeX string for the paper
+    latex = r"""
+\begin{table}[h]
+\centering
+\caption{Cross-Validation Results using Leave-One-Sequence-Out (LOSO). Each model was trained on 6 sequences and tested on the held-out sequence. Metrics represent mean $\pm$ standard deviation across all sequences.}
+\label{tab:loso_performance}
+\begin{tabular}{lccc}
+\hline
+\textbf{Model} & \textbf{MAE} (K) $\downarrow$ & \textbf{RMSE} (K) $\downarrow$ & \textbf{Folds} \\ \hline
+"""
+    
+    for _, row in loso_summary_df.iterrows():
+        # Properly escape LaTeX characters and format names
+        name = row['Model'].replace("_", " ").title()
+        mae = row['MAE (K)']
+        rmse = row['RMSE (K)']
+        folds = row['Folds']
+        latex += f"{name} & {mae} & {rmse} & {folds} \\\\ \n"
+        
+    latex += r"""\hline
+\end{tabular}
+\end{table}
+"""
+    
+    with open(output_file, 'w') as f:
+        f.write(latex)
+    print(f"Generated LOSO LaTeX table at {output_file}")
+
+
 def main():
     results_dir = "/mnt/data2/video_regression/results"
     output_dir = "/mnt/data2/video_regression/paper/tables"
@@ -192,13 +225,18 @@ def main():
     
     metrics_path = os.path.join(results_dir, "metrics_comparison.csv")
     edge_path = os.path.join(results_dir, "edge_benchmark_results.csv")
+    loso_summary_path = os.path.join(results_dir, "tables/loso_summary.csv")
     
-    metrics_df = pd.read_csv(metrics_path)
-    edge_df = pd.read_csv(edge_path)
+    if os.path.exists(metrics_path) and os.path.exists(edge_path):
+        metrics_df = pd.read_csv(metrics_path)
+        edge_df = pd.read_csv(edge_path)
+        generate_performance_table(metrics_df, edge_df, os.path.join(output_dir, "performance_summary.tex"))
+        generate_accuracy_table(metrics_df, os.path.join(output_dir, "accuracy_details.tex"))
+        generate_edge_table(edge_df, os.path.join(output_dir, "edge_deployment.tex"))
     
-    generate_performance_table(metrics_df, edge_df, os.path.join(output_dir, "performance_summary.tex"))
-    generate_accuracy_table(metrics_df, os.path.join(output_dir, "accuracy_details.tex"))
-    generate_edge_table(edge_df, os.path.join(output_dir, "edge_deployment.tex"))
+    if os.path.exists(loso_summary_path):
+        loso_df = pd.read_csv(loso_summary_path)
+        generate_loso_performance_table(loso_df, os.path.join(output_dir, "loso_validation.tex"))
 
 if __name__ == "__main__":
     main()
