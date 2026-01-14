@@ -20,29 +20,24 @@ from tqdm import tqdm
 import wandb
 import torchbnn as bnn
 
-def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=0.1):
+def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=0.1, masked=False):
     # Initialize WandB
-    wandb.init(project="video-temperature-regression", name="bayesian-pinn")
+    run_name = "bayesian-pinn"
+    if masked:
+        run_name += "-masked"
+    wandb.init(project="video-temperature-regression", name=run_name)
     
     # Config
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # BayesianResNet is frame-based (or last frame of sequence)
-    # But Bioheat Loss works best with sequences if we want dT/dt.
-    # However, BayesianResNet output is scalar.
-    # So we will use the "Lumped Parameter" mode of Bioheat Loss (Newton's Law)
-    # OR we can use Spatial Smoothing if we had a SpatialBayesianResNet.
-    # Let's stick to Scalar Output + Temporal Sequence for Newton's Law.
-    sequence_length = 5 
-    
-    print(f"Training Bayesian PINN on {device}")
-    
+    # ... existing code ...
     # Data
     print("Loading dataset...")
     dataset = TemperatureSequenceDataset(
         data_dir="data", 
         sequence_length=sequence_length, 
         image_size=(64, 64),
-        use_optical_flow=True 
+        use_optical_flow=True,
+        use_artifact_masking=masked
     )
     
     # Split
@@ -87,9 +82,17 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
         train_phys = 0.0
         
         progress = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}")
-        for images, labels in progress:
+        for batch in progress:
+            if len(batch) == 3:
+                images, labels, mask = batch
+            else:
+                images, labels = batch
+                mask = None
+            
             images = images.to(device) # (B, T, 5, 64, 64)
             labels = labels.to(device).float() # (B, T)
+            if mask is not None:
+                mask = mask.to(device)
             
             optimizer.zero_grad()
             
@@ -130,10 +133,18 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
-            for images, labels in val_loader:
+            for batch in val_loader:
+                if len(batch) == 3:
+                    images, labels, mask = batch
+                else:
+                    images, labels = batch
+                    mask = None
+                    
                 images = images.to(device)
                 labels = labels.to(device).float()
-                
+                if mask is not None:
+                    mask = mask.to(device)
+                    
                 B, T, C, H, W = images.shape
                 images_flat = images.view(B*T, C, H, W)
                 preds_flat = model(images_flat)
@@ -163,6 +174,16 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--kl", type=float, default=0.1)
+    parser.add_argument("--masked", action="store_true")
     args = parser.parse_args()
     
-    train_bayesian_pinn(epochs=args.epochs)
+    train_bayesian_pinn(
+        epochs=args.epochs, 
+        batch_size=args.batch_size, 
+        learning_rate=args.lr, 
+        kl_weight=args.kl,
+        masked=args.masked
+    )

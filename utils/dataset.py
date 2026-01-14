@@ -228,6 +228,10 @@ class TemperatureSequenceDataset(Dataset):
         # Use mean temperature as the regression target
         target_temperature = temperatures_tensor.mean()
         
+        if self.use_artifact_masking:
+            mask = self._get_artifact_mask(image_paths[0])
+            return images_tensor, target_temperature, mask
+        
         return images_tensor, target_temperature
     
     def get_sample_info(self, idx: int) -> dict:

@@ -94,8 +94,16 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
         train_loss = 0.0
         train_progress = tqdm(train_loader, desc=f"Epoch [{epoch+1}/{num_epochs}] Training")
         
-        for batch_idx, (images, labels) in enumerate(train_progress):
+        for batch_idx, batch in enumerate(train_progress):
+            if len(batch) == 3:
+                images, labels, mask = batch
+            else:
+                images, labels = batch
+                mask = None
+                
             images, labels = images.to(device, non_blocking=True), labels.to(device, non_blocking=True)
+            if mask is not None:
+                mask = mask.to(device, non_blocking=True)
             
             optimizer_instance.zero_grad()
             
@@ -140,8 +148,16 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
         
         with torch.no_grad():
             val_progress = tqdm(val_loader, desc=f"Epoch [{epoch+1}/{num_epochs}] Validation")
-            for images, labels in val_progress:
+            for batch in val_progress:
+                if len(batch) == 3:
+                    images, labels, mask = batch
+                else:
+                    images, labels = batch
+                    mask = None
+                    
                 images, labels = images.to(device, non_blocking=True), labels.to(device, non_blocking=True)
+                if mask is not None:
+                    mask = mask.to(device, non_blocking=True)
                 
                 if scaler is not None:
                     with autocast('cuda'):
