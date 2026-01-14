@@ -183,6 +183,7 @@ class SequenceHeatmapDataset(Dataset):
         frames = []
         sparse_targets = []
         priors = []
+        scalars_targets = []
         
         cap = cv2.VideoCapture(meta['path'])
         cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
@@ -251,13 +252,19 @@ class SequenceHeatmapDataset(Dataset):
             sparse_targets.append(sparse_map)
             priors.append(meta['prior_map'])
             
+            # Handle scalars (replace NaNs with 0 or mean)
+            # current_temps is array of 4
+            scalars = torch.from_numpy(current_temps.astype(np.float32))
+            scalars_targets.append(scalars)
+            
         cap.release()
         
         if not read_success or len(frames) != self.sequence_length:
             C, H, W = 3, self.target_size[0], self.target_size[1]
             return (torch.zeros((self.sequence_length, C, H, W)), 
                     torch.zeros((self.sequence_length, 1, H, W)), 
-                    torch.zeros((self.sequence_length, 1, H, W)))
+                    torch.zeros((self.sequence_length, 1, H, W)),
+                    torch.zeros((self.sequence_length, 4)))
 
         frames_t = torch.stack(frames) # (Seq, C, H, W)
 
@@ -266,5 +273,9 @@ class SequenceHeatmapDataset(Dataset):
 
         targets_t = torch.stack(sparse_targets) # (Seq, 1, H, W)
         priors_t = torch.stack(priors) # (Seq, 1, H, W)
+        scalars_t = torch.stack(scalars_targets) # (Seq, 4)
         
-        return frames_t, targets_t, priors_t
+        # Replace NaNs in scalars with 0.0 (or appropriate value)
+        scalars_t = torch.nan_to_num(scalars_t, nan=0.0)
+        
+        return frames_t, targets_t, priors_t, scalars_t

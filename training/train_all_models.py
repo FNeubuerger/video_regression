@@ -39,7 +39,7 @@ def create_model(model_type, frame_shape, time_steps):
         return CNNLSTM(frame_shape=frame_shape, time_steps=time_steps)
     elif model_type == "pretrained_cnnlstm":
         pretrained_cnn = resnet18(weights='IMAGENET1K_V1')
-        pretrained_cnn.fc = torch.nn.Linear(pretrained_cnn.fc.in_features, 1)
+        pretrained_cnn.fc = torch.nn.Linear(pretrained_cnn.fc.in_features, 4)
         return PretrainedCNNLSTM(pretrained_cnn, frame_shape=frame_shape, time_steps=time_steps)
     elif model_type == "simple_resnet":
         return SimpleResNet(frame_shape=frame_shape)
@@ -99,28 +99,30 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
         train_progress = tqdm(train_loader, desc=f"Epoch [{epoch+1}/{num_epochs}] Training")
         
         for batch_idx, batch in enumerate(train_progress):
-            if len(batch) == 3:
+            scalars = None
+            if len(batch) == 4:
+                images, labels_raw, mask, scalars = batch
+            elif len(batch) == 3:
                 images, labels_raw, mask = batch
-                
-                # Convert heatmap labels to scalar sequence (B, T)
-                if labels_raw.dim() == 5: # (B, T, 1, H, W)
-                    labels = labels_raw.amax(dim=(2, 3, 4))
-                elif labels_raw.dim() == 4: # (B, 1, H, W)
-                    labels = labels_raw.amax(dim=(1, 2, 3))
-                else:
-                    labels = labels_raw
-
-                # Apply masking for the input if requested
-                if masked and mask is not None:
-                    # Handle broadcasting for 5D sequence data (B, T, C, H, W)
-                    if images.dim() == 5:
-                        images = images * (1.0 - mask.unsqueeze(1))
-                    else:
-                        images = images * (1.0 - mask)
             else:
                 images, labels = batch
                 mask = None
-                
+            
+            # Determine target based on model type
+            if model_name in ["cnnlstm", "pretrained_cnnlstm", "simple_resnet", "physics_cnnlstm"]:
+                if scalars is not None:
+                     # Use the exact 4-sensor scalars
+                     labels = scalars
+                else:
+                    # Fallback to heatmap max if scalars absent (should not happen with new dataset)
+                    if labels_raw.dim() == 5: 
+                        labels = labels_raw.amax(dim=(2, 3, 4))
+                    else:
+                        labels = labels_raw.amax(dim=(1, 2, 3))
+            else:
+                # Spatial models use the heatmap
+                labels = labels_raw
+
             images, labels = images.to(device, non_blocking=True), labels.to(device, non_blocking=True)
             if mask is not None:
                 mask = mask.to(device, non_blocking=True)
@@ -208,27 +210,26 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
         with torch.no_grad():
             val_progress = tqdm(val_loader, desc=f"Epoch [{epoch+1}/{num_epochs}] Validation")
             for batch in val_progress:
-                if len(batch) == 3:
-                    images, labels_raw, mask = batch
-                    
-                    # Convert heatmap labels to scalar sequence (B, T)
-                    if labels_raw.dim() == 5: # (B, T, 1, H, W)
-                        labels = labels_raw.amax(dim=(2, 3, 4))
-                    elif labels_raw.dim() == 4: # (B, 1, H, W)
-                        labels = labels_raw.amax(dim=(1, 2, 3))
-                    else:
-                        labels = labels_raw
-
-                    # Apply masking for the input if requested
-                    if masked and mask is not None:
-                        # Handle broadcasting for 5D sequence data
-                        if images.dim() == 5:
-                            images = images * (1.0 - mask.unsqueeze(1))
-                        else:
-                            images = images * (1.0 - mask)
+                scalars = None
+                if len(batch) == 4:
+                    images, labels_raw, mask, scalars = batch
+                elif len(batch) == 3:
+                     images, labels_raw, mask = batch
                 else:
                     images, labels = batch
                     mask = None
+                
+                # Determine target based on model type
+                if model_name in ["cnnlstm", "pretrained_cnnlstm", "simple_resnet", "physics_cnnlstm"]:
+                    if scalars is not None:
+                         labels = scalars
+                    else:
+                        if labels_raw.dim() == 5: 
+                            labels = labels_raw.amax(dim=(2, 3, 4))
+                        else:
+                            labels = labels_raw.amax(dim=(1, 2, 3))
+                else:
+                    labels = labels_raw
                     
                 images, labels = images.to(device, non_blocking=True), labels.to(device, non_blocking=True)
                 if mask is not None:

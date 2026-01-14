@@ -63,7 +63,7 @@ class PhysicsCNNLSTM(nn.Module):
         self.fc = nn.Sequential(
             nn.Linear(128, 64),
             nn.ReLU(),
-            nn.Linear(64, 1)
+            nn.Linear(64, 4) # Output 4
         )
 
     def forward(self, x):
@@ -80,9 +80,9 @@ class PhysicsCNNLSTM(nn.Module):
         
         # Regression on ALL time steps
         # We want to predict T for each frame to enforce smoothness
-        predictions = self.fc(lstm_out) # (batch, time, 1)
+        predictions = self.fc(lstm_out) # (batch, time, 4)
         
-        return predictions.squeeze(-1) # (batch, time)
+        return predictions # (batch, time, 4)
 
 class SpatialPhysicsCNNLSTM(nn.Module):
     """

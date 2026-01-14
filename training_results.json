@@ -1,5 +1,17 @@
 {
+  "cnnlstm": {
+    "error": "too many values to unpack (expected 5)"
+  },
+  "pretrained_cnnlstm": {
+    "error": "too many values to unpack (expected 5)"
+  },
   "simple_resnet": {
-    "error": "The size of tensor a (2) must match the size of tensor b (64) at non-singleton dimension 4"
+    "error": "Expected 3D (unbatched) or 4D (batched) input to conv2d, but got input of size: [128, 128, 3, 5, 64, 64]"
+  },
+  "physics_cnnlstm": {
+    "error": "too many values to unpack (expected 5)"
+  },
+  "spatial_physics_cnnlstm": {
+    "error": "too many values to unpack (expected 5)"
   }
 }

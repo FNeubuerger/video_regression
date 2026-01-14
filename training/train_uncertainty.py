@@ -13,7 +13,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.backbones import SimpleResNet
 from models.bayesian import BayesianResNet, FullBayesianResNet
-from utils.dataset import TemperatureSequenceDataset
+from utils.sequence_dataset import SequenceHeatmapDataset
 from torchvision import transforms
 import wandb
 
@@ -32,12 +32,14 @@ def train_ensemble(num_models=5, epochs=20, batch_size=128):
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
     
-    dataset = TemperatureSequenceDataset(
-        data_dir="data",
+    dataset = SequenceHeatmapDataset(
+        data_dir="data/level1_cropped",
+        raw_dir="data/level0_raw",
         sequence_length=3,
         transform=transform,
-        image_size=(64, 64),
-        use_optical_flow=True
+        target_size=(64, 64),
+        use_optical_flow=True,
+        use_artifact_masking=True # Ensemble usually benefits from masking
     )
     
     train_size = int(0.8 * len(dataset))
@@ -48,9 +50,12 @@ def train_ensemble(num_models=5, epochs=20, batch_size=128):
     
     os.makedirs("checkpoints/ensemble", exist_ok=True)
     
+    # Frame shape for 5 channels (3 RGB + 2 Flow)
+    frame_shape = (64, 64, 5)
+
     for i in range(num_models):
         print(f"\nTraining Ensemble Member {i+1}/{num_models}")
-        model = SimpleResNet(frame_shape=(64, 64, 5)).to(device)
+        model = SimpleResNet(frame_shape=frame_shape).to(device)
         criterion = nn.MSELoss()
         optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
         
@@ -59,9 +64,29 @@ def train_ensemble(num_models=5, epochs=20, batch_size=128):
             train_loss = 0
             progress = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False)
             
-            for images, labels in progress:
-                images, labels = images.to(device), labels.to(device)
+            for batch in progress:
+                if len(batch) == 4:
+                    images, labels_raw, mask, scalars = batch
+                elif len(batch) == 3:
+                     images, labels_raw, mask = batch
+                     scalars = None
+                else: 
+                     images, labels_raw = batch
+                     mask = None
+                     scalars = None
+
+                images = images.to(device)
                 
+                # Use scalars as label if available, else derive from heatmap
+                if scalars is not None:
+                    labels = scalars.to(device)
+                else:
+                    labels = labels_raw.to(device)
+                    if labels.dim() == 4:
+                        labels = labels.amax(dim=(1,2,3))
+                    elif labels.dim() == 5:
+                        labels = labels.amax(dim=(2,3,4))
+
                 optimizer.zero_grad()
                 outputs = model(images)
                 loss = criterion(outputs, labels.float())
@@ -86,26 +111,33 @@ def train_bayesian(epochs=30, batch_size=128, kl_weight=0.1):
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # Dataset setup (same as above)
+    # Dataset setup
     transform = transforms.Compose([
         transforms.Resize((64, 64)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
     
-    dataset = TemperatureSequenceDataset(
-        data_dir="data",
+    dataset = SequenceHeatmapDataset(
+        data_dir="data/level1_cropped",
+        raw_dir="data/level0_raw",
         sequence_length=3,
         transform=transform,
-        image_size=(64, 64),
-        use_optical_flow=True
+        target_size=(64, 64),
+        use_optical_flow=True,
+        use_artifact_masking=True 
     )
     
     train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
     
-    model = BayesianResNet(frame_shape=(64, 64, 5)).to(device)
+    # Frame shape for 5 channels (3 RGB + 2 Flow)
+    frame_shape = (64, 64, 5)
+    model = BayesianResNet(frame_shape=frame_shape).to(device)
+    
     mse_loss = nn.MSELoss()
-    kl_loss = bnn.BKLLoss(reduction='mean', last_layer_only=False)
+    # KL Loss defined in model usually, but also can use torchbnn
+    # BayesianResNet now returns (pred, kl) tuple
+    
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     
     os.makedirs("checkpoints", exist_ok=True)
@@ -115,14 +147,27 @@ def train_bayesian(epochs=30, batch_size=128, kl_weight=0.1):
         total_loss = 0
         progress = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False)
         
-        for images, labels in progress:
-            images, labels = images.to(device), labels.to(device)
+        for batch in progress:
+            if len(batch) == 4:
+                images, labels_raw, mask, scalars = batch
+            else:
+                 # Should not happen with new dataset class but fallback
+                 images, labels_raw = batch[0], batch[1]
+                 scalars = None
+
+            images = images.to(device)
             
+            if scalars is not None:
+                labels = scalars.to(device)
+            else:
+                labels = labels_raw.to(device)
+                if labels.dim() == 4:
+                     labels = labels.amax(dim=(1,2,3))
+
             optimizer.zero_grad()
-            outputs = model(images)
+            outputs, kl = model(images)
             
             mse = mse_loss(outputs, labels.float())
-            kl = kl_loss(model)
             loss = mse + kl_weight * kl
             
             loss.backward()
@@ -154,19 +199,21 @@ def train_full_bayesian(epochs=30, batch_size=128, kl_weight=0.1):
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
     
-    dataset = TemperatureSequenceDataset(
-        data_dir="data",
+    dataset = SequenceHeatmapDataset(
+        data_dir="data/level1_cropped",
+        raw_dir="data/level0_raw",
         sequence_length=3,
         transform=transform,
-        image_size=(64, 64),
-        use_optical_flow=True
+        target_size=(64, 64),
+        use_optical_flow=True,
+        use_artifact_masking=True
     )
     
     train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
     
     model = FullBayesianResNet(frame_shape=(64, 64, 5)).to(device)
     mse_loss = nn.MSELoss()
-    kl_loss = bnn.BKLLoss(reduction='mean', last_layer_only=False)
+    
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     
     os.makedirs("checkpoints", exist_ok=True)
@@ -176,14 +223,25 @@ def train_full_bayesian(epochs=30, batch_size=128, kl_weight=0.1):
         total_loss = 0
         progress = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False)
         
-        for images, labels in progress:
-            images, labels = images.to(device), labels.to(device)
+        for batch in progress:
+            if len(batch) == 4:
+                images, labels_raw, mask, scalars = batch
+            else:
+                 images, labels_raw = batch[0], batch[1]
+                 scalars = None
+
+            images = images.to(device)
+            if scalars is not None:
+                labels = scalars.to(device)
+            else:
+                labels = labels_raw.to(device)
+                if labels.dim() == 4:
+                     labels = labels.amax(dim=(1,2,3))
             
             optimizer.zero_grad()
-            outputs = model(images)
+            outputs, kl = model(images)
             
             mse = mse_loss(outputs, labels.float())
-            kl = kl_loss(model)
             loss = mse + kl_weight * kl
             
             loss.backward()

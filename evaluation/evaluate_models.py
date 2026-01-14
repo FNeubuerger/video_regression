@@ -147,23 +147,34 @@ class ModelEvaluator:
         
         with torch.no_grad():
             for batch in tqdm(self.test_loader, desc=f"Testing {model_name}"):
-                if len(batch) == 3:
+                scalars = None
+                if len(batch) == 4:
+                    images, labels_raw, priors_or_mask, scalars = batch
+                elif len(batch) == 3:
+                     # Fallback
                     images, labels_raw, priors_or_mask = batch
-                    # SequenceHeatmapDataset: labels_raw is (B, T, 1, 64, 64)
-                    # We usually want the scalar target for RMSE comparison
-                    if labels_raw.dim() == 5: # (B, T, 1, H, W)
-                        # Take frame T (last) and spatial max
-                        labels = labels_raw[:, -1].amax(dim=(1, 2, 3))
-                    elif labels_raw.dim() == 4: # (B, 1, H, W)
-                        labels = labels_raw.amax(dim=(1, 2, 3))
-                    else:
-                        labels = labels_raw
                 else:
                     images, labels = batch
                     mask = None
+                
+                # Setup mask
+                mask = priors_or_mask if len(batch) >= 3 else None
                     
                 images = images.to(self.device, non_blocking=True)
-                labels = labels.to(self.device, non_blocking=True)
+                
+                # Determine Truth Labels
+                if scalars is not None:
+                     # If we have ground truth scalars, use them for everything for now to compare against 
+                     # unless it is a spatial model where we want to eval the map.
+                     # But evaluate_models typically computes RMSE scalars.
+                     labels = scalars.to(self.device, non_blocking=True)
+                else:
+                    labels = labels_raw.to(self.device, non_blocking=True)
+                    # Convert heatmap to scalar if needed
+                    if labels.dim() == 5:
+                         labels = labels.amax(dim=(2, 3, 4))
+                    elif labels.dim() == 4:
+                         labels = labels.amax(dim=(1, 2, 3))
                 
                 # Apply mask if this is a masked model
                 if "_masked" in model_name and mask is not None:
@@ -201,7 +212,11 @@ class ModelEvaluator:
         r2 = r2_score(true_values, predictions)
         
         # Calculate correlation
-        correlation, p_value = stats.pearsonr(true_values, predictions)
+        if true_values.ndim > 1:
+            # Flatten for global correlation
+            correlation, p_value = stats.pearsonr(true_values.flatten(), predictions.flatten())
+        else:
+            correlation, p_value = stats.pearsonr(true_values, predictions)
         
         # Calculate percentage of predictions within certain thresholds
         abs_errors = np.abs(predictions - true_values)

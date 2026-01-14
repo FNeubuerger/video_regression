@@ -72,7 +72,7 @@ class CNNLSTM(nn.Module):
         # Smaller fully connected layers for regression
         self.fc1 = nn.Linear(64, 32)
         self.dropout = nn.Dropout(0.2)  # Add dropout for regularization
-        self.fc2 = nn.Linear(32, 1)
+        self.fc2 = nn.Linear(32, 4) # Output 4 temperatures (one for each sensor)
 
     def forward(self, x):
         """
@@ -173,7 +173,7 @@ class PretrainedCNNLSTM(nn.Module):
 
         # Fully connected layers for regression
         self.fc1 = nn.Linear(128, 64)
-        self.fc2 = nn.Linear(64, 1)
+        self.fc2 = nn.Linear(64, 4) # Output 4 temperatures
 
     def forward(self, x):
         """
@@ -255,7 +255,7 @@ class SimpleResNet(nn.Module):
         # Replace the final layer for regression
         self.backbone.fc = nn.Linear(num_features, 512)
         self.dropout = nn.Dropout(0.2)
-        self.regressor = nn.Linear(512, 1)
+        self.regressor = nn.Linear(512, 4) # Output 4 temperatures
 
     def forward(self, x):
         """
