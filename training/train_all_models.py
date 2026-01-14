@@ -134,10 +134,16 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                         outputs, alpha_map, beta_map = outputs
                         
                     # Handle physics model output
-                    if isinstance(criterion_instance, (PhysicsInformedLoss, AdvancedBioHeatLoss)):
+                    if isinstance(criterion_instance, AdvancedBioHeatLoss):
                         loss = criterion_instance(outputs, labels.float(), flow=flow, mask=mask,
                                                  alpha_map=alpha_map, beta_map=beta_map)
+                    elif isinstance(criterion_instance, PhysicsInformedLoss):
+                        if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
+                            outputs = outputs.mean(dim=(1, 2))
+                        loss = criterion_instance(outputs, labels.float(), mask=mask)
                     else:
+                        if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
+                            outputs = outputs.mean(dim=(1, 2))
                         loss = criterion_instance(outputs, labels.float())
                 
                 scaler.scale(loss).backward()
@@ -156,10 +162,16 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                 if isinstance(outputs, tuple) and len(outputs) == 3:
                     outputs, alpha_map, beta_map = outputs
                     
-                if isinstance(criterion_instance, PhysicsInformedLoss):
+                if isinstance(criterion_instance, AdvancedBioHeatLoss):
                     loss = criterion_instance(outputs, labels.float(), flow=flow, mask=mask,
                                              alpha_map=alpha_map, beta_map=beta_map)
+                elif isinstance(criterion_instance, PhysicsInformedLoss):
+                    if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
+                        outputs = outputs.mean(dim=(1, 2))
+                    loss = criterion_instance(outputs, labels.float(), mask=mask)
                 else:
+                    if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
+                        outputs = outputs.mean(dim=(1, 2))
                     loss = criterion_instance(outputs, labels.float())
                 loss.backward()
                 
@@ -206,12 +218,18 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                         if isinstance(outputs, tuple) and len(outputs) == 3:
                             outputs, alpha_map, beta_map = outputs
                             
-                        if isinstance(criterion_instance, (PhysicsInformedLoss, AdvancedBioHeatLoss)):
+                        if isinstance(criterion_instance, AdvancedBioHeatLoss):
                             # Extract flow if present (channels 3 and 4)
                             flow = images[:, :, 3:, :, :] if images.shape[2] >= 5 else None
                             loss = criterion_instance(outputs, labels.float(), flow=flow, mask=mask, 
                                                      alpha_map=alpha_map, beta_map=beta_map)
+                        elif isinstance(criterion_instance, PhysicsInformedLoss):
+                            if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
+                                outputs = outputs.mean(dim=(1, 2))
+                            loss = criterion_instance(outputs, labels.float(), mask=mask)
                         else:
+                            if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
+                                outputs = outputs.mean(dim=(1, 2))
                             loss = criterion_instance(outputs, labels.float())
                 else:
                     outputs = model_instance(images)
@@ -221,12 +239,16 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                     if isinstance(outputs, tuple) and len(outputs) == 3:
                         outputs, alpha_map, beta_map = outputs
                         
-                    if isinstance(criterion_instance, PhysicsInformedLoss):
+                    if isinstance(criterion_instance, AdvancedBioHeatLoss):
                         # Extract flow if present (channels 3 and 4)
                         flow = images[:, :, 3:, :, :] if images.shape[2] >= 5 else None
                         loss = criterion_instance(outputs, labels.float(), flow=flow, mask=mask,
                                                  alpha_map=alpha_map, beta_map=beta_map)
+                    elif isinstance(criterion_instance, PhysicsInformedLoss):
+                        loss = criterion_instance(outputs, labels.float(), mask=mask)
                     else:
+                        if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
+                            outputs = outputs.mean(dim=(1, 2))
                         loss = criterion_instance(outputs, labels.float())
                 
                 val_loss += loss.item()
