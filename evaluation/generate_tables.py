@@ -71,7 +71,7 @@ def generate_tables(results_dir="results", output_dir="results/tables"):
         df['Category'] = df['Model'].apply(get_category)
         
         # Reorder columns and rename for units
-        cols = ['Category', 'Display Name', 'MSE', 'MAE', 'RMSE', 'NLL', 'PICP_95', 'MPIW_95']
+        cols = ['Category', 'Display Name', 'MSE', 'MAE', 'RMSE', 'NLL', 'PICP_95', 'MPIW_95', 'WITHIN_1C', 'WITHIN_2C', 'WITHIN_5C']
         existing_cols = [c for c in cols if c in df.columns]
         df = df[existing_cols]
         
@@ -81,7 +81,10 @@ def generate_tables(results_dir="results", output_dir="results/tables"):
             'MAE': 'MAE (K)',
             'RMSE': 'RMSE (K)',
             'MPIW_95': 'MPIW$_{95}$ (K)',
-            'PICP_95': 'PICP$_{95}$'
+            'PICP_95': 'PICP$_{95}$',
+            'WITHIN_1C': 'Within 1°C (%)',
+            'WITHIN_2C': 'Within 2°C (%)',
+            'WITHIN_5C': 'Within 5°C (%)'
         })
         
         # Sort by Category and RMSE (using renamed column)

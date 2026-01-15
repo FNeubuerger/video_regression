@@ -1,0 +1,15 @@
+\begin{table}
+\caption{Temporal Model Comparison}
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+Display Name & MSE ($K^2$) & MAE (K) & RMSE (K) & NLL & PICP$_{95}$ & MPIW$_{95}$ (K) & Within 1°C (%) & Within 2°C (%) & Within 5°C (%) \\
+\midrule
+Convection Bioheat & 0.3836 & 0.2412 & 0.6193 & NaN & NaN & NaN & 96.1435 & 99.1915 & 99.8327 \\
+Metabolic Bioheat & 0.6975 & 0.2118 & 0.8351 & NaN & NaN & NaN & 97.6117 & 99.5539 & 99.8606 \\
+Bioheat PINN & 1.3489 & 0.2355 & 1.1614 & NaN & NaN & NaN & 97.8162 & 99.6469 & 99.8327 \\
+Physics CNNLSTM & 11.1560 & 1.5855 & 3.3401 & NaN & NaN & NaN & 62.4756 & 74.5377 & 91.3391 \\
+CNNLSTM & 320.9001 & 8.4144 & 17.9137 & NaN & NaN & NaN & 46.0087 & 51.1198 & 62.5685 \\
+Pretrained CNNLSTM & 614.1210 & 19.5921 & 24.7815 & NaN & NaN & NaN & 24.3565 & 25.5460 & 27.8506 \\
+\bottomrule
+\end{tabular}
+\end{table}
