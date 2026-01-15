@@ -104,7 +104,7 @@ def main():
         phys_loss_accum = 0.0
         
         train_pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{args.epochs} [Train]")
-        for frames, targets, masks, _, priors in train_pbar:
+        for frames, targets, masks, _, priors, _ in train_pbar:
             frames = frames.to(device)
             targets = targets.to(device)
             masks = masks.to(device)
@@ -151,7 +151,7 @@ def main():
         vis_batch = None
         
         with torch.no_grad():
-            for i, (frames, targets, masks, _, priors) in enumerate(tqdm(val_loader, desc="[Val]")):
+            for i, (frames, targets, masks, _, priors, _) in enumerate(tqdm(val_loader, desc="[Val]")):
                 frames = frames.to(device)
                 targets = targets.to(device)
                 masks = masks.to(device)

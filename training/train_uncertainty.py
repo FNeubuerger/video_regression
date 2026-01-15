@@ -35,8 +35,7 @@ def train_ensemble(num_models=5, epochs=20, batch_size=128):
     dataset = SequenceHeatmapDataset(
         data_dir="data/level1_cropped",
         raw_dir="data/level0_raw",
-        sequence_length=3,
-        transform=transform,
+        sequence_length=5,
         target_size=(64, 64),
         use_optical_flow=True,
         use_artifact_masking=True # Ensemble usually benefits from masking
@@ -123,8 +122,7 @@ def train_bayesian(epochs=30, batch_size=128, kl_weight=0.1):
     dataset = SequenceHeatmapDataset(
         data_dir="data/level1_cropped",
         raw_dir="data/level0_raw",
-        sequence_length=3,
-        transform=transform,
+        sequence_length=5,
         target_size=(64, 64),
         use_optical_flow=True,
         use_artifact_masking=True 
@@ -206,8 +204,7 @@ def train_full_bayesian(epochs=30, batch_size=128, kl_weight=0.1):
     dataset = SequenceHeatmapDataset(
         data_dir="data/level1_cropped",
         raw_dir="data/level0_raw",
-        sequence_length=3,
-        transform=transform,
+        sequence_length=5,
         target_size=(64, 64),
         use_optical_flow=True,
         use_artifact_masking=True

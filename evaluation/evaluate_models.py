@@ -24,6 +24,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.backbones import CNNLSTM, PretrainedCNNLSTM, SimpleResNet, SpatialResNet
+from models.bayesian import BayesianResNet, BayesianCNNLSTM
 from physics.models import PhysicsCNNLSTM, SpatialPhysicsCNNLSTM
 from utils.sequence_dataset import SequenceHeatmapDataset
 import warnings
@@ -121,6 +122,15 @@ class ModelEvaluator:
 
             elif base_model_name == "PhysicsCNNLSTM":
                 model = PhysicsCNNLSTM(frame_shape=frame_shape, time_steps=time_steps)
+                model.load_state_dict(torch.load(model_path, map_location=self.device))
+                
+            elif base_model_name == "BayesianResNet":
+                # Ensure frame_shape logic matches training
+                model = BayesianResNet(frame_shape=frame_shape)
+                model.load_state_dict(torch.load(model_path, map_location=self.device))
+                
+            elif base_model_name == "BayesianCNNLSTM":
+                model = BayesianCNNLSTM(frame_shape=frame_shape)
                 model.load_state_dict(torch.load(model_path, map_location=self.device))
 
             else:
@@ -257,8 +267,9 @@ class ModelEvaluator:
         for i, result in enumerate(results):
             plt.subplot(3, n_models, i + 1)
             
-            predictions = result['predictions']
-            true_values = result['true_values']
+            # Flatten in case of multi-output (N, 4)
+            predictions = result['predictions'].flatten()
+            true_values = result['true_values'].flatten()
             
             plt.scatter(true_values, predictions, alpha=0.6, s=1)
             
@@ -277,7 +288,9 @@ class ModelEvaluator:
         for i, result in enumerate(results):
             plt.subplot(3, n_models, n_models + i + 1)
             
-            errors = result['predictions'] - result['true_values']
+            predictions = result['predictions'].flatten()
+            true_values = result['true_values'].flatten()
+            errors = predictions - true_values
             
             plt.hist(errors, bins=50, alpha=0.7, density=True)
             plt.axvline(0, color='red', linestyle='--', linewidth=2)
@@ -323,7 +336,7 @@ class ModelEvaluator:
         # Create DataFrame with metrics
         metrics_data = []
         for result in results:
-            metrics_data.append({
+            entry = {
                 'Model': result['model_name'],
                 'RMSE (°C)': f"{result['rmse']:.3f}",
                 'MAE (°C)': f"{result['mae']:.3f}",
@@ -333,7 +346,15 @@ class ModelEvaluator:
                 'Within 2°C (%)': f"{result['within_2c']:.1f}",
                 'Within 5°C (%)': f"{result['within_5c']:.1f}",
                 'Test Samples': result['num_samples']
-            })
+            }
+            # Add per-sensor if available
+            if 's0_rmse' in result and not np.isnan(result['s0_rmse']):
+                entry['S0 RMSE'] = f"{result['s0_rmse']:.3f}"
+                entry['S1 RMSE'] = f"{result['s1_rmse']:.3f}"
+                entry['S2 RMSE'] = f"{result['s2_rmse']:.3f}"
+                entry['S3 RMSE'] = f"{result['s3_rmse']:.3f}"
+            
+            metrics_data.append(entry)
         
         df = pd.DataFrame(metrics_data)
         df.to_csv(save_path, index=False)
@@ -377,66 +398,142 @@ class ModelEvaluator:
         
         with torch.no_grad():
             for batch in tqdm(self.test_loader, desc="Evaluating all models"):
-                if len(batch) == 3:
-                    images, labels, mask = batch
+                scalars = None
+                if len(batch) == 4:
+                    images, labels_raw, mask, scalars = batch
+                elif len(batch) == 3:
+                     # Fallback
+                    images, labels_raw, mask = batch
                 else:
-                    images, labels = batch
+                    images, labels_raw = batch
                     mask = None
                     
                 images = images.to(self.device, non_blocking=True)
-                labels = labels.to(self.device, non_blocking=True)
                 if mask is not None:
                     mask = mask.to(self.device, non_blocking=True)
                 
-                # Store targets once
-                all_targets.extend(labels.cpu().numpy())
+                # Targets: Use scalars if available (B, T, 4), else fallback
+                if scalars is not None:
+                    # Take last time step for evaluation (B, 4)
+                    target_batch = scalars[:, -1, :].cpu().numpy()
+                else:
+                    # Fallback to heatmap max/mean (not ideal for 4 sensors)
+                    if labels_raw.dim() == 5:
+                        t = labels_raw.amax(dim=(2, 3, 4))[:, -1] # (B,)
+                    else:
+                        t = labels_raw.amax(dim=(1, 2, 3)) # (B,)
+                    # Broadcast to (B, 4) just to keep shape consistent or keep as (B, 1)?
+                    # Better to handle dimension in metric calc.
+                    target_batch = t.cpu().numpy()
+                    if target_batch.ndim == 1:
+                        target_batch = target_batch[:, np.newaxis]
+
+                all_targets.extend(target_batch)
                 
                 # Run inference for each model
                 for name, model in loaded_models.items():
                     # Apply masking only if the model is a masked variant
                     is_masked_variant = "_masked" in name
                     if is_masked_variant and mask is not None:
-                        model_input = images * (1.0 - mask)
+                        # Broadcasting mask if needed
+                        if images.dim() == 5 and mask.dim() == 4:
+                             model_input = images * (1.0 - mask.unsqueeze(1))
+                        elif images.dim() == 5 and mask.dim() == 3:
+                             model_input = images * (1.0 - mask.unsqueeze(1).unsqueeze(1))
+                        else:
+                             model_input = images * (1.0 - mask)
                     else:
                         model_input = images
                         
                     outputs = model(model_input)
                     
-                    # Handle spatial output or temporal sequence output
-                    if name in ["SpatialBioheat", "SpatialConvection", "SpatialMetabolic", "BioheatPINN", "ConvectionBioheat", "MetabolicBioheat", "PhysicsCNNLSTM"]:
-                        # If output has time dimension (Batch, Time, ...) or (Batch, Time)
-                        if outputs.dim() >= 2:
-                            # Take the last time step
-                            outputs = outputs[:, -1]
+                    # Handle Bayesian Tuple output
+                    if isinstance(outputs, tuple):
+                        outputs = outputs[0]
+
+                    # Handle sequence/spatial outputs
+                    # Expected target is (B, 4) or (B, N_sensors)
+                    
+                    # Case 1: (B, T, 4) -> Take last step -> (B, 4)
+                    if outputs.dim() == 3 and outputs.shape[2] == 4:
+                        outputs = outputs[:, -1, :]
                         
-                        # If spatial map (Batch, 4, 4), average over spatial dimensions
-                        if outputs.dim() == 3:
-                            outputs = outputs.mean(dim=[1, 2])
+                    # Case 2: (B, T, H, W) or (B, H, W) -> Spatial Average -> (B, 1)
+                    elif outputs.dim() == 4: # (B, T, H, W)
+                         outputs = outputs[:, -1].mean(dim=(1, 2))
+                         outputs = outputs.unsqueeze(1) # (B, 1)
+                    elif outputs.dim() == 3 and outputs.shape[1] > 4: # (B, H, W)
+                         outputs = outputs.mean(dim=(1, 2))
+                         outputs = outputs.unsqueeze(1)
+
+                    # Case 3: (B, 4) -> Keep as is
                     
                     all_preds[name].extend(outputs.cpu().numpy())
         
         # 3. Compute metrics for each model
-        print("\nComputing metrics...")
-        true_values = np.array(all_targets)
+        print("\nComputing metrics (Per-Sensor & Global)...")
+        true_values = np.array(all_targets) # (N, 4) usually
         
         for name, preds in all_preds.items():
-            predictions = np.array(preds)
+            predictions = np.array(preds) # (N, 4) or (N, 1)
             
-            # Helper to calculate metrics (copied logic from original evaluate_model)
-            mse = mean_squared_error(true_values, predictions)
-            rmse = np.sqrt(mse)
-            mae = mean_absolute_error(true_values, predictions)
-            r2 = r2_score(true_values, predictions)
-            correlation, _ = stats.pearsonr(true_values, predictions)
+            # Global Metrics
+            # If shapes mismatch (e.g. spatial model (N, 1) vs target (N, 4)), 
+            # we compare predictions against mean of true_values or broadcast?
+            # User wants 4 scalar prediction.
             
-            abs_errors = np.abs(predictions - true_values)
+            if predictions.shape[1] == 4 and true_values.shape[1] == 4:
+                # Full 4-sensor match
+                mse = mean_squared_error(true_values, predictions)
+                rmse = np.sqrt(mse)
+                mae = mean_absolute_error(true_values, predictions)
+                r2 = r2_score(true_values, predictions, multioutput='uniform_average')
+                
+                # Per-Sensor Metrics
+                rmses = np.sqrt(np.mean((predictions - true_values)**2, axis=0))
+                maes = np.mean(np.abs(predictions - true_values), axis=0)
+                
+                s0_rmse, s1_rmse, s2_rmse, s3_rmse = rmses
+                s0_mae, s1_mae, s2_mae, s3_mae = maes
+                
+                # Correlations
+                correlation, _ = stats.pearsonr(true_values.flatten(), predictions.flatten())
+                
+                abs_errors = np.abs(predictions - true_values)
+                
+            elif predictions.shape[1] == 1 and true_values.shape[1] == 4:
+                # Spatial model (1 val) vs 4 sensors. Compare against mean of sensors?
+                # Or implies spatial models aren't suitable for per-sensor task.
+                true_mean = true_values.mean(axis=1, keepdims=True)
+                mse = mean_squared_error(true_mean, predictions)
+                rmse = np.sqrt(mse)
+                mae = mean_absolute_error(true_mean, predictions)
+                r2 = r2_score(true_mean, predictions)
+                correlation, _ = stats.pearsonr(true_mean.flatten(), predictions.flatten())
+                
+                abs_errors = np.abs(predictions - true_mean)
+                
+                s0_rmse = s1_rmse = s2_rmse = s3_rmse = np.nan
+                s0_mae = s1_mae = s2_mae = s3_mae = np.nan
+            
+            else:
+                # Fallback
+                mse = mean_squared_error(true_values, predictions)
+                rmse = np.sqrt(mse)
+                mae = mean_absolute_error(true_values, predictions)
+                r2 = 0
+                correlation = 0
+                abs_errors = np.abs(predictions - true_values)
+                s0_rmse = s1_rmse = s2_rmse = s3_rmse = np.nan
+                s0_mae = s1_mae = s2_mae = s3_mae = np.nan
+
             within_1c = np.mean(abs_errors <= 1.0) * 100
             within_2c = np.mean(abs_errors <= 2.0) * 100
             within_5c = np.mean(abs_errors <= 5.0) * 100
             
             results.append({
                 'model_name': name,
-                'predictions': predictions,  # Needed for plotting
+                'predictions': predictions,  
                 'true_values': true_values,
                 'mse': mse,
                 'rmse': rmse,
@@ -446,7 +543,9 @@ class ModelEvaluator:
                 'within_1c': within_1c,
                 'within_2c': within_2c,
                 'within_5c': within_5c,
-                'num_samples': len(true_values)
+                'num_samples': len(true_values),
+                's0_rmse': s0_rmse, 's1_rmse': s1_rmse, 's2_rmse': s2_rmse, 's3_rmse': s3_rmse,
+                's0_mae': s0_mae, 's1_mae': s1_mae, 's2_mae': s2_mae, 's3_mae': s3_mae
             })
 
             # Save individual JSON for generate_tables.py

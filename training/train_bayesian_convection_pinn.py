@@ -14,6 +14,7 @@ import argparse
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from utils.dataset import TemperatureSequenceDataset
+from utils.sequence_dataset import SequenceHeatmapDataset
 from models.bayesian import BayesianResNet
 from physics.bioheat_loss import AdvancedBioHeatLoss
 from tqdm import tqdm
@@ -38,10 +39,12 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
     
     # Data
     print("Loading dataset...")
-    dataset = TemperatureSequenceDataset(
-        data_dir="data", 
+    # Use SequenceHeatmapDataset to match 4 output scalars
+    dataset = SequenceHeatmapDataset(
+        data_dir="data/level1_cropped", 
+        raw_dir="data/level0_raw",
         sequence_length=sequence_length, 
-        image_size=(64, 64),
+        target_size=(64, 64),
         use_optical_flow=True 
     )
     
@@ -87,9 +90,14 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
         train_phys = 0.0
         
         progress = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}")
-        for images, labels in progress:
+        for batch in progress:
+            if len(batch) == 4:
+                images, _, _, labels = batch
+            else:
+                 raise ValueError("Unexpected batch len")
+
             images = images.to(device) # (B, T, 5, 64, 64)
-            labels = labels.to(device).float() # (B, T)
+            labels = labels.to(device).float() # (B, T, 4)
             
             optimizer.zero_grad()
             
@@ -102,8 +110,10 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
             
             # Forward pass (Monte Carlo sampling happens implicitly if we just do one pass, 
             # but for training we usually just do one pass per batch and rely on stochasticity)
-            preds_flat = model(images_flat) # (B*T)
-            predictions = preds_flat.view(B, T)
+            preds_flat, kl_div = model(images_flat) # (B*T, 4)
+            
+            # Correct shape: (B, T, 4)
+            predictions = preds_flat.view(B, T, 4)
             
             # Extract flow for convection
             raw_flow = images[:, :, 3:5, :, :] # (B, T, 2, H, W)
@@ -132,7 +142,7 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
             phys_loss, alpha, beta = criterion(predictions, labels)
             
             # 2. KL Divergence Loss (Bayesian Regularization)
-            kl = kl_loss_fn(model)
+            kl = kl_div
             
             # Total Loss
             total_loss = phys_loss + (kl_weight * kl)
@@ -152,14 +162,19 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
-            for images, labels in val_loader:
+            for batch in val_loader:
+                if len(batch) == 4:
+                    images, _, _, labels = batch
+                else: 
+                     raise ValueError("Batch len")
+
                 images = images.to(device)
                 labels = labels.to(device).float()
                 
                 B, T, C, H, W = images.shape
                 images_flat = images.view(B*T, C, H, W)
-                preds_flat = model(images_flat)
-                predictions = preds_flat.view(B, T)
+                preds_flat, _ = model(images_flat)
+                predictions = preds_flat.view(B, T, 4)
                 
                 phys_loss, _, _ = criterion(predictions, labels)
                 # KL is usually not computed on validation or is constant

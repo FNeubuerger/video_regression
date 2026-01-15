@@ -162,3 +162,7 @@ $(MODELS_DIR)/spatial_metabolic_bioheat_resnet.pth:
 
 clean:
 	rm -f $(LOG_DIR)/*.log
+
+start_benchmarks:
+	@echo "Starting ALL benchmarks (Scalar, Spatial, U-Net, Bayesian PINN) in tmux..."
+	@bash scripts/run_benchmarks.sh

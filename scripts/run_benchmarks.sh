@@ -120,3 +120,21 @@ echo "5. Check WandB dashboard:"
 echo "   https://wandb.ai/fneubuerger/video-temperature-regression"
 echo ""
 echo "============================================================================"
+
+# 11. U-Net No Prior
+tmux new-window -t $SESSION -n "unet_noprior"
+tmux send-keys -t $SESSION:unet_noprior "cd $WORKSPACE" C-m
+tmux send-keys -t $SESSION:unet_noprior "source .venv/bin/activate" C-m
+tmux send-keys -t $SESSION:unet_noprior "make unet_sparse_noprior" C-m
+
+# 12. U-Net With Prior
+tmux new-window -t $SESSION -n "unet_prior"
+tmux send-keys -t $SESSION:unet_prior "cd $WORKSPACE" C-m
+tmux send-keys -t $SESSION:unet_prior "source .venv/bin/activate" C-m
+tmux send-keys -t $SESSION:unet_prior "make unet_sparse_withprior" C-m
+
+# 13. Bayesian PINN (Manual Logic)
+tmux new-window -t $SESSION -n "bayesian_pinn"
+tmux send-keys -t $SESSION:bayesian_pinn "cd $WORKSPACE" C-m
+tmux send-keys -t $SESSION:bayesian_pinn "source .venv/bin/activate" C-m
+tmux send-keys -t $SESSION:bayesian_pinn "python training/train_bayesian_pinn.py --epochs 50 --masked" C-m

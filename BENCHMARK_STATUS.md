@@ -5,14 +5,16 @@
 
 ## 1. Active Training Streams
 
-We currently have four parallel training streams active (Verified 2026-01-15 10:20):
+We currently have **six** parallel training streams active. All planned benchmarks are now running (Verified 2026-01-15 10:45):
 
 | Stream | Component | Models Included | Status | Log Location |
 | :--- | :--- | :--- | :--- | :--- |
-| **1. Standard** | `train_all_models.py` | `CNNLSTM` `SpatialPhysicsCNNLSTM` | 🚀 **Running** (Epoch 11/50) | `logs/retrain/restart_main.log` |
-| **2. Uncertainty** | `train_uncertainty.py` | `Ensemble` (5x ResNet) | 🚀 **Running** (Epoch 6/20) | `logs/retrain/restart_uncertainty.log` |
-| **3. Dynamics** | `restart_ltc_benchmarks.sh` | `ConvLTC` `LatentLTC` `LatentLTC-Var` | 🚀 **Running** (Epoch 1-2/30) | `logs/ltc/` |
-| **4. Physics** | `run_physics_benchmarks.sh` | **Bioheat Variants** (Scalar & Spatial) + Bayesian | 🚀 **Running** (Epoch 2-3/30) | `logs/physics/` |
+| **1. Standard** | `train_all_models.py` | `CNNLSTM` `SpatialPhysicsCNNLSTM` | 🚀 **Running** (Epoch 19/50) | `logs/retrain/restart_main.log` |
+| **2. Uncertainty** | `train_uncertainty.py` | `Ensemble` (5x ResNet) | 🚀 **Running** (Epoch 10/20) | `logs/retrain/restart_uncertainty.log` |
+| **3. Dynamics** | `restart_ltc_benchmarks.sh` | `ConvLTC` `LatentLTC` `LatentLTC-Var` | 🚀 **Running** (Epoch 3-5/30) | `logs/ltc/` |
+| **4. Physics** | `run_physics_benchmarks.sh` | **Bioheat Variants** (Scalar & Spatial) | 🚀 **Running** (Epoch 6/30) | `logs/physics/` |
+| **5. Bayesian Physics** | `run_missing_benchmarks.sh` | `Bayesian PINN` variants (x4) | 🚀 **Restarted** (Epoch 1/30) | `logs/physics/` |
+| **6. Dense (U-Net)** | `run_missing_benchmarks.sh` | `Standard`, `Variational`, `Hybrid` | 🚀 **Running** (Hybrid Restarted) | `logs/unet/` |
 
 ---
 
@@ -44,17 +46,17 @@ The following models are identified in the Plan but are not yet actively trainin
 
 ### B. Bayesian Physics (Scalar)
 *Required Scripts:* `train_bayesian_*.py`
-- [ ] `Bayesian PINN`
+- [x] `Bayesian PINN` - 🚀 **Running**
 - [x] `Bayesian CNNLSTM` - 🚀 **Running**
-- [ ] `Bayesian Convection PINN`
-- [ ] `Bayesian Metabolic PINN`
-- [ ] `Bayesian Spatial Convection`
+- [x] `Bayesian Convection PINN` - 🚀 **Running**
+- [x] `Bayesian Metabolic PINN` - 🚀 **Running**
+- [x] `Bayesian Spatial Convection` - 🚀 **Running**
 
 ### C. Dense Estimation (U-Nets)
 *Required Scripts:* `train_unet_sparse.py`, `train_unet_hybrid.py`
-- [ ] **Standard U-Net** (`train_unet_sparse.py`) - *Code Fixed*
-- [ ] **Variational U-Net** (`train_unet_sparse.py --variational`) - *Implemented & Verified*
-- [ ] **Hybrid U-Net** (`train_unet_hybrid.py`)
+- [x] **Standard U-Net** (`train_unet_sparse.py`) - 🚀 **Running**
+- [x] **Variational U-Net** (`train_unet_sparse.py --variational`) - 🚀 **Running**
+- [x] **Hybrid U-Net** (`train_unet_hybrid.py`) - 🚀 **Running**
 
 ---
 

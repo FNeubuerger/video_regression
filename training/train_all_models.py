@@ -115,15 +115,19 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                 raise ValueError(f"Unexpected batch type: {type(batch)}")
             
             # Determine target based on model type
-            if model_name in ["cnnlstm", "pretrained_cnnlstm", "simple_resnet", "physics_cnnlstm"]:
+            model_name_lower = model_name.lower()
+            scalar_models = ["cnnlstm", "pretrained_cnnlstm", "simple_resnet", "physics_cnnlstm", "bayesian"]
+            is_scalar_model = any(m in model_name_lower for m in scalar_models) and "spatial" not in model_name_lower
+            
+            if is_scalar_model:
                 if scalars is not None:
                      # Use the exact 4-sensor scalars
                      labels = scalars
                      
                      # Fix: Handle dimension mismatch for models expecting single frame output
-                     # Models: CNNLSTM, PretrainedCNNLSTM, SimpleResNet output (B, 4)
+                     # Models: CNNLSTM, PretrainedCNNLSTM, SimpleResNet, BayesianResNet output (B, 4)
                      # PhysicsCNNLSTM outputs (B, T, 4)
-                     if model_name != "physics_cnnlstm" and labels.dim() == 3:
+                     if "physics_cnnlstm" not in model_name_lower and labels.dim() == 3:
                          labels = labels[:, -1, :] # Take last time step -> (B, 4)
                 else:
                     # Fallback to heatmap max if scalars absent (should not happen with new dataset)
@@ -151,10 +155,14 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                 with autocast('cuda'):
                     outputs = model_instance(images)
                     
-                    # Handle multiple outputs (Spatial Map + Physics Params) (Issue #41)
+                    # Handle multiple outputs
                     alpha_map, beta_map = None, None
-                    if isinstance(outputs, tuple) and len(outputs) == 3:
-                        outputs, alpha_map, beta_map = outputs
+                    kl_loss = 0.0
+                    if isinstance(outputs, tuple):
+                        if len(outputs) == 3:
+                            outputs, alpha_map, beta_map = outputs
+                        elif len(outputs) == 2:
+                            outputs, kl_loss = outputs
                         
                     # Handle physics model output
                     if isinstance(criterion_instance, AdvancedBioHeatLoss):
@@ -172,6 +180,9 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                         if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
                             outputs = outputs.mean(dim=(1, 2))
                         loss = criterion_instance(outputs, target)
+                    
+                    if isinstance(kl_loss, torch.Tensor) or kl_loss > 0:
+                        loss = loss + 0.1 * kl_loss # Default weight 0.1 for generic training
                 
                 scaler.scale(loss).backward()
                 
@@ -184,10 +195,14 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
             else:
                 outputs = model_instance(images)
                 
-                # Handle multiple outputs (Spatial Map + Physics Params) (Issue #41)
+                # Handle multiple outputs
                 alpha_map, beta_map = None, None
-                if isinstance(outputs, tuple) and len(outputs) == 3:
-                    outputs, alpha_map, beta_map = outputs
+                kl_loss = 0.0
+                if isinstance(outputs, tuple):
+                    if len(outputs) == 3:
+                        outputs, alpha_map, beta_map = outputs
+                    elif len(outputs) == 2:
+                        outputs, kl_loss = outputs
                     
                 if isinstance(criterion_instance, AdvancedBioHeatLoss):
                     loss = criterion_instance(outputs, labels.float(), flow=flow, mask=mask,
@@ -204,6 +219,9 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                         if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
                             outputs = outputs.mean(dim=(1, 2))
                         loss = criterion_instance(outputs, target)
+                        
+                if isinstance(kl_loss, torch.Tensor) or kl_loss > 0:
+                    loss = loss + 0.1 * kl_loss
                 
                 # Gradient clipping
                 torch.nn.utils.clip_grad_norm_(model_instance.parameters(), max_norm=1.0)

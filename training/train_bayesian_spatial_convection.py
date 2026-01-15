@@ -93,7 +93,7 @@ def train_bayesian_spatial_convection(epochs=50, batch_size=32, learning_rate=1e
             
             # Bayesian Forward Pass
             # Output: (B, 1, 4, 4) map
-            predictions = model(images) 
+            predictions, kl_div = model(images) 
             
             # Extract flow for convection
             # Images: (B, 1, 5, 64, 64) -> Flow is channels 3,4
@@ -112,7 +112,7 @@ def train_bayesian_spatial_convection(epochs=50, batch_size=32, learning_rate=1e
             phys_loss, alpha, beta = criterion(predictions, labels, flow=flow)
             
             # 2. KL Divergence Loss
-            kl = kl_loss_fn(model)
+            kl = kl_div
             
             # Total Loss
             total_loss = phys_loss + (kl_weight * kl)
@@ -136,7 +136,7 @@ def train_bayesian_spatial_convection(epochs=50, batch_size=32, learning_rate=1e
                 images = images.to(device)
                 labels = labels.to(device).float()
                 
-                predictions = model(images)
+                predictions, _ = model(images)
                 
                 # No flow in validation for simplicity? Or yes?
                 # Let's include flow to be consistent

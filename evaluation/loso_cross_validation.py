@@ -20,7 +20,7 @@ from tqdm import tqdm
 # Add parent directory
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from utils.dataset import TemperatureSequenceDataset
+from utils.sequence_dataset import SequenceHeatmapDataset
 from models.backbones import CNNLSTM, SimpleResNet, PretrainedCNNLSTM, SpatialResNet
 from models.bayesian import BayesianResNet, FullBayesianResNet, BayesianSpatialResNet, BayesianCNNLSTM
 from models.conv_ltc import ConvLTC
@@ -44,12 +44,12 @@ def run_loso_fold(holdout_seq, model_type, args):
     ])
     
     # Load full dataset
-    full_dataset = TemperatureSequenceDataset(
-        data_dir="data",
+    full_dataset = SequenceHeatmapDataset(
+        data_dir="data/level1_cropped",
+        raw_dir="data/level0_raw",
         sequence_length=5,
-        transform=transform,
+        target_size=(64, 64),
         use_optical_flow=True,
-        image_size=(64, 64),
         use_artifact_masking=args.masked
     )
     
@@ -57,11 +57,15 @@ def run_loso_fold(holdout_seq, model_type, args):
     train_indices = []
     test_indices = []
     
-    for i, (paths, _) in enumerate(full_dataset.sequences):
-        if holdout_seq in paths[0]:
-            test_indices.append(i)
+    # SequenceHeatmapDataset uses .videos list for meta, but indices map to (vid_idx, start)
+    # We need to filter indices based on video path in videos[vid_idx]
+    
+    for idx_in_ds, (vid_idx, start_frame) in enumerate(full_dataset.indices):
+        vid_path = full_dataset.videos[vid_idx]['path']
+        if holdout_seq in vid_path:
+            test_indices.append(idx_in_ds)
         else:
-            train_indices.append(i)
+            train_indices.append(idx_in_ds)
             
     if not test_indices:
         print(f"Warning: No samples found for sequence {holdout_seq}. Skipping fold.")
@@ -167,11 +171,18 @@ def run_loso_fold(holdout_seq, model_type, args):
     errors = []
     with torch.no_grad():
         for batch in tqdm(test_loader, desc="Testing Fold"):
-            if len(batch) == 3:
+            scalars = None
+            if len(batch) == 4:
+                imgs, gt_maps, mask, scalars = batch
+                gt = scalars
+            elif len(batch) == 3:
                 imgs, gt, mask = batch
-                if args.masked: imgs = imgs * (1.0 - mask.unsqueeze(1))
             else:
                 imgs, gt = batch
+                mask = None
+                
+            if args.masked and mask is not None:
+                imgs = imgs * (1.0 - mask.unsqueeze(1))
             
             imgs = imgs.to(device)
             
@@ -191,20 +202,32 @@ def run_loso_fold(holdout_seq, model_type, args):
                 elif out.dim() == 3:
                     # Single map: average spatial
                     out = out.mean(dim=(1, 2))
-                elif out.dim() == 2:
-                    # Basic Sequence (B, T) or Bayesian Batch (B, 1)
-                    if out.shape[1] > 1:
-                        out = out[:, -1]
-                    else:
-                        out = out.squeeze(-1)
+                # (B, 4) or (B, T) or (B, 1)
+                # We assume correct models output (B, 4) now for 4 sensors
                 
                 batch_samples.append(out.cpu().numpy())
             
             # Mean across MC samples
-            out_mean = np.mean(batch_samples, axis=0) # (B,)
-            gt_flat = gt.numpy().flatten()
+            out_mean = np.mean(batch_samples, axis=0) # (B, 4) or (B, T)
             
-            errors.extend((out_mean - gt_flat).tolist())
+            gt_np = gt.numpy()
+            # If gt is sequence (B, T, 4), take last frame (B, 4)
+            if gt_np.ndim == 3:
+                 gt_np = gt_np[:, -1, :]
+            
+            # If output is (B, T), take last frame
+            if out_mean.ndim == 2 and out_mean.shape[1] == 5: # Assuming T=5
+                 out_mean = out_mean[:, -1]
+                 # If out was (B, T), it implies single channel output per frame?
+                 # If we want 4 sensors, out should be (B, 4).
+            
+            # We compare flattened arrays. 
+            # If out is (B, 4) and gt is (B, 4), error is calculated on all 4 sensors.
+            # If out is (B, 1) and gt is (B, 4), we squeeze or broadcast?
+            # We assume models are fixed to output 4 now.
+            
+            batch_errors = (out_mean - gt_np).flatten()
+            errors.extend(batch_errors.tolist())
             
     mae = np.mean(np.abs(errors))
     rmse = np.sqrt(np.mean(np.square(errors)))
