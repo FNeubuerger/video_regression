@@ -116,9 +116,9 @@ wave ablation for hepatocellular carcinoma inconspicuous on conven-
 tional ultrasound. Int J Hyperthermia 2011; 27: 555 – 562
 
 
-[ ] Ahmed M. Image-Guided Tumor Ablation: Standardization of Terminol-
+~~ [4] Ahmed M. Image-Guided Tumor Ablation: Standardization of Terminol-
 ogy and Reporting Criteria – A 10-Year Update. RSNA 2014. J Vasc Interv
-Radiol 2014; 25: 1706 – 1708
+Radiol 2014; 25: 1706 – 1708 ~~
 
 [ ] Lahat E, Eshkenazy R, Zendel A et al. Complications of ablation of liver
 tumors: a systematic review. Hepatobiliary Surgery and Nutrition 2014;
@@ -152,3 +152,12 @@ conduction and perfusion during ra-
 diofrequency and microwave ablation.
 Conf Proc IEEE Eng Med Biol Soc 2006;
 1:5013–5016.
+
+
+
+TISSUE PROPERTIES AFFECTING ABLATION
+
+[ ]O’Rourke AP, Lazebnik M, Bertram JM, et al. Dielectric properties of human normal, malignant and cirrhotic liver tissue: in vivo and ex vivo measurements from 0.5 to 20 GHz using a precision open-ended coaxial probe. Phys Med Biol 2007; 52:4707–4719. - PubMed
+
+[ ]  Brace CL. Temperature-dependent dielectric properties of liver tissue measured during thermal ablation: toward an improved numerical model. Conf Proc IEEE Eng Med Biol Soc 2008; 2008:230–233. - PubMed
+
