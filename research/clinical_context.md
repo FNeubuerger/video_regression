@@ -1,6 +1,11 @@
-(1) Vogl, T. J., Nour-Eldin, N. A., Hammerstingl, R. M., Panahi, B., & Naguib, N. N. N. (2017). Microwave Ablation (MWA): Basics, Technique and Results in Primary and Metastatic Liver Neoplasms - Review Article. Mikrowellenablation (MWA): Grundlagen, Technik und Ergebnisse in primären und sekundären Lebertumoren – Übersichtsarbeit. RoFo : Fortschritte auf dem Gebiete der Rontgenstrahlen und der Nuklearmedizin, 189(11), 1055–1066. https://doi.org/10.1055/s-0043-117410
 
-(2)
+# Research Summary: Clinical context of MWA
+
+## References
+
+1. (1) Vogl, T. J., Nour-Eldin, N. A., Hammerstingl, R. M., Panahi, B., & Naguib, N. N. N. (2017). Microwave Ablation (MWA): Basics, Technique and Results in Primary and Metastatic Liver Neoplasms - Review Article. Mikrowellenablation (MWA): Grundlagen, Technik und Ergebnisse in primären und sekundären Lebertumoren – Übersichtsarbeit. RoFo : Fortschritte auf dem Gebiete der Rontgenstrahlen und der Nuklearmedizin, 189(11), 1055–1066. https://doi.org/10.1055/s-0043-117410
+
+2. (2)
  
  @article{SEDA2026100283,
 title = {A review of established and new developments in local therapies for liver cancer},
@@ -14,30 +19,25 @@ url = {https://www.sciencedirect.com/science/article/pii/S2949819825001529},
 author = {P. Seda and R. Abbey and L. Peng and I. Ezeaku and S.T. Laroia and H. Aziz},
 keywords = {liver cancer, radiotherapy, locoregional therapy, targeted treatment immunotherapy},
 
-(3) (scihub) Lubner, Meghan G.; Brace, Christopher L.; Hinshaw, J. Louis; Lee, Fred T.. (2010). Microwave Tumor Ablation: Mechanism of Action, Clinical Results, and Devices. , 21(8), –. doi:10.1016/j.jvir.2010.04.007  
+3. (3) (scihub) Lubner, Meghan G.; Brace, Christopher L.; Hinshaw, J. Louis; Lee, Fred T.. (2010). Microwave Tumor Ablation: Mechanism of Action, Clinical Results, and Devices. , 21(8), –. doi:10.1016/j.jvir.2010.04.007  
  
 
- ** MWA **
+ ## 1. Principle of MWA 
 (3) - usage of dielectric hysteresis to produce heating
 (3) - generator frequencies 915MHz or 2.45MHz 
 
+### Aim 
+(1) - eradicate all malignant cells through thermal meachanisms 
+(1) - minimally invasive technique under imaging guidance 
+(1) - preserving the healthy tissue with a sufficient safety margin (at least 5 mm) surrounding the ablated lesion
 
- ** Ablation zone **
-(1) - definition: radiologic region or zone of induced treatment effect in the area of gross tumor destruction, which is visualized by imaging [17]
-(1) - technically successful: ablation zone completely overlaps or encompasses the target tumor plus an ablative safety margin [4]
-
-** Indikationen **
+### Medical indication 
 (1) - in more than 75 % of cases surgical resection & chemotherapy is not possible 
 (1,2) - curative or palliative
 (1) - contraindication: tumor size >5cm or more than 5 liver lesions or considerable ascites
 (2) - contraindication: lesions in high risk areas and impaired visualization of ablation field
 
-** Aim **
-(1) - eradicate all malignant cells through thermal meachanisms 
-(1) - minimally invasive technique under imaging guidance 
-(1) - preserving the healthy tissue with a sufficient safety margin (at least 5 mm) surrounding the ablated lesion
-
-** Advantages to other (thermal ablation) techniques (RFA) **
+### Advantages to other (thermal ablation) techniques (RFA) 
 (1) - large tumors (up to 5cm) 
 (1) - locations around large vessels and highly perfused areas 
 (1,3) - faster heating & higher temperatures resulting in larger areas of necrosis 
@@ -47,18 +47,11 @@ keywords = {liver cancer, radiotherapy, locoregional therapy, targeted treatment
 (2) - local therapies may enhance systemic immune responses by promoting tumor antigen release and modulating the tumor microenvironment, thereby improving the efficacy of immunotherapy
 (3) - less susceptibility to heat-sink effects than RFA
 
-** Temperature monitoring **
-(1) - intratumoral
-(1)     - separately placed thermocouple probes or antenna itself
+ ## 2. Ablation zone 
+(1) - definition: radiologic region or zone of induced treatment effect in the area of gross tumor destruction, which is visualized by imaging [17]
+(1) - technically successful: ablation zone completely overlaps or encompasses the target tumor plus an ablative safety margin [4]
 
-
-** Tumor destruction **
-(1) - denaturation of intracellular proteins & cell membranes through dissolution and melting of lipid bilayers
-(1) - 60°C - 100°C: coagulation
-(1) - >110°C: vaporization & carbonisation
-(1) - successfull ablation: temperature homogeneously increased to 50°C-60°C for >= 5min
-
-** Tissue properties affection ablation zone**
+### Tissue properties affection ablation zone 
 (1)- thermal conductivity 
 (1,2)- electrical conductivity (RFA, MWA minimally dependent) 
 (1)- tissue elasticity 
@@ -68,7 +61,20 @@ keywords = {liver cancer, radiotherapy, locoregional therapy, targeted treatment
 (3) - MW propagating through and effectively heating many types of tissue, even those with low electrical conductivity, high impedance, or low thermal conductivity (bone, lung)
 
 
-** Imaging modalities ** 
+### Tumor destruction 
+(1) - denaturation of intracellular proteins & cell membranes through dissolution and melting of lipid bilayers
+(1) - 60°C - 100°C: coagulation
+(1) - >110°C: vaporization & carbonisation
+(1) - successfull ablation: temperature homogeneously increased to 50°C-60°C for >= 5min
+
+## 3. Monitoring 
+
+### Temperature monitoring 
+(1) - intratumoral
+(1)     - separately placed thermocouple probes or antenna itself
+
+
+### Imaging modalities 
 (1)- near real-time imaging asscessment during ablation essential to determine adequacy of treatment preventing under- or overtreatment [31]
 (1)- pre-ablation
 (1)    - CT or preferably MRI
@@ -84,7 +90,7 @@ keywords = {liver cancer, radiotherapy, locoregional therapy, targeted treatment
 
 
 
-** paper to look into **
+## 4. Further paper to look into 
 
 [ ] Liu F, Yu X, Liang P et al. Contrast-enhanced ultrasound-guided micro-
 wave ablation for hepatocellular carcinoma inconspicuous on conven-
