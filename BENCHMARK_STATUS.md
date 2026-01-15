@@ -1,22 +1,22 @@
 # Benchmark Status Report
 
-**Date:** January 14, 2026
-**Overall Status:** **CRITICAL UPDATE: RE-STARTING ALL BENCHMARKS ON NEW DATASET (level1_cropped).** Prior results were on legacy data. Full retraining initiated.
+**Date:** January 15, 2026
+**Overall Status:** **RETRAINING IN PROGRESS.** Initial results for Standard Models available. Uncertainty and Spatial Physics models encountered errors and are being patched.
 
 ## Project Performance Overview
 
 The following table summarizes the performance across all major model variants tested in the repository.
 
-| Part | Category | Model Name | Test RMSE (K) | Test MAE (K) | Status |
-| :--- | :--- | :--- | :---: | :---: | :--- |
-| **P2** | **Inverse Physics** | `SpatialPhysicsCNNLSTM` | -- | -- | **Pending Retrain** |
-| **P2** | **Physics** | `ConvectionBioheat` | -- | -- | **Pending Retrain** |
-| **P3** | **Uncertainty** | `BayesianCNNLSTM` | -- | -- | **Pending Retrain** |
-| **P4** | **Benchmark** | `Baseline CNNLSTM` | -- | -- | **Pending Retrain** |
-| **P4** | **Benchmark** | `Physics Informed` | -- | -- | **Pending Retrain** |
-| **P4** | **Benchmark** | `Bayesian ResNet` | -- | -- | **Pending Retrain** |
+| Category | Model Name | Validation Loss (MSE) | Epochs | Status |
+| :--- | :--- | :---: | :---: | :--- |
+| **Standard** | `CNNLSTM` | **1.1842** | 50 | ✅ Completed |
+| **Standard** | `PretrainedCNNLSTM` | **0.4609** | 32 | ✅ Completed (Early Stop) |
+| **Standard** | `SimpleResNet` | **0.4723** | 47 | ✅ Completed |
+| **Physics** | `PhysicsCNNLSTM` | **2.4260** | 43 | ✅ Completed |
+| **Physics** | `SpatialPhysicsCNNLSTM` | -- | -- | ❌ Failed (Unpacking Error) |
+| **Uncertainty** | `Ensemble` | -- | -- | ⚠️ Interrupted (Restarting) |
 
-*> **NOTE:** Previous results have been archived. All models are being retrained on the verified `level1_cropped` dataset to ensure consistency with the new paper methodology.*
+*> **NOTE:** Results are based on the new `level1_cropped` dataset. Validation Loss is Mean Squared Error on normalized targets.*
 
 ---
 
