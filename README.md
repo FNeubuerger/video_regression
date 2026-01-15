@@ -20,7 +20,14 @@ In non-invasive thermal ablation therapies (e.g., High-Intensity Focused Ultraso
 *   [**Methodology Part 1:** Single-Value Regression (Base)](Methodology_Part1.md)
 *   [**Methodology Part 2:** Dense Temperature Map Estimation](Methodology_Part2.md)
 *   [**Research Notes:** Advanced Architectures (LTCs) & Physics Priors](docs/RESEARCH_PART2.md)
-*   [**Benchmark Status:** Current Results](BENCHMARK_STATUS.md)
+*   [**Benchmark Status:** Live Dashboard & Results](BENCHMARK_STATUS.md)
+
+## 📊 Live Monitoring
+
+To check the status of all active training streams (Standard, Uncertainty, Dynamics, Physics):
+```bash
+make monitor
+```
 
 ## 🧠 Model Architectures
 
