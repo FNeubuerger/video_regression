@@ -100,19 +100,31 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
         
         for batch_idx, batch in enumerate(train_progress):
             scalars = None
-            if len(batch) == 4:
-                images, labels_raw, mask, scalars = batch
-            elif len(batch) == 3:
-                images, labels_raw, mask = batch
+            # Robust unpacking of batch
+            if isinstance(batch, (list, tuple)):
+                if len(batch) >= 4:
+                    images, labels_raw, mask, scalars = batch[0], batch[1], batch[2], batch[3]
+                elif len(batch) == 3:
+                    images, labels_raw, mask = batch[0], batch[1], batch[2]
+                else:
+                    images, labels = batch[0], batch[1]
+                    mask = None
+                    labels_raw = labels # Align variable name
             else:
-                images, labels = batch
-                mask = None
+                # Raise error or handle unexpected type
+                raise ValueError(f"Unexpected batch type: {type(batch)}")
             
             # Determine target based on model type
             if model_name in ["cnnlstm", "pretrained_cnnlstm", "simple_resnet", "physics_cnnlstm"]:
                 if scalars is not None:
                      # Use the exact 4-sensor scalars
                      labels = scalars
+                     
+                     # Fix: Handle dimension mismatch for models expecting single frame output
+                     # Models: CNNLSTM, PretrainedCNNLSTM, SimpleResNet output (B, 4)
+                     # PhysicsCNNLSTM outputs (B, T, 4)
+                     if model_name != "physics_cnnlstm" and labels.dim() == 3:
+                         labels = labels[:, -1, :] # Take last time step -> (B, 4)
                 else:
                     # Fallback to heatmap max if scalars absent (should not happen with new dataset)
                     if labels_raw.dim() == 5: 
@@ -211,18 +223,24 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
             val_progress = tqdm(val_loader, desc=f"Epoch [{epoch+1}/{num_epochs}] Validation")
             for batch in val_progress:
                 scalars = None
-                if len(batch) == 4:
-                    images, labels_raw, mask, scalars = batch
-                elif len(batch) == 3:
-                     images, labels_raw, mask = batch
-                else:
-                    images, labels = batch
-                    mask = None
+                # Robust unpacking of batch
+                if isinstance(batch, (list, tuple)):
+                    if len(batch) >= 4:
+                        images, labels_raw, mask, scalars = batch[0], batch[1], batch[2], batch[3]
+                    elif len(batch) == 3:
+                         images, labels_raw, mask = batch[0], batch[1], batch[2]
+                    else:
+                        images, labels = batch[0], batch[1]
+                        mask = None
+                        labels_raw = labels
                 
                 # Determine target based on model type
                 if model_name in ["cnnlstm", "pretrained_cnnlstm", "simple_resnet", "physics_cnnlstm"]:
                     if scalars is not None:
                          labels = scalars
+                         # Fix: Handle dimension mismatch for models expecting single frame output
+                         if model_name != "physics_cnnlstm" and labels.dim() == 3:
+                             labels = labels[:, -1, :] # Take last time step -> (B, 4)
                     else:
                         if labels_raw.dim() == 5: 
                             labels = labels_raw.amax(dim=(2, 3, 4))

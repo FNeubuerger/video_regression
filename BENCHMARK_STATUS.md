@@ -1,45 +1,72 @@
 # Benchmark Status Report
 
-**Date:** January 14, 2026
-**Overall Status:** **CRITICAL UPDATE: RE-STARTING ALL BENCHMARKS ON NEW DATASET (level1_cropped).** Prior results were on legacy data. Full retraining initiated.
+**Date:** January 15, 2026
+**Overall Status:** **ACTIVE.** Three parallel training streams are effectively running. Critical code fixes for `train_all_models.py` (target dimension mismatch) and `train_unet_sparse.py` (unpacking error) have been deployed.
 
-## Project Performance Overview
+## 1. Active Training Streams
 
-The following table summarizes the performance across all major model variants tested in the repository.
+We currently have four parallel training streams active (Verified 2026-01-15):
 
-| Part | Category | Model Name | Test RMSE (K) | Test MAE (K) | Status |
-| :--- | :--- | :--- | :---: | :---: | :--- |
-| **P2** | **Inverse Physics** | `SpatialPhysicsCNNLSTM` | -- | -- | **Pending Retrain** |
-| **P2** | **Physics** | `ConvectionBioheat` | -- | -- | **Pending Retrain** |
-| **P3** | **Uncertainty** | `BayesianCNNLSTM` | -- | -- | **Pending Retrain** |
-| **P4** | **Benchmark** | `Baseline CNNLSTM` | -- | -- | **Pending Retrain** |
-| **P4** | **Benchmark** | `Physics Informed` | -- | -- | **Pending Retrain** |
-| **P4** | **Benchmark** | `Bayesian ResNet` | -- | -- | **Pending Retrain** |
-
-*> **NOTE:** Previous results have been archived. All models are being retrained on the verified `level1_cropped` dataset to ensure consistency with the new paper methodology.*
+| Stream | Component | Models Included | Status | Log Location |
+| :--- | :--- | :--- | :--- | :--- |
+| **1. Standard** | `train_all_models.py` | `CNNLSTM` `SpatialPhysicsCNNLSTM` | 🚀 **Running** (Epoch 9/50) | `logs/retrain/restart_main.log` |
+| **2. Uncertainty** | `train_uncertainty.py` | `Ensemble` (5x ResNet) | 🚀 **Running** (Epoch 5/20) | `logs/retrain/restart_uncertainty.log` |
+| **3. Dynamics** | `restart_ltc_benchmarks.sh` | `ConvLTC` `LatentLTC` `LatentLTC-Var` | 🚀 **Running** (Epoch 1/30) | `logs/ltc/` |
+| **4. Physics** | `run_physics_benchmarks.sh` | **Bioheat Variants** (Scalar & Spatial) + Bayesian | 🚀 **Running** (Epoch 1-2/30) | `logs/physics/` |
 
 ---
 
-## Detailed Component Status
+## 2. Completed Benchmarks (Phase 1)
 
-### 1. Dataset Migration (Completed)
-*   **Action:** Verified that `training/train_all_models.py` was pointing to legacy data.
-*   **Resolution:** Updated all training and evaluation scripts to use `SequenceHeatmapDataset` pointing to `data/level1_cropped`.
-*   **Verification:** Visualized ROI context and advection fields to confirm alignment.
+These models have successfully finished training on the new `level1_cropped` dataset.
 
-### 2. Full Benchmark Retraining (Active)
-*   **Scope:** Training 8 major architectures from scratch on the new dataset.
-*   **Old Models:** Archived to `models/archive_legacy_data`.
-*   **Strategy:** Retraining Unmasked first, followed by Masked variants.
+| Category | Model Name | Validation Loss (MSE) | Epochs | Notes |
+| :--- | :--- | :---: | :---: | :--- |
+| **Standard** | `CNNLSTM` | **1.1842** | 50 | High loss compared to Pretrained. |
+| **Standard** | `PretrainedCNNLSTM` | **0.4609** | 32 | Best performing standard model so far. |
+| **Standard** | `SimpleResNet` | **0.4723** | 47 | Strong baseline for scalar regression. |
+| **Physics** | `PhysicsCNNLSTM` | **2.4260** | 43 | High loss likely due to strong regularization. |
 
-### 3. Evaluaton Pipeline
-*   **Aggregation:** [evaluation/generate_tables.py](evaluation/generate_tables.py) updated to consolidate LOSO results (Mean $\pm$ Std across sequences).
-*   **Visualization:** New tool [evaluation/visualize_loso.py](evaluation/visualize_loso.py) added to generate boxplots and error heatmaps per sequence.
-*   **Units:** All outputs standardized to SI derived units ($T/K$).
+---
 
+## 3. Pending / Queued Benchmarks
 
-## Next High-Level Actions
-1.  **Execute Training:** Run `train_all_models.py` for standard and masked models.
-2.  **Monitor Convergence:** Ensure loss curves on new data look healthy.
-3.  **Scientific Plots:** Extend [evaluation/generate_scientific_plots.py](evaluation/generate_scientific_plots.py) to compare Masked vs Unmasked profiles once training finishes.
+The following models are identified in the Plan but are not yet actively training or need integration.
+
+### A. Advanced Bioheat Physics (Scalar)
+*Required Scripts:* `train_*_bioheat.py`
+- [ ] `Bioheat PINN` (`train_bioheat.py`)
+- [ ] `Convection Bioheat` (`train_convection_bioheat.py`)
+- [ ] `Metabolic Bioheat` (`train_metabolic_bioheat.py`)
+- [ ] `Spatial Bioheat` (`train_spatial_bioheat.py`)
+- [ ] `Spatial Convection Bioheat` (`train_spatial_convection_bioheat.py`)
+- [ ] `Spatial Metabolic Bioheat` (`train_spatial_metabolic_bioheat.py`)
+
+### B. Bayesian Physics (Scalar)
+*Required Scripts:* `train_bayesian_*.py`
+- [ ] `Bayesian PINN`
+- [ ] `Bayesian CNNLSTM`
+- [ ] `Bayesian Convection PINN`
+- [ ] `Bayesian Metabolic PINN`
+- [ ] `Bayesian Spatial Convection`
+
+### C. Dense Estimation (U-Nets)
+*Required Scripts:* `train_unet_sparse.py`, `train_unet_hybrid.py`
+- [ ] **Standard U-Net** (`train_unet_sparse.py`) - *Code Fixed*
+- [ ] **Variational U-Net** (`train_unet_sparse.py --variational`) - *Implemented & Verified*
+- [ ] **Hybrid U-Net** (`train_unet_hybrid.py`)
+
+---
+
+## 4. Evaluation & Next Steps
+
+### Action Items
+1.  **Monitor Streams:** Check logs for early convergence or NaN errors in strict physics models.
+2.  **Launch U-Net Stream:** Once compute frees up (or if parallel capacity allows), launch the U-Net benchmarks using the newly fixed script.
+3.  **Scientific Plotting:** Prepare comparison plots for `PretrainedCNNLSTM` vs `SimpleResNet`.
+
+### Known Issues Resolved
+- **Dimension Mismatch:** Fixed `CNNLSTM` requesting `[B, 4]` but getting `[B, T, 4]`.
+- **Unpacking Error:** Fixed data loader returning tuples > 2 elements (e.g. masks, artifact masks) which crashed scalar training loops.
+- **Variational Logic:** Added full KLD support to `train_unet_sparse.py`.
 

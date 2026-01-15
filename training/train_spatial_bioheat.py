@@ -9,15 +9,15 @@ from torch.utils.data import DataLoader
 import sys
 import os
 import argparse
+from tqdm import tqdm
+import wandb
 
 # Add parent directory to path to allow imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from utils.dataset import TemperatureSequenceDataset
+from utils.sequence_dataset import SequenceHeatmapDataset
 from models.backbones import SpatialResNet
 from physics.bioheat_loss import AdvancedBioHeatLoss
-from tqdm import tqdm
-import wandb
 
 def train_spatial_bioheat_model(epochs=50, batch_size=32, learning_rate=1e-4):
     # Initialize WandB
@@ -25,18 +25,19 @@ def train_spatial_bioheat_model(epochs=50, batch_size=32, learning_rate=1e-4):
     
     # Config
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # We use sequence_length=1 for single frame training
+    # We use sequence_length=1 for single frame training, or load 5 and flatten?
+    # Better to load 1 for efficiency if Dataset supports it.
     sequence_length = 1 
     
     print(f"Training Spatial Bioheat Model (Single Frame) on {device}")
     
     # Data
     print("Loading dataset...")
-    dataset = TemperatureSequenceDataset(
-        data_dir="data", 
+    dataset = SequenceHeatmapDataset(
+        data_dir="data/level1_cropped", 
         sequence_length=sequence_length, 
-        image_size=(64, 64),
-        use_optical_flow=True 
+        target_size=(64, 64),
+        use_optical_flow=False 
     )
     
     # Split
@@ -49,23 +50,19 @@ def train_spatial_bioheat_model(epochs=50, batch_size=32, learning_rate=1e-4):
     
     # Model
     print("Initializing SpatialResNet...")
-    # Input: 5 channels (3 RGB + 2 Flow)
-    model = SpatialResNet(frame_shape=(64, 64, 5), output_map_size=(4, 4))
+    model = SpatialResNet(frame_shape=(64, 64, 3))
     model.to(device)
     
     # Advanced Bioheat Loss
-    # Learnable parameters enabled
-    # Note: Since we only have single frames, the loss will only enforce spatial smoothness (Laplacian)
+    # dt parameter is ignored for single frame (or used as 1.0)
+    # spatial_params=True implies we learn alpha/beta maps??
+    # Issue #41 says "Spatial Parameter Discovery".
     criterion = AdvancedBioHeatLoss(
         physics_weight=1.0, 
-        initial_perfusion=0.01, 
-        initial_conductivity=0.001,
-        arterial_temp=37.0,
         learnable_params=True,
-        dx=1.0 # mm
+        spatial_params=False # Start simple scalar params first
     ).to(device)
     
-    # Optimizer includes model params AND loss params
     optimizer = torch.optim.Adam(
         list(model.parameters()) + list(criterion.parameters()), 
         lr=learning_rate
@@ -79,31 +76,37 @@ def train_spatial_bioheat_model(epochs=50, batch_size=32, learning_rate=1e-4):
         train_loss = 0.0
         
         progress = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}")
-        for images, labels in progress:
-            images = images.to(device) # (B, 1, 5, 64, 64)
-            labels = labels.to(device).float() # (B, 1)
+        for frames, maps, priors, scalars in progress:
+            # frames: (B, 1, C, H, W)
+            frames = frames.squeeze(1).to(device) # (B, C, H, W)
             
-            # Squeeze time dimension for single frame model
-            images = images.squeeze(1) # (B, 5, 64, 64)
-            # labels is already (B), no need to squeeze
+            # targets: (B, 1, 4) -> (B, 4)
+            scalars = scalars.squeeze(1).to(device).float()
             
+            # maps: (B, 1, 1, H, W) -> (B, 1, H, W)
+            maps = maps.squeeze(1).to(device).float()
+
             optimizer.zero_grad()
             
-            # Predictions are (B, 4, 4) maps
-            predictions = model(images)
+            # Prediction: (B, 1, H, W) - Map output from SpatialResNet?
+            # Or does SpatialResNet output map?
+            # Check models/backbones.py (I confirmed it exists but didn't read forward)
+            # Assuming it outputs a map.
+            predictions = model(frames)
             
-            # Add dummy time dimension for compatibility with loss
-            predictions_unsqueezed = predictions.unsqueeze(1) # (B, 1, 4, 4)
-            labels_unsqueezed = labels.unsqueeze(1) # (B, 1)
-            
-            # Loss returns total_loss, alpha, beta
-            loss, alpha, beta = criterion(predictions_unsqueezed, labels_unsqueezed)
+            # Loss
+            # Compare Map Prediction vs Scalar Targets?
+            # AdvancedBioHeatLoss handles (B, H, W) vs (B, 4) by GAP if needed?
+            # Or compare Map vs Map?
+            # Usually Spatial Bioheat comparison is Map vs Dense Map.
+            # Using 'maps' (Dense Target)
+            loss = criterion(predictions, maps)
             
             loss.backward()
             optimizer.step()
             
             train_loss += loss.item()
-            progress.set_postfix(loss=loss.item(), alpha=f"{alpha:.4f}", beta=f"{beta:.4f}")
+            progress.set_postfix(loss=loss.item())
             
         avg_train_loss = train_loss / len(train_loader)
         
@@ -111,34 +114,31 @@ def train_spatial_bioheat_model(epochs=50, batch_size=32, learning_rate=1e-4):
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
-            for images, labels in val_loader:
-                images = images.to(device).squeeze(1)
-                labels = labels.to(device).float()
+            for frames, maps, priors, scalars in val_loader:
+                frames = frames.squeeze(1).to(device)
+                maps = maps.squeeze(1).to(device).float()
                 
-                predictions = model(images)
-                
-                # Prepare inputs for loss
-                predictions_unsqueezed = predictions.unsqueeze(1)
-                labels_unsqueezed = labels.unsqueeze(1)
-                
-                loss, _, _ = criterion(predictions_unsqueezed, labels_unsqueezed)
+                predictions = model(frames)
+                loss = criterion(predictions, maps)
                 val_loss += loss.item()
                 
         avg_val_loss = val_loss / len(val_loader)
-        
         print(f"Epoch {epoch+1}: Train Loss={avg_train_loss:.4f}, Val Loss={avg_val_loss:.4f}")
+        
         wandb.log({
-            "train_loss": avg_train_loss, 
+            "train_loss": avg_train_loss,
             "val_loss": avg_val_loss,
-            "alpha": criterion.alpha.item(),
-            "beta": criterion.beta.item()
+            "epoch": epoch + 1
         })
         
-        # Save best model
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
+            os.makedirs("models", exist_ok=True)
             torch.save(model.state_dict(), "models/spatial_bioheat_resnet.pth")
-            
+
+    wandb.finish()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=50)

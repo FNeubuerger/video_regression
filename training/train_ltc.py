@@ -125,7 +125,7 @@ def main():
         train_phys_accum = 0.0
         
         pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{args.epochs}")
-        for frames, targets, priors in pbar:
+        for frames, targets, priors, _ in pbar:
             # frames: (B, T, 3, H, W)
             # targets: (B, T, 1, H, W)
             # priors: (B, T, 1, H, W)
@@ -178,7 +178,7 @@ def main():
         val_mse_accum = 0.0
         
         with torch.no_grad():
-            for frames, targets, priors in val_loader:
+            for frames, targets, priors, _ in val_loader:
                 frames = frames.to(device)
                 targets = targets.to(device)
                 priors = priors.to(device)

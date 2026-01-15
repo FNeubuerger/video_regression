@@ -43,6 +43,8 @@ def main():
     parser.add_argument('--limit_samples', type=int, default=None, help="Limit dataset size for debugging")
     parser.add_argument('--gpu_id', type=int, default=0)
     parser.add_argument('--no_physics_prior', action='store_true', help="Disable Physics Prior (Gaussian)")
+    parser.add_argument('--variational', action='store_true', help="Enable Variational Bottleneck (Bayesian U-Net)")
+    parser.add_argument('--beta', type=float, default=0.01, help="Weight for KL Divergence loss")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -85,7 +87,7 @@ def main():
     )
     
     # 2. Model
-    model = ResNetUNet(n_channels=3, n_classes=1).to(device)
+    model = ResNetUNet(n_channels=3, n_classes=1, variational=args.variational).to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     
     # 3. WandB
@@ -101,7 +103,15 @@ def main():
         train_loss_accum = 0.0
         
         train_pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{args.epochs} [Train]")
-        for frames, targets, masks, _, priors in train_pbar:
+        for batch in train_pbar:
+            # Robust unpacking to handle potential dataset variations
+            if len(batch) >= 6:
+                frames, targets, masks, _, priors, _ = batch[:6]
+            elif len(batch) == 5:
+                frames, targets, masks, _, priors = batch
+            else:
+                 raise ValueError(f"Batch size mismatch: got {len(batch)}")
+
             frames = frames.to(device)
             targets = targets.to(device)
             masks = masks.to(device)
@@ -111,15 +121,22 @@ def main():
             
             # RESIDUAL LEARNING: Pred = Base + Prior
             # The model predicts the DELTA.
-            delta = model(frames)
+            if args.variational:
+                delta, kl_loss = model(frames)
+            else:
+                delta = model(frames)
+                kl_loss = torch.tensor(0.0, device=device)
+            
             preds = delta + priors
             
-            loss = sparse_mse_loss(preds, targets, masks)
+            mse_loss = sparse_mse_loss(preds, targets, masks)
+            loss = mse_loss + (args.beta * kl_loss)
+            
             loss.backward()
             optimizer.step()
             
             train_loss_accum += loss.item()
-            train_pbar.set_postfix({'loss': loss.item()})
+            train_pbar.set_postfix({'mse': mse_loss.item(), 'kl': kl_loss.item()})
             
         avg_train_loss = train_loss_accum / len(train_loader)
         
@@ -131,13 +148,24 @@ def main():
         vis_batch = None
         
         with torch.no_grad():
-            for i, (frames, targets, masks, _, priors) in enumerate(tqdm(val_loader, desc="[Val]")):
+            for i, batch in enumerate(tqdm(val_loader, desc="[Val]")):
+                if len(batch) >= 6:
+                     frames, targets, masks, _, priors, _ = batch[:6]
+                elif len(batch) == 5:
+                     frames, targets, masks, _, priors = batch
+                else:
+                     continue # Should not happen if train loop works
+                
                 frames = frames.to(device)
                 targets = targets.to(device)
                 masks = masks.to(device)
                 priors = priors.to(device)
                 
-                delta = model(frames)
+                if args.variational:
+                    delta, _ = model(frames)
+                else:
+                    delta = model(frames)
+                    
                 preds = delta + priors
                 
                 loss = sparse_mse_loss(preds, targets, masks)
@@ -151,11 +179,15 @@ def main():
         print(f"Epoch {epoch+1}: Train Loss {avg_train_loss:.4f} | Val Loss {avg_val_loss:.4f}")
         
         # Logging
-        wandb.log({
+        log_dict = {
             "epoch": epoch + 1,
             "train_loss": avg_train_loss,
             "val_loss": avg_val_loss
-        })
+        }
+        if args.variational:
+            log_dict["kl_loss"] = kl_loss.item()
+            
+        wandb.log(log_dict)
         
         # Visualization Log
         if vis_batch:

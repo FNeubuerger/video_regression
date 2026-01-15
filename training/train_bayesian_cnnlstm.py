@@ -9,6 +9,9 @@ from torch.utils.data import DataLoader
 import sys
 import os
 import argparse
+from tqdm import tqdm
+import wandb
+import torchbnn as bnn
 
 # Add parent directory to path to allow imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -16,9 +19,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils.sequence_dataset import SequenceHeatmapDataset
 from models.bayesian import BayesianResNet, BayesianCNNLSTM
 from physics.bioheat_loss import AdvancedBioHeatLoss
-from tqdm import tqdm
-import wandb
-import torchbnn as bnn
 
 def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=0.1):
     # Initialize WandB
@@ -50,24 +50,18 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
     
     # Model
+    # Use BayesianCNNLSTM for temporal processing
+    # Frame shape is (H, W, C) -> (64, 64, 5) with flow
     print("Initializing BayesianCNNLSTM...")
-    # Input: 5 channels (3 RGB + 2 Flow)
-    model = BayesianCNNLSTM(frame_shape=(64, 64, 5)).to(device)
+    model = BayesianCNNLSTM(frame_shape=(64, 64, 5))
+    model.to(device)
     
-    # Advanced Bioheat Loss
+    # Criterion: Advanced Bioheat Loss
     criterion = AdvancedBioHeatLoss(
         physics_weight=1.0, 
-        initial_perfusion=0.01, 
-        initial_conductivity=0.001,
-        arterial_temp=37.0,
-        learnable_params=True,
-        dt=1.0
+        learnable_params=True
     ).to(device)
     
-    mse_criterion = nn.MSELoss()
-    kl_loss_fn = bnn.BKLLoss(reduction='mean', last_layer_only=False)
-    
-    # Optimizer
     optimizer = torch.optim.Adam(
         list(model.parameters()) + list(criterion.parameters()), 
         lr=learning_rate
@@ -83,55 +77,58 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
         train_phys = 0.0
         
         progress = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}")
-        for batch in progress:
-            # Handle SequenceHeatmapDataset unpacking
-            if len(batch) == 3:
-                images, labels_raw, mask = batch
-                # Convert (B, T, 1, H, W) to (B, T) for scalar regression
-                if labels_raw.dim() == 5:
-                    labels = labels_raw.amax(dim=(2, 3, 4))
-                else:
-                    labels = labels_raw
-            else:
-                images, labels = batch
-                mask = None
-
-            images = images.to(device) # (B, T, 5, 64, 64)
-            labels = labels.to(device).float() # (B, T)
-            if mask is not None:
-                mask = mask.to(device)
+        for frames, maps, priors, scalars in progress:
+            frames = frames.to(device) # (B, T, 5, 64, 64)
+            
+            # Target (Scalars)
+            scalars = scalars.to(device).float() # (B, T, 4)
+            
+            # Flow extraction (channels 3, 4)
+            flow = frames[:, :, 3:, :, :] # (B, T, 2, H, W)
             
             optimizer.zero_grad()
             
             # Bayesian Forward Pass
-            # BayesianCNNLSTM takes (B, T, C, H, W) directly
-            predictions = model(images) # (B, T)
+            # Returns (predictions, kl_loss)
+            predictions, kl_loss = model(frames) # predictions: (B, T, 4)
             
-            # Extract flow if present (channels 3 and 4)
-            flow = images[:, :, 3:, :, :] if images.shape[2] >= 5 else None
-
-            # 1. Physics Loss (includes MSE + Physics)
-            # This returns the combined loss
-            phys_loss = criterion(predictions, labels, flow=flow, mask=mask)
+            # 1. Physics/MSE Loss
+            # AdvancedBioHeatLoss expects specific shapes.
+            # predictions: (B, T, 4)
+            # targets: (B, T, 4)
+            # flow: (B, T, 2, H, W)
+            # Note: The loss likely averages over sensors (scalar) unless map is provided?
+            # AdvancedBioHeatLoss calculates diffusion on MAPS.
+            # If we pass SCALARS, it skips diffusion/convection terms if dim < 3 or 4.
+            # BUT we want PINN constraints.
+            # For Scalar PINN, we rely on temporal derivative dT/dt + analytical source/perfusion?
+            # Or is this model supposed to predict MAPS?
+            # BayesianCNNLSTM usually predicts SCALARS.
+            # If so, Bioheat Loss is just ODE (dT/dt = P - D) without spatial laplacian.
+            # This is valid.
             
-            # Access learned params for logging
-            alpha = criterion.alpha.mean().item()
-            beta = criterion.beta.mean().item()
+            phys_loss = criterion(
+                predictions=predictions, 
+                targets=scalars, 
+                flow=None, # Cannot use flow for scalar equation convection (no gradient T_x)
+                mask=None
+            )
             
-            # 2. KL Divergence Loss (Bayesian Regularization)
-            kl = kl_loss_fn(model)
+            # Total Loss = Physics/MSE Loss + KL Weight * KL Loss
+            loss = phys_loss + kl_weight * kl_loss
             
-            # Total Loss
-            total_loss = phys_loss + (kl_weight * kl)
-            
-            total_loss.backward()
+            loss.backward()
             optimizer.step()
             
-            train_loss += total_loss.item()
-            train_kl += kl.item()
+            train_loss += loss.item()
+            train_kl += kl_loss.item()
             train_phys += phys_loss.item()
             
-            progress.set_postfix(loss=total_loss.item(), kl=kl.item(), phys=phys_loss.item())
+            progress.set_postfix(
+                loss=loss.item(), 
+                kl=f"{kl_loss.item():.2f}", 
+                phys=f"{phys_loss.item():.2f}"
+            )
             
         avg_train_loss = train_loss / len(train_loader)
         
@@ -139,33 +136,34 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
-            for images, labels in val_loader:
-                images = images.to(device)
-                labels = labels.to(device).float()
+            for frames, maps, priors, scalars in val_loader:
+                frames = frames.to(device)
+                scalars = scalars.to(device).float()
                 
-                predictions = model(images)
-                
-                phys_loss, _, _ = criterion(predictions, labels)
-                # KL is usually not computed on validation or is constant
-                val_loss += phys_loss.item()
+                predictions, kl_loss = model(frames)
+                phys_loss = criterion(predictions, scalars)
+                loss = phys_loss + kl_weight * kl_loss
+                val_loss += loss.item()
                 
         avg_val_loss = val_loss / len(val_loader)
-        
         print(f"Epoch {epoch+1}: Train Loss={avg_train_loss:.4f}, Val Loss={avg_val_loss:.4f}")
+        
         wandb.log({
-            "train_loss": avg_train_loss, 
+            "train_loss": avg_train_loss,
             "val_loss": avg_val_loss,
             "kl_loss": train_kl / len(train_loader),
-            "physics_loss": train_phys / len(train_loader),
-            "alpha": criterion.alpha.item(),
-            "beta": criterion.beta.item()
+            "phys_loss": train_phys / len(train_loader),
+            "epoch": epoch + 1
         })
         
-        # Save best model
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
+            os.makedirs("models", exist_ok=True)
             torch.save(model.state_dict(), "models/bayesian_cnnlstm.pth")
-            
+
+    wandb.finish()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=50)

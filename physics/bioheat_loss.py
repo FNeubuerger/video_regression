@@ -99,24 +99,34 @@ class AdvancedBioHeatLoss(nn.Module):
             predictions: 
                 - Scalar Sequence: (batch, time)
                 - Spatial Map Sequence: (batch, time, H, W)
-            targets: (batch, time) or (batch, 1)
+            targets: (batch, time) or (batch, 1) or (batch, H, W)
             flow: Optional (batch, time, 2, H_in, W_in) - Optical Flow field
             mask: Optional (batch, 1, H, W) - Spatial mask for artifacts
             alpha_map: Optional (batch, 1, H, W) - Learnable perfusion map (Issue #41)
             beta_map: Optional (batch, 1, H, W) - Learnable conductivity map (Issue #41)
         """
         # 1. Data Fidelity (MSE)
-        if predictions.dim() == 4: # (B, T, H, W)
-            pred_scalar = predictions.mean(dim=(2, 3)) # Global Average Pooling
+        if targets.dim() >= 3:
+            # Spatial Loss (Map to Map comparison)
+            if predictions.dim() == 4 and targets.dim() == 3:
+                data_loss = self.mse(predictions.squeeze(1), targets)
+            elif predictions.dim() == 3 and targets.dim() == 4:
+                data_loss = self.mse(predictions, targets.squeeze(1))
+            else:
+                data_loss = self.mse(predictions, targets)
         else:
-            pred_scalar = predictions
+            # Scalar Loss (Pool if predictions are spatial)
+            if predictions.dim() == 4: # (B, T, H, W)
+                pred_scalar = predictions.mean(dim=(2, 3)) # Global Average Pooling
+            else:
+                pred_scalar = predictions
 
-        if pred_scalar.dim() > 1 and pred_scalar.shape[1] > 1 and targets.dim() == 1:
-            data_loss = self.mse(pred_scalar[:, -1], targets)
-        elif pred_scalar.dim() > 1 and pred_scalar.shape[1] > 1 and targets.dim() == 2 and targets.shape[1] == 1:
-             data_loss = self.mse(pred_scalar[:, -1], targets.squeeze(-1))
-        else:
-            data_loss = self.mse(pred_scalar, targets)
+            if pred_scalar.dim() > 1 and pred_scalar.shape[1] > 1 and targets.dim() == 1:
+                data_loss = self.mse(pred_scalar[:, -1], targets)
+            elif pred_scalar.dim() > 1 and pred_scalar.shape[1] > 1 and targets.dim() == 2 and targets.shape[1] == 1:
+                data_loss = self.mse(pred_scalar[:, -1], targets.squeeze(-1))
+            else:
+                data_loss = self.mse(pred_scalar, targets)
             
         total_loss = data_loss
         
