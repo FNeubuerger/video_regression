@@ -59,7 +59,7 @@ def train_spatial_bioheat_model(epochs=50, batch_size=32, learning_rate=1e-4):
     # Issue #41 says "Spatial Parameter Discovery".
     criterion = AdvancedBioHeatLoss(
         physics_weight=1.0, 
-        lr_params=True,
+        learnable_params=True,
         spatial_params=False # Start simple scalar params first
     ).to(device)
     

@@ -35,7 +35,7 @@ loso_uncertainty:
 	done
 
 monitor:
-	@bash scripts/monitor_loso.sh
+	@bash scripts/monitor_benchmarks.sh
 
 visualize_loso:
 	@echo "Generating LOSO Visualization plots..."

@@ -1,87 +1,73 @@
 #!/bin/bash
 
+# Update Monitor Script to handle multiple Streams
+# 1. Standard (Background PID)
+# 2. Uncertainty (Background PID)
+# 3. LTC (Tmux)
+# 4. Physics (Tmux)
+
 LOG_DIR="logs"
-SESSION="video_regression_benchmarks"
 
 # Function to handle Ctrl+C
 trap "echo -e '\nExiting monitor.'; exit 0" SIGINT
 
 while true; do
     clear
-    echo "=== Video Regression Benchmark Monitor ==="
-    echo "Time: $(date '+%H:%M:%S')"
-    
-    if tmux has-session -t "$SESSION" 2>/dev/null; then
-        echo "Tmux Session: $SESSION [RUNNING]"
-    else
-        echo "Tmux Session: $SESSION [NOT FOUND]"
-        echo "Benchmarks may have finished or crashed."
-    fi
-    
-    # Table Header
-    # Job Name (22) | Log File (28) | Start Time (19) | Status (Remaining)
-    DIVIDER="------------------------------------------------------------------------------------------------------------------------------------"
-    echo "$DIVIDER"
-    printf "%-22s | %-28s | %-19s | %s\n" "Job Name" "Log File" "Start Time" "Latest Status"
-    echo "$DIVIDER"
-    
-    # Function to get start time
-    get_start_time() {
-        local logfile="$1"
-        if [ -f "$logfile" ]; then
-            stat -c %y "$logfile" | cut -d '.' -f 1
-        else
-            echo "-"
-        fi
-    }
+    echo "=== Video Regression Benchmark Monitor (4 Streams) ==="
+    echo "Time: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "--------------------------------------------------------"
 
-    # Function to get status line
-    get_status_line() {
-        local logfile="$1"
-        if [ -f "$logfile" ]; then
-            # Handle carriage returns from tqdm progress bars and strip ANSI colors
-            # Cut to 80 chars to prevent wrapping
-            tail -c 2000 "$logfile" | tr '\r' '\n' | sed 's/\x1b\[[0-9;]*m//g' | grep --color=never -v "^$" | tail -n 1 | cut -c 1-80
-        else
-            echo "Waiting for log..."
-        fi
-    }
-
-    # Helper to print row
-    print_row() {
+    # Function to print job status
+    print_job() {
         local name="$1"
-        local log="$2"
-        local path="$LOG_DIR/$log"
-        printf "%-22s | %-28s | %-19s | %s\n" "$name" "$log" "$(get_start_time "$path")" "$(get_status_line "$path")"
+        local logfile="$2"
+        local type="$3" # "BG" or "TMUX"
+        
+        printf "%-25s | " "$name"
+        
+        if [ ! -f "$logfile" ]; then
+             printf "Waiting for log...\n"
+             return
+        fi
+        
+        # Get last meaningful line (stripping tqdm /r)
+        # Use python buffering workaround if needed, but usually tail works
+        # Grep -v empty lines, wandb lines
+        local status=$(tail -c 2000 "$logfile" | tr '\r' '\n' | sed 's/\x1b\[[0-9;]*m//g' | grep -v "^$" | grep -v "wandb" | tail -n 1 | cut -c 1-80)
+        
+        if [ -z "$status" ]; then
+            printf "Log found, waiting for output...\n"
+        else
+            printf "%s\n" "$status"
+        fi
     }
 
-    # Try to find WandB URL from logs
-    WANDB_URL=$(grep --color=never -h "View project at" "$LOG_DIR"/*.log 2>/dev/null | head -n 1 | grep -o 'https://.*')
-    if [ -z "$WANDB_URL" ]; then
-        WANDB_URL="Waiting for sync..."
-    fi
+    echo "--- 1. Standard Stream ---"
+    print_job "Standard (CNNLSTM)" "logs/retrain/restart_main.log" "BG"
     
-    # Print Rows
-    # Dynamically find all log files
-    for logpath in "$LOG_DIR"/*.log; do
-        if [ -f "$logpath" ]; then
-            filename=$(basename "$logpath")
-            # Generate a pretty name from filename: remove extension, replace _ with space, title case
-            job_name=$(echo "$filename" | sed 's/\.log//' | sed 's/_/ /g' | awk '{for(i=1;i<=NF;i++)sub(/./,toupper(substr($i,1,1)),$i)}1')
-            
-            # Truncate job name if too long
-            if [ ${#job_name} -gt 22 ]; then
-                job_name="${job_name:0:19}..."
-            fi
-            
-            print_row "$job_name" "$filename"
-        fi
-    done
+    echo -e "\n--- 2. Uncertainty Stream ---"
+    print_job "Ensemble (Uncertainty)" "logs/retrain/restart_uncertainty.log" "BG"
+
+    echo -e "\n--- 3. Dynamics Stream (LTC/Tmux) ---"
+    # logs/ltc/
+    print_job "ConvLTC" "logs/ltc/conv_ltc_benchmark.log" "TMUX"
+    print_job "LatentLTC" "logs/ltc/latent_ltc_benchmark.log" "TMUX"
+    print_job "LatentLTC-Var" "logs/ltc/latent_ltc_variational.log" "TMUX"
+
+    echo -e "\n--- 4. Physics Stream (Bioheat/Tmux) ---"
+    # logs/physics/
+    print_job "Bioheat (Scalar)" "logs/physics/bioheat.log" "TMUX"
+    print_job "Convection (Scalar)" "logs/physics/convection.log" "TMUX"
+    print_job "Metabolic (Scalar)" "logs/physics/metabolic.log" "TMUX"
+    print_job "Bayesian CNNLSTM" "logs/physics/bayesian_cnnlstm.log" "TMUX"
     
-    echo "$DIVIDER"
-    echo "WandB Dashboard: $WANDB_URL"
-    echo "$DIVIDER"
-    echo "Press Ctrl+C to exit monitor"
+    print_job "Spatial Bioheat" "logs/physics/spatial_bioheat.log" "TMUX"
+    print_job "Spatial Convection" "logs/physics/spatial_convection.log" "TMUX"
+    print_job "Spatial Metabolic" "logs/physics/spatial_metabolic.log" "TMUX"
+
+    echo -e "\n--------------------------------------------------------"
+    echo "Active Tmux Sessions:"
+    tmux ls 2>/dev/null | grep -E "phys|ltc" | head -n 10
     
-    sleep 2
+    sleep 5
 done

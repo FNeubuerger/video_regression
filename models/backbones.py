@@ -325,7 +325,7 @@ class SpatialResNet(nn.Module):
     Spatial ResNet that outputs a temperature map instead of a scalar.
     Compatible with AdvancedBioHeatLoss if used in a sequence.
     """
-    def __init__(self, frame_shape, output_map_size=(4, 4)):
+    def __init__(self, frame_shape, output_map_size=(64, 64)):
         super(SpatialResNet, self).__init__()
         from torchvision.models import resnet18
         
@@ -361,7 +361,7 @@ class SpatialResNet(nn.Module):
             nn.Conv2d(512, 128, kernel_size=1),
             nn.ReLU(),
             nn.Conv2d(128, 1, kernel_size=1),
-            nn.AdaptiveAvgPool2d(output_map_size) # Force output to 4x4
+            nn.Upsample(size=output_map_size, mode='bilinear', align_corners=False) # Upsample to target
         )
 
     def forward(self, x):
