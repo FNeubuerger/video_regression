@@ -3,9 +3,9 @@
 
 ## References
 
-1. (1) Vogl, T. J., Nour-Eldin, N. A., Hammerstingl, R. M., Panahi, B., & Naguib, N. N. N. (2017). Microwave Ablation (MWA): Basics, Technique and Results in Primary and Metastatic Liver Neoplasms - Review Article. Mikrowellenablation (MWA): Grundlagen, Technik und Ergebnisse in primären und sekundären Lebertumoren – Übersichtsarbeit. RoFo : Fortschritte auf dem Gebiete der Rontgenstrahlen und der Nuklearmedizin, 189(11), 1055–1066. https://doi.org/10.1055/s-0043-117410
+1. [1] Vogl, T. J., Nour-Eldin, N. A., Hammerstingl, R. M., Panahi, B., & Naguib, N. N. N. (2017). Microwave Ablation (MWA): Basics, Technique and Results in Primary and Metastatic Liver Neoplasms - Review Article. Mikrowellenablation (MWA): Grundlagen, Technik und Ergebnisse in primären und sekundären Lebertumoren – Übersichtsarbeit. RoFo : Fortschritte auf dem Gebiete der Rontgenstrahlen und der Nuklearmedizin, 189(11), 1055–1066. https://doi.org/10.1055/s-0043-117410
 
-2. (2)
+2. [2]
  
  @article{SEDA2026100283,
 title = {A review of established and new developments in local therapies for liver cancer},
@@ -19,8 +19,9 @@ url = {https://www.sciencedirect.com/science/article/pii/S2949819825001529},
 author = {P. Seda and R. Abbey and L. Peng and I. Ezeaku and S.T. Laroia and H. Aziz},
 keywords = {liver cancer, radiotherapy, locoregional therapy, targeted treatment immunotherapy},
 
-3. (3) (scihub) Lubner, Meghan G.; Brace, Christopher L.; Hinshaw, J. Louis; Lee, Fred T.. (2010). Microwave Tumor Ablation: Mechanism of Action, Clinical Results, and Devices. , 21(8), –. doi:10.1016/j.jvir.2010.04.007  
+3. [3] (scihub) Lubner, Meghan G.; Brace, Christopher L.; Hinshaw, J. Louis; Lee, Fred T.. (2010). Microwave Tumor Ablation: Mechanism of Action, Clinical Results, and Devices. , 21(8), –. doi:10.1016/j.jvir.2010.04.007  
  
+4. [4] Ahmed, Muneeb et al. “Image-guided tumor ablation: standardization of terminology and reporting criteria--a 10-year update.” Journal of vascular and interventional radiology : JVIR vol. 25,11 (2014): 1691-705.e4. doi:10.1016/j.jvir.2014.08.027
 
  ## 1. Principle of MWA 
 (3) - usage of dielectric hysteresis to produce heating
@@ -50,6 +51,9 @@ keywords = {liver cancer, radiotherapy, locoregional therapy, targeted treatment
  ## 2. Ablation zone 
 (1) - definition: radiologic region or zone of induced treatment effect in the area of gross tumor destruction, which is visualized by imaging [17]
 (1) - technically successful: ablation zone completely overlaps or encompasses the target tumor plus an ablative safety margin [4]
+(4) - circumenfical ablative margin at least 5mm, ideally 10mm around tumor during curative ablation
+(4) - 'ablative margin': region that should ideally be ablated
+(4) - 'technical success': tumor treated according to protocol, covered completely by ablation zone 
 
 ### Tissue properties affection ablation zone 
 (1)- thermal conductivity 
@@ -70,11 +74,20 @@ keywords = {liver cancer, radiotherapy, locoregional therapy, targeted treatment
 ## 3. Monitoring 
 
 ### Temperature monitoring 
-(1) - intratumoral
-(1)     - separately placed thermocouple probes or antenna itself
+(1) - intratumoral through separately placed thermocouple probes or antenna itself
+
 
 
 ### Imaging modalities 
+(4) - 'image guidance': imaging used during procedures
+(4, 5) - planning, targeting, monitoring, intraprocedural modification, assessing treatment response 
+(4) - monitoring: process by which therapy effects are viewed during a procedure
+(4)    - occuring changes in images can and should be used to determine treatment effects
+(4)    - how well is tumor/target covered by the ablation zone and are adjacent normal structures affected at the same time?
+        - not all image-guidance techniques provide same degree and types of monitoring
+            - MR only modality for near real-time temperature monitoring
+    - intraprocedural modification: repositioning and this stuff during procedure based on image-based information or by thermal feedback (e.g. automated system automatically termination the ablation at a critical point)
+            
 (1)- near real-time imaging asscessment during ablation essential to determine adequacy of treatment preventing under- or overtreatment [31]
 (1)- pre-ablation
 (1)    - CT or preferably MRI
@@ -84,13 +97,19 @@ keywords = {liver cancer, radiotherapy, locoregional therapy, targeted treatment
 (1,3)    - periprocedural US: often a hyperechogenic focus can be seen caused by mircobubbles; does not correlate with tissue coagualtion & leads to overestimating the ablation zone
 (1)
 (1)- postprocedural imaging
-(1)    - accuracy limited by spatial and contrast resolution to 2mm-3mm depending on the imaging modality used
+(1,6)    - accuracy limited by spatial and contrast resolution to 2mm-3mm depending on the imaging modality used
 (3)    - CT
 
 
 
 
 ## 4. Further paper to look into 
+[6] Goldberg SN, Gazelle GS, Compton CC, Mueller PR, Tanabe KK. Treatment of intrahepatic
+malignancy with radiofrequency ablation: radiologic-pathologic correlation. Cancer 2000;
+88:2452–2463. [PubMed: 10861420]
+
+[5] Solomon SB, Silverman SG. Imaging in interventional oncology. Radiology 2010; 257:624–640.
+[PubMed: 21084414]
 
 [ ] Liu F, Yu X, Liang P et al. Contrast-enhanced ultrasound-guided micro-
 wave ablation for hepatocellular carcinoma inconspicuous on conven-

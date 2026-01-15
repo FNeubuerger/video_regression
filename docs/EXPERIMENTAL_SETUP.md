@@ -21,6 +21,8 @@
 
 - **Generator:** SABERWAVE ECO-200G (ECO Medical Technology, Nanjing, China). Described as a CE-marked 2.45 GHz water-cooled microwave ablation system.
 - **Operating note:** Original notes list 30 W for 10 min, also experiments with higher power (increase by 5 W each new measurement cycle) for 5 min exist; antenna geometry/specification not recorded — see verification tasks.
+- **Antenna:** length, description of active component (e.g. x cm active tip), gauge size, antenna design
+- **Antenna cooling agent**: Water, internally cooled applicator, closed system (no communication with tissue), some parameters needed(approximate temperature of agent, perfusate volume, rate of infusion)
 
 **Experimental setup & instrumentation**
 
