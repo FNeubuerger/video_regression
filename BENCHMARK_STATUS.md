@@ -5,14 +5,14 @@
 
 ## 1. Active Training Streams
 
-We currently have four parallel training streams active:
+We currently have four parallel training streams active (Verified 2026-01-15):
 
 | Stream | Component | Models Included | Status | Log Location |
 | :--- | :--- | :--- | :--- | :--- |
-| **1. Standard** | `train_all_models.py` | `CNNLSTM` `SpatialPhysicsCNNLSTM` | 🔄 **Running** | `logs/retrain/restart_main.log` |
-| **2. Uncertainty** | `train_uncertainty.py` | `Ensemble` (5x ResNet) | 🔄 **Running** | `logs/retrain/restart_uncertainty.log` |
-| **3. Dynamics** | `restart_ltc_benchmarks.sh` | `ConvLTC` `LatentLTC` `LatentLTC-Var` | 🚀 **Restarted** (Validation Fix) | `logs/ltc/` |
-| **4. Physics** | `run_physics_benchmarks.sh` | **Bioheat Variants** (Scalar & Spatial) + Bayesian | 🚀 **Running** (Spatial Fixed) | `logs/physics/` |
+| **1. Standard** | `train_all_models.py` | `CNNLSTM` `SpatialPhysicsCNNLSTM` | 🚀 **Running** (Epoch 9/50) | `logs/retrain/restart_main.log` |
+| **2. Uncertainty** | `train_uncertainty.py` | `Ensemble` (5x ResNet) | 🚀 **Running** (Epoch 5/20) | `logs/retrain/restart_uncertainty.log` |
+| **3. Dynamics** | `restart_ltc_benchmarks.sh` | `ConvLTC` `LatentLTC` `LatentLTC-Var` | 🚀 **Running** (Epoch 1/30) | `logs/ltc/` |
+| **4. Physics** | `run_physics_benchmarks.sh` | **Bioheat Variants** (Scalar & Spatial) + Bayesian | 🚀 **Running** (Epoch 1-2/30) | `logs/physics/` |
 
 ---
 
