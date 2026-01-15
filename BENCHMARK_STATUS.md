@@ -5,14 +5,14 @@
 
 ## 1. Active Training Streams
 
-We currently have four parallel training streams active (Verified 2026-01-15):
+We currently have four parallel training streams active (Verified 2026-01-15 10:20):
 
 | Stream | Component | Models Included | Status | Log Location |
 | :--- | :--- | :--- | :--- | :--- |
-| **1. Standard** | `train_all_models.py` | `CNNLSTM` `SpatialPhysicsCNNLSTM` | 🚀 **Running** (Epoch 9/50) | `logs/retrain/restart_main.log` |
-| **2. Uncertainty** | `train_uncertainty.py` | `Ensemble` (5x ResNet) | 🚀 **Running** (Epoch 5/20) | `logs/retrain/restart_uncertainty.log` |
-| **3. Dynamics** | `restart_ltc_benchmarks.sh` | `ConvLTC` `LatentLTC` `LatentLTC-Var` | 🚀 **Running** (Epoch 1/30) | `logs/ltc/` |
-| **4. Physics** | `run_physics_benchmarks.sh` | **Bioheat Variants** (Scalar & Spatial) + Bayesian | 🚀 **Running** (Epoch 1-2/30) | `logs/physics/` |
+| **1. Standard** | `train_all_models.py` | `CNNLSTM` `SpatialPhysicsCNNLSTM` | 🚀 **Running** (Epoch 11/50) | `logs/retrain/restart_main.log` |
+| **2. Uncertainty** | `train_uncertainty.py` | `Ensemble` (5x ResNet) | 🚀 **Running** (Epoch 6/20) | `logs/retrain/restart_uncertainty.log` |
+| **3. Dynamics** | `restart_ltc_benchmarks.sh` | `ConvLTC` `LatentLTC` `LatentLTC-Var` | 🚀 **Running** (Epoch 1-2/30) | `logs/ltc/` |
+| **4. Physics** | `run_physics_benchmarks.sh` | **Bioheat Variants** (Scalar & Spatial) + Bayesian | 🚀 **Running** (Epoch 2-3/30) | `logs/physics/` |
 
 ---
 
@@ -35,17 +35,17 @@ The following models are identified in the Plan but are not yet actively trainin
 
 ### A. Advanced Bioheat Physics (Scalar)
 *Required Scripts:* `train_*_bioheat.py`
-- [ ] `Bioheat PINN` (`train_bioheat.py`)
-- [ ] `Convection Bioheat` (`train_convection_bioheat.py`)
-- [ ] `Metabolic Bioheat` (`train_metabolic_bioheat.py`)
-- [ ] `Spatial Bioheat` (`train_spatial_bioheat.py`)
-- [ ] `Spatial Convection Bioheat` (`train_spatial_convection_bioheat.py`)
-- [ ] `Spatial Metabolic Bioheat` (`train_spatial_metabolic_bioheat.py`)
+- [x] `Bioheat PINN` (`train_bioheat.py`) - 🚀 **Running**
+- [x] `Convection Bioheat` (`train_convection_bioheat.py`) - 🚀 **Running**
+- [x] `Metabolic Bioheat` (`train_metabolic_bioheat.py`) - 🚀 **Running**
+- [x] `Spatial Bioheat` (`train_spatial_bioheat.py`) - 🚀 **Running**
+- [x] `Spatial Convection Bioheat` (`train_spatial_convection_bioheat.py`) - 🚀 **Running**
+- [x] `Spatial Metabolic Bioheat` (`train_spatial_metabolic_bioheat.py`) - 🚀 **Running**
 
 ### B. Bayesian Physics (Scalar)
 *Required Scripts:* `train_bayesian_*.py`
 - [ ] `Bayesian PINN`
-- [ ] `Bayesian CNNLSTM`
+- [x] `Bayesian CNNLSTM` - 🚀 **Running**
 - [ ] `Bayesian Convection PINN`
 - [ ] `Bayesian Metabolic PINN`
 - [ ] `Bayesian Spatial Convection`
