@@ -139,7 +139,7 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
             
             # 1. Physics Loss (includes MSE + Physics)
             # This returns the combined loss
-            phys_loss, alpha, beta = criterion(predictions, labels)
+            phys_loss = criterion(predictions, labels)
             
             # 2. KL Divergence Loss (Bayesian Regularization)
             kl = kl_div
@@ -176,7 +176,7 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
                 preds_flat, _ = model(images_flat)
                 predictions = preds_flat.view(B, T, 4)
                 
-                phys_loss, _, _ = criterion(predictions, labels)
+                phys_loss = criterion(predictions, labels)
                 # KL is usually not computed on validation or is constant
                 val_loss += phys_loss.item()
                 
@@ -195,11 +195,19 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
         # Save best model
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
-            torch.save(model.state_dict(), "models/bayesian_pinn.pth")
+            torch.save(model.state_dict(), "models/bayesian_convection_pinn.pth")
             
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--kl", type=float, default=0.1)
     args = parser.parse_args()
     
-    train_bayesian_pinn(epochs=args.epochs)
+    train_bayesian_pinn(
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        learning_rate=args.lr,
+        kl_weight=args.kl
+    )

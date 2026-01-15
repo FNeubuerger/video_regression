@@ -1,0 +1,56 @@
+\section{Supplementary Material: Model Architectures and Data Pipeline}
+\label{sec:supplementary}
+
+This section details the data preprocessing pipeline and the specific architectures of the deep learning models evaluated in the study. All models are implemented in PyTorch and were trained on a dataset of thermal video sequences.
+
+\subsection{Data Processing Pipeline}
+The input to the models consists of thermal video sequences. The preprocessing pipeline transforms raw video frames into structured tensors suitable for training.
+
+\subsubsection{Preprocessing (Level 0 $\to$ Level 1)}
+\begin{itemize}
+    \item \textbf{Input}: Raw thermal video frames (MP4).
+    \item \textbf{Cropping}: A Region of Interest (ROI) of size $64 \times 64$ pixels is cropped around the subject center.
+    \item \textbf{Artifact Masking}: Metal reference artifacts are identified via thresholding and masked to zero to prevent model confusion.
+    \item \textbf{Normalization}: Pixel temperatures are normalized using statistics computed from the training set.
+\end{itemize}
+
+\subsubsection{Input Representation}
+The `SequenceHeatmapDataset` loader constructs the input tensor $X \in \mathbb{R}^{B \times T \times C \times H \times W}$ with:
+\begin{itemize}
+    \item $B$: Batch Size
+    \item $T$: Time steps ($T=5$ frames)
+    \item $H, W$: Spatial resolution ($64 \times 64$)
+    \item $C$: Input Channels (Total 5):
+    \begin{itemize}
+        \item Channels 1-3: Thermal data (RGB duplicated or colormap mapped).
+        \item Channels 4-5: Dense Optical Flow ($u, v$) computed between consecutive frames to capture heat convection dynamics.
+    \end{itemize}
+\end{itemize}
+
+\subsection{Model Architectures}
+
+\subsubsection{Standard Models (Scalar Regression)}
+These models predict a vector of 4 scalar temperature values corresponding to sensor locations.
+\begin{itemize}
+    \item \textbf{SimpleResNet}: A frame-based ResNet-18 adapted for 5-channel input. Predicts 4 values per frame: $Y \in \mathbb{R}^{B \times 4}$.
+    \item \textbf{CNN-LSTM}: Combines a ResNet encoder with an LSTM temporal aggregator. The LSTM processes the sequence of features and outputs the final temperature state: $Y \in \mathbb{R}^{B \times 4}$.
+\end{itemize}
+
+\subsubsection{Bayesian Models (Uncertainty Quantification)}
+To quantify predictive uncertainty, we employ Variational Inference.
+\begin{itemize}
+    \item \textbf{Bayesian Neural Networks}: Standard dense layers in the regression head are replaced with `BayesLinear` layers (distributions over weights).
+    \item \textbf{Output}: Returns a tuple $(\hat{Y}, D_{KL})$, where $\hat{Y}$ is the prediction and $D_{KL}$ is the Kullback-Leibler divergence regularization term.
+    \item \textbf{Inference}: Uncertainty is estimated via Monte Carlo sampling (multiple forward passes).
+\end{itemize}
+
+\subsubsection{Dense Prediction and Physics-Informed Models}
+\begin{itemize}
+    \item \textbf{U-Net}: An encoder-decoder architecture predicting a full spatial temperature map $\hat{T}_{map} \in \mathbb{R}^{B \times 1 \times 64 \times 64}$.
+    \item \textbf{Physics-Informed Loss (Bioheat)}:
+    Models are trained with a composite loss function:
+    $$ \mathcal{L} = \mathcal{L}_{MSE} + \lambda_{phys} \mathcal{L}_{bioheat} $$
+    where $\mathcal{L}_{bioheat}$ enforces the Pennes' Bioheat equation:
+    $$ \rho c \frac{\partial T}{\partial t} = \nabla \cdot (k \nabla T) - \omega_b \rho_b c_b (T - T_a) + q_m + \rho c \mathbf{v} \cdot \nabla T $$
+    Here, the convection term $\mathbf{v} \cdot \nabla T$ utilizes the Optical Flow input channels.
+\end{itemize}

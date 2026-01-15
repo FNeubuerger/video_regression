@@ -100,7 +100,7 @@ def train_bayesian_metabolic_pinn(epochs=50, batch_size=32, learning_rate=1e-4, 
             # predictions = predictions.mean(dim=-1) # (B, T) -> REMOVED
             
             # 1. Physics Loss (includes MSE + Physics)
-            phys_loss, alpha, beta = criterion(predictions, labels)
+            phys_loss = criterion(predictions, labels)
             
             # 2. KL Divergence Loss
             kl = kl_div
@@ -134,7 +134,7 @@ def train_bayesian_metabolic_pinn(epochs=50, batch_size=32, learning_rate=1e-4, 
                 
                 predictions, _ = model(images)
                 
-                phys_loss, _, _ = criterion(predictions, labels)
+                phys_loss = criterion(predictions, labels)
                 val_loss += phys_loss.item()
                 
         avg_val_loss = val_loss / len(val_loader)
@@ -160,6 +160,14 @@ def train_bayesian_metabolic_pinn(epochs=50, batch_size=32, learning_rate=1e-4, 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--kl", type=float, default=0.1)
     args = parser.parse_args()
     
-    train_bayesian_metabolic_pinn(epochs=args.epochs)
+    train_bayesian_metabolic_pinn(
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        learning_rate=args.lr,
+        kl_weight=args.kl
+    )

@@ -121,7 +121,7 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
             
             # 1. Physics Loss (includes MSE + Physics)
             # This returns the combined loss
-            phys_loss, alpha, beta = criterion(predictions, labels)
+            phys_loss = criterion(predictions, labels)
             
             # 2. KL Divergence Loss (Bayesian Regularization)
             kl = kl_div
@@ -161,7 +161,7 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
                 # No averaging
                 predictions = preds_flat.view(B, T, 4)
                 
-                phys_loss, _, _ = criterion(predictions, labels)
+                phys_loss = criterion(predictions, labels)
                 # KL is usually not computed on validation or is constant
                 val_loss += phys_loss.item()
                 

@@ -151,7 +151,14 @@ class ConvLTC_Model(nn.Module):
         core_flat = core_out.view(b * t, -1, hf, wf)
         out_flat = self.decoder(core_flat) # (B*T, 1, H, W)
         
-        # Reshape Output
+        # Reshape Output to (B, T, 1, H, W)
+        # Note: The model currently outputs a Spatial Map (B, T, 1, H, W)
+        # But training/evaluation might expect (B, T, 4) if using scalar targets
         out = out_flat.view(b, t, -1, hf, wf)
+        
+        # Scalar regression adapter (average over sensor locations or global average?)
+        # For now, let's keep spatial output for Physics Loss support.
+        # But if we want 4 scalars, we need an adapter.
+        # Since LTC U-Net is described as a 'Dense' approach, it likely stays spatial.
         
         return out

@@ -198,6 +198,10 @@ class ModelEvaluator:
                 # Forward pass
                 outputs = model(images)
                 
+                # Handle Bayesian Tuple Output (prediction, kl_div)
+                if isinstance(outputs, tuple):
+                    outputs = outputs[0]
+                
                 # Handle spatial output (Batch, Time, 4, 4) or (Batch, 4, 4) -> (Batch,)
                 if model_name in ["SpatialBioheat", "SpatialConvection", "SpatialMetabolic"]:
                     # If output has time dimension (Batch, Time, 4, 4), take last frame
@@ -445,11 +449,22 @@ class ModelEvaluator:
                     else:
                         model_input = images
                         
-                    outputs = model(model_input)
-                    
-                    # Handle Bayesian Tuple output
-                    if isinstance(outputs, tuple):
-                        outputs = outputs[0]
+                    # MC Sampling for Bayesian Models
+                    if "Bayesian" in name:
+                        mc_samples = []
+                        num_mc = 10
+                        for _ in range(num_mc):
+                            out = model(model_input)
+                            if isinstance(out, tuple): out = out[0]
+                            mc_samples.append(out)
+                        
+                        # Stack and average (B, ...)
+                        outputs = torch.stack(mc_samples).mean(dim=0)
+                    else:
+                        outputs = model(model_input)
+                        # Handle Bayesian Tuple output (if any other model returns tuple)
+                        if isinstance(outputs, tuple):
+                            outputs = outputs[0]
 
                     # Handle sequence/spatial outputs
                     # Expected target is (B, 4) or (B, N_sensors)

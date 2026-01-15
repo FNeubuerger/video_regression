@@ -63,11 +63,11 @@ while true; do
     print_job "Spatial Metabolic" "logs/physics/spatial_metabolic.log" "TMUX"
     
     echo -e "\n--- 5. Bayesian Physics Stream ---"
-    print_job "Bayesian PINN" "logs/physics/bayesian_pinn.log" "TMUX"
-    print_job "Bayesian Convection" "logs/physics/bayesian_convection.log" "TMUX"
-    print_job "Bayesian Metabolic" "logs/physics/bayesian_metabolic.log" "TMUX"
-    print_job "Bayesian Spatial" "logs/physics/bayesian_spatial_convection.log" "TMUX"
-    print_job "Bayesian CNNLSTM" "logs/retrain/restart_physics.log" "BG"
+    print_job "Bayesian PINN" "logs/part3/bayesian_pinn.log" "TMUX"
+    print_job "Bayesian Convection" "logs/part3/bayesian_convection_pinn.log" "TMUX"
+    print_job "Bayesian Metabolic" "logs/part3/bayesian_metabolic_pinn.log" "TMUX"
+    print_job "Bayesian Spatial" "logs/part3/bayesian_spatial_convection.log" "TMUX"
+    # print_job "Bayesian CNNLSTM" "logs/retrain/restart_physics.log" "BG" # Removed or Needs update
 
     echo -e "\n--- 6. Dense Prediction Stream (U-Net) ---"
     print_job "Standard U-Net" "logs/unet/unet_standard.log" "TMUX"

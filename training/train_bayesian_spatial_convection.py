@@ -92,8 +92,12 @@ def train_bayesian_spatial_convection(epochs=50, batch_size=32, learning_rate=1e
             optimizer.zero_grad()
             
             # Bayesian Forward Pass
-            # Output: (B, 1, 4, 4) map
+            # Output: (B, T, 1, 4, 4)
             predictions, kl_div = model(images) 
+            
+            # Squeeze channel dim to get (B, T, H, W) which BioheatLoss expects for spatial
+            if predictions.dim() == 5:
+                predictions = predictions.squeeze(2)
             
             # Extract flow for convection
             # Images: (B, 1, 5, 64, 64) -> Flow is channels 3,4
@@ -109,7 +113,7 @@ def train_bayesian_spatial_convection(epochs=50, batch_size=32, learning_rate=1e
             
             # 1. Physics Loss (includes MSE + Physics)
             # We pass the flow to enable Convection term
-            phys_loss, alpha, beta = criterion(predictions, labels, flow=flow)
+            phys_loss = criterion(predictions, labels, flow=flow)
             
             # 2. KL Divergence Loss
             kl = kl_div
@@ -148,7 +152,7 @@ def train_bayesian_spatial_convection(epochs=50, batch_size=32, learning_rate=1e
                 )
                 flow = flow_downsampled.view(B, T, 2, 4, 4)
                 
-                phys_loss, _, _ = criterion(predictions, labels, flow=flow)
+                phys_loss = criterion(predictions, labels, flow=flow)
                 val_loss += phys_loss.item()
                 
         avg_val_loss = val_loss / len(val_loader)
@@ -173,6 +177,14 @@ def train_bayesian_spatial_convection(epochs=50, batch_size=32, learning_rate=1e
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--kl", type=float, default=0.1)
     args = parser.parse_args()
     
-    train_bayesian_spatial_convection(epochs=args.epochs)
+    train_bayesian_spatial_convection(
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        learning_rate=args.lr,
+        kl_weight=args.kl
+    )
