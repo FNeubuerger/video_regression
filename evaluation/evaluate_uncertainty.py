@@ -13,7 +13,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.backbones import SimpleResNet
 from models.bayesian import BayesianResNet
-from utils.dataset import TemperatureSequenceDataset
+from utils.heatmap_dataset import TemperatureHeatmapDataset
 
 def evaluate_ensemble(data_loader, num_models=5, device='cuda'):
     print("Evaluating Ensemble...")
@@ -28,8 +28,20 @@ def evaluate_ensemble(data_loader, num_models=5, device='cuda'):
     all_targets = []
     
     with torch.no_grad():
-        for images, labels in tqdm(data_loader):
+        for batch in tqdm(data_loader):
+            # Handle variable unpacking from dataset (img, target) or (img, target, mask)
+            if len(batch) == 3:
+                images, labels, _ = batch
+            else:
+                images, labels = batch
+                
             images = images.to(device)
+            # Flatten dense labels if model predicts scalar? 
+            # SimpleResNet predicts scalar (B, 1). Labels are (B, 1, 64, 64)
+            # Take max of labels
+            if labels.dim() > 2:
+                labels = labels.amax(dim=(1, 2, 3)).unsqueeze(1) # (B, 1)
+
             batch_preds = []
             for model in models:
                 batch_preds.append(model(images).cpu().numpy())
@@ -92,14 +104,14 @@ def plot_uncertainty(targets, means, stds, title, save_path):
         stds = stds[indices]
         
     plt.plot(targets, label='Ground Truth', color='black', linewidth=2)
-    plt.errorbar(range(len(targets)), means, yerr=stds, fmt='o', alpha=0.5, label='Prediction ± Std Dev')
+    plt.errorbar(range(len(targets)), means, yerr=stds, fmt='o', alpha=0.5, label='Prediction $\pm$ Std Dev')
     
     plt.title(title)
     plt.xlabel('Sample Index (Sorted by Temperature)')
-    plt.ylabel('Temperature')
+    plt.ylabel('Temperature $T/K$')
     plt.legend()
     plt.grid(True, alpha=0.3)
-    plt.savefig(save_path)
+    plt.savefig(save_path, dpi=300)
     plt.close()
     print(f"Plot saved to {save_path}")
 
@@ -112,11 +124,27 @@ def main():
         transforms.Normalize(mean=[0.485], std=[0.229])
     ])
     
-    dataset = TemperatureSequenceDataset(
-        data_dir="data",
-        sequence_length=3,
-        transform=transform,
-        image_size=(64, 64)
+    # Use TemperatureHeatmapDataset for new data (level1_cropped)
+    # It returns (image, dense_target, mask) or similar.
+    # We need to adapt the unpacking in the eval loops or wrapper.
+    # But wait, evaluate_ensemble loops: for images, labels in data_loader
+    # TemperatureHeatmapDataset returns (img, target, mask) if mask=True
+    # Default mask=True in some places, mask=False in others.
+    # __init__(..., use_artifact_masking=False) default.
+    # __getitem__ returns (img, target, mask) ALWAYS? 
+    # Let's check TemperatureHeatmapDataset.__getitem__ return signature.
+    # If it returns 3 values, DataLoader yields list of 3.
+    # The loop `for images, labels in` will fail.
+    
+    # Check Heatmap Dataset __getitem__
+    # If I cannot verify return signature, I assume it returns 3 items based on other files.
+    # I will stick to what works.
+    
+    dataset = TemperatureHeatmapDataset(
+        data_dir="data/level1_cropped",
+        target_size=(64, 64),
+        raw_dir="data/level0_raw",
+        transform=transform
     )
     
     # Use a small subset for quick evaluation

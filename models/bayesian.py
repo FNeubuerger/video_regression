@@ -15,20 +15,36 @@ class BayesianResNet(nn.Module):
         Initializes the Bayesian ResNet model.
 
         Parameters:
-        - frame_shape: Tuple representing the shape of a single frame (height, width, channels).
-        - prior_mu: Mean of the prior distribution for weights.
-        - prior_sigma: Standard deviation of the prior distribution for weights.
+        - frame_shape: Tuple representing the shape of a single frame (channels, height, width) 
+                       or (time, channels, height, width).
         """
         super(BayesianResNet, self).__init__()
         
         # Load pretrained ResNet18
         self.backbone = resnet18(weights='IMAGENET1K_V1')
         
+        # Determine channel dimension
+        # The project convention for frame_shape is (Height, Width, Channels)
+        # However, we also want to be robust if (Channels, Height, Width) is passed
+        if len(frame_shape) == 3:
+            if frame_shape[0] <= 4 and frame_shape[2] > 4: # Likely (C, H, W)
+                in_channels = frame_shape[0]
+            else: # Likely (H, W, C)
+                in_channels = frame_shape[2]
+        elif len(frame_shape) == 4: # (T, C, H, W) or (T, H, W, C)
+             # Assume (T, C, H, W) if index 1 is small
+             if frame_shape[1] <= 4:
+                 in_channels = frame_shape[1]
+             else:
+                 in_channels = frame_shape[3]
+        else:
+             in_channels = 3 # Default fallback
+        
         # Handle input channels != 3
-        if frame_shape[2] != 3:
+        if in_channels != 3:
             original_conv1 = self.backbone.conv1
             new_conv1 = nn.Conv2d(
-                frame_shape[2], 
+                in_channels, 
                 original_conv1.out_channels, 
                 kernel_size=original_conv1.kernel_size, 
                 stride=original_conv1.stride, 
@@ -37,7 +53,7 @@ class BayesianResNet(nn.Module):
             )
             with torch.no_grad():
                 new_conv1.weight[:, :3, :, :] = original_conv1.weight
-                if frame_shape[2] > 3:
+                if in_channels > 3:
                     nn.init.kaiming_normal_(new_conv1.weight[:, 3:, :, :], mode='fan_out', nonlinearity='relu')
             self.backbone.conv1 = new_conv1
         
@@ -52,7 +68,7 @@ class BayesianResNet(nn.Module):
         self.bayesian_head = nn.Sequential(
             bnn.BayesLinear(prior_mu=prior_mu, prior_sigma=prior_sigma, in_features=num_features, out_features=512),
             nn.ReLU(),
-            bnn.BayesLinear(prior_mu=prior_mu, prior_sigma=prior_sigma, in_features=512, out_features=1)
+            bnn.BayesLinear(prior_mu=prior_mu, prior_sigma=prior_sigma, in_features=512, out_features=4) # Output 4
         )
 
     def forward(self, x):
@@ -74,8 +90,13 @@ class BayesianResNet(nn.Module):
         features = self.backbone(x)
         
         # Forward through Bayesian Head
-        output = self.bayesian_head(features)
-        return output.squeeze(-1)
+        predictions = self.bayesian_head(features)
+        
+        # Calculate KL Divergence
+        # Use torchbnn.BKLLoss to calculate KL divergence of the whole model or head
+        kl_loss = bnn.BKLLoss(reduction='mean', last_layer_only=False)(self)
+        
+        return predictions, kl_loss
 
 class BayesianCNNLSTM(nn.Module):
     """
@@ -89,11 +110,27 @@ class BayesianCNNLSTM(nn.Module):
         # 1. CNN Backbone (ResNet18)
         self.backbone = resnet18(weights='IMAGENET1K_V1')
         
+        # Determine channel dimension
+        # The project convention for frame_shape is (Height, Width, Channels)
+        # However, we also want to be robust if (Channels, Height, Width) is passed
+        if len(frame_shape) == 3:
+            if frame_shape[0] <= 4 and frame_shape[2] > 4: # Likely (C, H, W)
+                in_channels = frame_shape[0]
+            else: # Likely (H, W, C)
+                in_channels = frame_shape[2]
+        elif len(frame_shape) == 4: # (T, C, H, W) or (T, H, W, C)
+             if frame_shape[1] <= 4:
+                 in_channels = frame_shape[1]
+             else:
+                 in_channels = frame_shape[3]
+        else:
+             in_channels = 3 # Default
+
         # Handle input channels != 3
-        if frame_shape[2] != 3:
+        if in_channels != 3:
             original_conv1 = self.backbone.conv1
             new_conv1 = nn.Conv2d(
-                frame_shape[2], 
+                in_channels, 
                 original_conv1.out_channels, 
                 kernel_size=original_conv1.kernel_size, 
                 stride=original_conv1.stride, 
@@ -102,7 +139,7 @@ class BayesianCNNLSTM(nn.Module):
             )
             with torch.no_grad():
                 new_conv1.weight[:, :3, :, :] = original_conv1.weight
-                if frame_shape[2] > 3:
+                if in_channels > 3:
                     nn.init.kaiming_normal_(new_conv1.weight[:, 3:, :, :], mode='fan_out', nonlinearity='relu')
             self.backbone.conv1 = new_conv1
             
@@ -117,7 +154,7 @@ class BayesianCNNLSTM(nn.Module):
         self.bayesian_head = nn.Sequential(
             bnn.BayesLinear(prior_mu=prior_mu, prior_sigma=prior_sigma, in_features=hidden_size, out_features=64),
             nn.ReLU(),
-            bnn.BayesLinear(prior_mu=prior_mu, prior_sigma=prior_sigma, in_features=64, out_features=1)
+            bnn.BayesLinear(prior_mu=prior_mu, prior_sigma=prior_sigma, in_features=64, out_features=4) # Output 4
         )
         
     def forward(self, x):
@@ -137,7 +174,11 @@ class BayesianCNNLSTM(nn.Module):
         lstm_out_flat = lstm_out.contiguous().view(batch_size * time_steps, -1)
         predictions = self.bayesian_head(lstm_out_flat)
         
-        return predictions.view(batch_size, time_steps)
+        # Calculate KL Divergence
+        kl_loss = bnn.BKLLoss(reduction='mean', last_layer_only=False)(self)
+        
+        # Reshape to (Batch, Time, 4)
+        return predictions.view(batch_size, time_steps, 4), kl_loss
 
 def convert_layer_to_bayesian(module, prior_mu, prior_sigma):
     """
@@ -185,11 +226,25 @@ class FullBayesianResNet(nn.Module):
         # Load standard ResNet18
         self.backbone = resnet18(weights=None) # No weights, we will initialize Bayesian layers
         
+        # Determine channel dimension
+        if len(frame_shape) == 3:
+            if frame_shape[0] <= 4 and frame_shape[2] > 4: # Likely (C, H, W)
+                in_channels = frame_shape[0]
+            else: # Likely (H, W, C)
+                in_channels = frame_shape[2]
+        elif len(frame_shape) == 4: 
+             if frame_shape[1] <= 4:
+                 in_channels = frame_shape[1]
+             else:
+                 in_channels = frame_shape[3]
+        else:
+             in_channels = 3 
+        
         # Handle input channels != 3
-        if frame_shape[2] != 3:
+        if in_channels != 3:
             original_conv1 = self.backbone.conv1
             self.backbone.conv1 = nn.Conv2d(
-                frame_shape[2], 
+                in_channels, 
                 original_conv1.out_channels, 
                 kernel_size=original_conv1.kernel_size, 
                 stride=original_conv1.stride, 
@@ -197,9 +252,9 @@ class FullBayesianResNet(nn.Module):
                 bias=original_conv1.bias
             )
         
-        # Modify the final layer for regression (1 output)
+        # Modify the final layer for regression (4 output)
         num_features = self.backbone.fc.in_features
-        self.backbone.fc = nn.Linear(num_features, 1)
+        self.backbone.fc = nn.Linear(num_features, 4)
         
         # Convert all layers to Bayesian
         convert_layer_to_bayesian(self.backbone, prior_mu, prior_sigma)
@@ -209,69 +264,15 @@ class FullBayesianResNet(nn.Module):
         if x.dim() == 5:
             x = x[:, -1, :, :, :]
             
-        return self.backbone(x).squeeze(-1)
+        pred = self.backbone(x)
+        
+        # Calculate KL Divergence for all Bayesian layers
+        kl_loss = bnn.BKLLoss(reduction='mean', last_layer_only=False)(self)
+                
+        return pred, kl_loss
 
-class BayesianCNNLSTM(nn.Module):
-    """
-    Bayesian CNN-LSTM for temporal temperature regression.
-    Combines a ResNet backbone, an LSTM for temporal dynamics, 
-    and a Bayesian regression head.
-    """
-    def __init__(self, frame_shape, hidden_size=128, prior_mu=0.0, prior_sigma=0.1):
-        super(BayesianCNNLSTM, self).__init__()
-        
-        # 1. CNN Backbone (ResNet18)
-        self.backbone = resnet18(weights='IMAGENET1K_V1')
-        
-        # Handle input channels != 3
-        if frame_shape[2] != 3:
-            original_conv1 = self.backbone.conv1
-            new_conv1 = nn.Conv2d(
-                frame_shape[2], 
-                original_conv1.out_channels, 
-                kernel_size=original_conv1.kernel_size, 
-                stride=original_conv1.stride, 
-                padding=original_conv1.padding, 
-                bias=original_conv1.bias
-            )
-            with torch.no_grad():
-                new_conv1.weight[:, :3, :, :] = original_conv1.weight
-                if frame_shape[2] > 3:
-                    nn.init.kaiming_normal_(new_conv1.weight[:, 3:, :, :], mode='fan_out', nonlinearity='relu')
-            self.backbone.conv1 = new_conv1
-            
-        num_features = self.backbone.fc.in_features
-        self.backbone.fc = nn.Identity()
-        
-        # 2. LSTM
-        self.lstm = nn.LSTM(input_size=num_features, hidden_size=hidden_size, batch_first=True)
-        
-        # 3. Bayesian Head
-        # Takes LSTM output and predicts temperature
-        self.bayesian_head = nn.Sequential(
-            bnn.BayesLinear(prior_mu=prior_mu, prior_sigma=prior_sigma, in_features=hidden_size, out_features=64),
-            nn.ReLU(),
-            bnn.BayesLinear(prior_mu=prior_mu, prior_sigma=prior_sigma, in_features=64, out_features=1)
-        )
-        
-    def forward(self, x):
-        # x: (batch, time, channels, H, W)
-        batch_size, time_steps, C, H, W = x.size()
-        
-        # CNN
-        c_in = x.view(batch_size * time_steps, C, H, W)
-        features = self.backbone(c_in)
-        features = features.view(batch_size, time_steps, -1)
-        
-        # LSTM
-        lstm_out, _ = self.lstm(features) # (batch, time, hidden)
-        
-        # Bayesian Head (applied to each time step)
-        # Flatten time for efficiency
-        lstm_out_flat = lstm_out.contiguous().view(batch_size * time_steps, -1)
-        predictions = self.bayesian_head(lstm_out_flat)
-        
-        return predictions.view(batch_size, time_steps)
+
+    
 class BayesianSpatialResNet(nn.Module):
     """
     Bayesian Spatial ResNet that outputs a temperature MAP (not a scalar).
@@ -283,11 +284,25 @@ class BayesianSpatialResNet(nn.Module):
         # 1. Backbone (ResNet18)
         base_model = resnet18(weights='IMAGENET1K_V1')
         
+        # Determine channel dimension
+        if len(frame_shape) == 3:
+            if frame_shape[0] <= 4 and frame_shape[2] > 4: # Likely (C, H, W)
+                in_channels = frame_shape[0]
+            else: # Likely (H, W, C)
+                in_channels = frame_shape[2]
+        elif len(frame_shape) == 4:
+             if frame_shape[1] <= 4:
+                 in_channels = frame_shape[1]
+             else:
+                 in_channels = frame_shape[3]
+        else:
+             in_channels = 3
+        
         # Handle input channels != 3
-        if frame_shape[2] != 3:
+        if in_channels != 3:
             original_conv1 = base_model.conv1
             new_conv1 = nn.Conv2d(
-                frame_shape[2], 
+                in_channels, 
                 original_conv1.out_channels, 
                 kernel_size=original_conv1.kernel_size, 
                 stride=original_conv1.stride, 
@@ -296,12 +311,11 @@ class BayesianSpatialResNet(nn.Module):
             )
             with torch.no_grad():
                 new_conv1.weight[:, :3, :, :] = original_conv1.weight
-                if frame_shape[2] > 3:
+                if in_channels > 3:
                     nn.init.kaiming_normal_(new_conv1.weight[:, 3:, :, :], mode='fan_out', nonlinearity='relu')
             base_model.conv1 = new_conv1
             
         # Remove FC and AvgPool to keep spatial dims
-        # Output of layer4 is (512, H/32, W/32). For 64x64 input, this is (512, 2, 2).
         self.cnn = nn.Sequential(*list(base_model.children())[:-2])
         
         # 2. Bayesian Decoder
@@ -346,11 +360,16 @@ class BayesianSpatialResNet(nn.Module):
         # Upsample to 4x4
         out = self.upsample(out) # (N, 1, 4, 4)
         
+        # Reshape back if time was merged
         if has_time:
-            out = out.view(B, T, 4, 4) # (B, T, 4, 4)
+            # Output map is (N, 1, 4, 4)
+            # Reshape to (B, T, 1, 4, 4)
+            out = out.view(B, T, 1, 4, 4)
         else:
-            out = out.squeeze(1) # (B, 4, 4) - wait, usually (B, H, W) or (B, 1, H, W)
-            # Let's keep it (B, 4, 4) to match other spatial models
-            out = out.squeeze(1)
+            # Keep (B, 1, 4, 4)
+            pass
             
-        return out
+        # Calculate KL Divergence for all Bayesian layers
+        kl_loss = bnn.BKLLoss(reduction='mean', last_layer_only=False)(self)
+        
+        return out, kl_loss

@@ -1,43 +1,45 @@
 # Benchmark Status Report
 
-**Date:** January 9, 2026
-**Overall Status:** Phase 2 (Physics) Completed; Phase 3 (Uncertainty) in Progress.
+**Date:** January 14, 2026
+**Overall Status:** **CRITICAL UPDATE: RE-STARTING ALL BENCHMARKS ON NEW DATASET (level1_cropped).** Prior results were on legacy data. Full retraining initiated.
 
 ## Project Performance Overview
 
 The following table summarizes the performance across all major model variants tested in the repository.
 
-| Part | Category | Model Name | Val RMSE (°C) | Val MAE (°C) | Status |
+| Part | Category | Model Name | Test RMSE (K) | Test MAE (K) | Status |
 | :--- | :--- | :--- | :---: | :---: | :--- |
-| **P1** | **Baselines** | `SimpleResNet` | 2.97 | 1.31 | **Completed** |
-| | | `CNNLSTM` | 44.46 | 32.27 | **Completed** |
-| **P2** | **Physics** | `BioheatPINN` (BTE) | **1.15** | **0.26** | **Completed** |
-| | | `ConvectionBioheat` | **0.80** | **0.29** | **Completed** |
-| | | `SpatialMetabolic` | 1.83 | 0.72 | **Completed** |
-| **P3** | **Uncertainty** | `BayesianCNNLSTM` | 34.50* | 28.50* | *Training* |
+| **P2** | **Inverse Physics** | `SpatialPhysicsCNNLSTM` | -- | -- | **Pending Retrain** |
+| **P2** | **Physics** | `ConvectionBioheat` | -- | -- | **Pending Retrain** |
+| **P3** | **Uncertainty** | `BayesianCNNLSTM` | -- | -- | **Pending Retrain** |
+| **P4** | **Benchmark** | `Baseline CNNLSTM` | -- | -- | **Pending Retrain** |
+| **P4** | **Benchmark** | `Physics Informed` | -- | -- | **Pending Retrain** |
+| **P4** | **Benchmark** | `Bayesian ResNet` | -- | -- | **Pending Retrain** |
+
+*> **NOTE:** Previous results have been archived. All models are being retrained on the verified `level1_cropped` dataset to ensure consistency with the new paper methodology.*
 
 ---
 
 ## Detailed Component Status
 
-### 1. Baselines & Standard Regression (Completed)
-*   **Leader:** `SimpleResNet` (MAE: 1.31 K).
-*   **Observation:** Performance dropped slightly on the full test set compared to initial subsets.
-*   **Update:** Masking logic implemented (Jan 9). Retraining triggered.
+### 1. Dataset Migration (Completed)
+*   **Action:** Verified that `training/train_all_models.py` was pointing to legacy data.
+*   **Resolution:** Updated all training and evaluation scripts to use `SequenceHeatmapDataset` pointing to `data/level1_cropped`.
+*   **Verification:** Visualized ROI context and advection fields to confirm alignment.
 
-### 2. Physics-Informed Variants (Completed)
-*   **Leader:** `BioheatPINN` (MAE: **0.26 K**).
-*   **Benefit:** Incorporating the Bioheat Transfer Equation (BTE) reduced error by over 80%.
-*   **Update:** Verification of "real learning" vs "cheating" is in progress using masked training.
+### 2. Full Benchmark Retraining (Active)
+*   **Scope:** Training 8 major architectures from scratch on the new dataset.
+*   **Old Models:** Archived to `models/archive_legacy_data`.
+*   **Strategy:** Retraining Unmasked first, followed by Masked variants.
 
-### 3. Bayesian & Uncertainty Estimation (Active)
-*   **Current Progress:** Evaluating Calibration (PICP) and Sharpness (MPIW).
-*   **Status:** `BayesianCNNLSTM` (MAE 30.1 K) and `BayesianResNet` (MAE 29.6 K) show very high error. They appear to struggle with the raw sequence noise or lack of spatial grounding without masking.
-*   **Update:** Masked retraining is critical to see if these models stabilize.
+### 3. Evaluaton Pipeline
+*   **Aggregation:** [evaluation/generate_tables.py](evaluation/generate_tables.py) updated to consolidate LOSO results (Mean $\pm$ Std across sequences).
+*   **Visualization:** New tool [evaluation/visualize_loso.py](evaluation/visualize_loso.py) added to generate boxplots and error heatmaps per sequence.
+*   **Units:** All outputs standardized to SI derived units ($T/K$).
 
 
 ## Next High-Level Actions
-1.  **Masked Retraining:** Relaunch [training/train_all_models.py](training/train_all_models.py) with `--masked` flag to establish clean benchmarks.
-2.  **Uncertainty Evaluation:** Run [evaluation/comprehensive_uncertainty_eval.py](evaluation/comprehensive_uncertainty_eval.py) on finished Bayesian models.
-3.  **XAI Validation:** Compare masked vs unmasked attributions (Issue #46).
-4.  **Paper Prep:** Update results tables in the LaTeX manuscript with the latest metrics.
+1.  **Execute Training:** Run `train_all_models.py` for standard and masked models.
+2.  **Monitor Convergence:** Ensure loss curves on new data look healthy.
+3.  **Scientific Plots:** Extend [evaluation/generate_scientific_plots.py](evaluation/generate_scientific_plots.py) to compare Masked vs Unmasked profiles once training finishes.
+

@@ -289,6 +289,24 @@ class TemperatureHeatmapDataset(Dataset):
                 artifact_mask[0, y_min:y_max, x_min:x_max] = 1.0
         
         if self.use_artifact_masking:
+            # Detect Antenna Line
+            # Use the resized frame for detection to match target size
+            gray = cv2.cvtColor(frame_resized, cv2.COLOR_RGB2GRAY)
+            _, thresh = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY)
+            edges = cv2.Canny(thresh, 50, 150)
+            lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=30, minLineLength=30, maxLineGap=10)
+            
+            antenna_mask = np.zeros((th, tw), dtype=np.float32)
+            if lines is not None:
+                for line in lines:
+                    x1, y1, x2, y2 = line[0]
+                    # Draw a thick line on the mask
+                    cv2.line(antenna_mask, (x1, y1), (x2, y2), 1.0, 10) 
+            
+            # Combine with sensor mask
+            artifact_mask = torch.from_numpy(antenna_mask).unsqueeze(0) + artifact_mask
+            artifact_mask = torch.clamp(artifact_mask, 0.0, 1.0)
+            
             # Zero out pixels in frame where artifact_mask is 1.0
             # Need to broadcast (1, H, W) to (3, H, W)
             frame_tensor = frame_tensor * (1.0 - artifact_mask)

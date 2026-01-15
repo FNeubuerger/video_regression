@@ -1,45 +1,48 @@
-# Video Temperature Regression: Benchmark & Comparison Plan
+# Video Temperature Regression: Benchmark & Comparison Plan (Dataset Update 2026)
+
+**CRITICAL UPDATE (Jan 14, 2026):** All benchmarks are being reset. We identified that previous models were trained on legacy/raw data. A full migration to `data/level1_cropped` has been completed. The plan below reflects the new rigorous retraining protocol.
 
 This document outlines the suite of 14 active benchmarks and the specific comparative analyses designed to evaluate the contributions of physical constraints, temporal modeling, and uncertainty quantification.
 
 ## 1. Active Benchmarks Overview
 
-We are currently training **20+ distinct models** across four primary categories.
+We are currently retraining **20+ distinct models** on the new 5D Sequence dataset (`level1_cropped`). Comparison against legacy results will be performed to quantify dataset quality improvements.
 
 ### A. Temporal Models (Sequence-based)
 *Input: Sequence of 5 Frames (RGB + Optical Flow)*
-- [x] **CNNLSTM** (RMSE: 17.91°C, MAE: 8.41°C)
-- [x] **Pretrained CNNLSTM** (MAE: 19.59°C)
-- [x] **Physics CNNLSTM** (MAE: 1.58°C)
-- [x] **Bioheat PINN** (MAE: 0.23°C)
-- [x] **Convection Bioheat** (MAE: 0.24°C, Best RMSE: 0.61°C)
-- [x] **Metabolic Bioheat** (MAE: 0.21°C, Best MAE)
+- [ ] **CNNLSTM** (Pending Retrain)
+- [ ] **Pretrained CNNLSTM** (Pending Retrain)
+- [ ] **Physics CNNLSTM** (Pending Retrain)
+- [ ] **Bioheat PINN** (Pending Retrain)
+- [ ] **Convection Bioheat** (Pending Retrain)
+- [ ] **Metabolic Bioheat** (Pending Retrain)
 
 ### B. Spatial Models (Frame-based)
 *Input: Single Frame (RGB + Optical Flow)*
-- [x] **Simple ResNet** (MAE: 1.51°C)
-- [x] **Spatial Bioheat** (MAE: 1.24°C)
-- [x] **Spatial Convection** (MAE: 1.61°C)
-- [x] **Spatial Metabolic** (MAE: 1.02°C)
+- [ ] **Simple ResNet** (Pending Retrain)
+- [ ] **Spatial Bioheat** (Pending Retrain)
+- [ ] **Spatial Convection** (Pending Retrain outputting 4x4 maps)
+- [ ] **Spatial Metabolic** (Pending Retrain outputting 4x4 maps)
 
 ### C. Dense Map Models (Part 2: U-Net)
 *Input: Frame/Sequence with Dense Output ($H \times W$)*
-- [x] **U-Net Baseline** (In Progress: Integrated)
-- [x] **U-Net + Physics Prior** (Integrated)
-- [x] **Hybrid U-Net** (Integrated)
+- [ ] **U-Net Baseline** (Pending Integration)
+- [ ] **U-Net + Physics Prior** (Pending Integration)
+- [ ] **Hybrid U-Net** (Pending Integration)
 
 ### D. Time & Dynamics (Part 3: LTC/ODES)
-- [x] **ConvLTC** (Integrated)
-- [x] **Latent LTC U-Net** (Integrated, MAE: 54°C - Needs Calibration)
+- [ ] **ConvLTC** (Pending)
+- [ ] **Latent LTC U-Net** (Pending)
 
 ### E. Uncertainty Models
-- [x] **Ensemble**
-- [x] **Bayesian Head** (PICP: 0.90)
-- [x] **Full Bayesian** (ResNet) (PICP: 0.86)
-- [x] **Bayesian PINN**
-- [x] **Bayesian CNNLSTM** (PICP: 0.97)
-- [x] **Bayesian U-Net** (Integrated)
-- [x] **Bayesian LTC** (Integrated)
+- [ ] **Ensemble**
+- [ ] **Bayesian Head**
+- [ ] **Full Bayesian** (ResNet)
+- [ ] **Bayesian PINN**
+- [ ] **Bayesian CNNLSTM**
+- [ ] **Bayesian U-Net**
+- [ ] **Bayesian LTC**
+
 
 ---
 
@@ -72,9 +75,35 @@ We will perform the following pairwise and group comparisons to validate our hyp
 | **CNNLSTM** | **ConvLTC** | Discrete vs. Continuous recurrence for diffusion processes. |
 | **Latent LTC** | **Hybrid U-Net** | Does explicitly modeling latent dynamics over time beat frame-by-frame estimation? |
 
+### Comparison 4: Shortcut Learning vs. Real Learning (Masking)
+*Hypothesis: Models trained on raw video "cheat" by using bright sensor/antenna artifacts as shortcuts. Masking reveals the true performance on soft tissue features.*
+
+| Model A | Model B | Comparison Goal |
+| :--- | :--- | :--- |
+| **Simple ResNet** | **ResNet (Masked)** | Quantify accuracy drop when shortcuts are removed. |
+| **Bioheat PINN** | **PINN (Masked)** | Does the physics prior compensate for the loss of sensor visual cues? |
+| **Unmasked GradCAM** | **Masked GradCAM** | Visual proof of attention shift from sensors to tissue. |
+
 ---
 
-## 3. Evaluation Metrics & Strategy
+## 4. Inverse Physics & Generalization Validation
+
+### Section 4.1: Spatial Parameter Discovery (Inverse Modeling)
+*Hypothesis: Learning heterogeneous tissue properties ($\alpha, \beta$) spatially reveals subsurface structures and improves PDE adherence.*
+
+| Model | Novelty | Comparison Goal |
+| :--- | :--- | :--- |
+| **Convection Bioheat** | Scalar $\alpha, \beta$ | Baseline physics with uniform parameters. |
+| **Spatial Physics CNNLSTM** | $4\times 4$ Property Maps | Does discovering tissue heterogeneity improve local temp accuracy? |
+
+### Section 4.2: LOSO Cross-Validation
+*Hypothesis: Random-split validation overestimates performance; Leave-One-Sequence-Out (LOSO) reveals true generalization across subjects.*
+
+1.  **Baseline vs. Spatial Physics**: Compare standard CNN-LSTM against Inverse Physics model under LOSO.
+2.  **Generalization Gap**: Quantify $| RMSE_{random} - RMSE_{LOSO} |$ to establish the "Reliability Score" of physics-informed models.
+
+
+## 5. Evaluation Metrics & Strategy
 
 ### A. Scalar Metrics (Regression)
 1.  **RMSE/MAE**: Accuracy of Peak Temperature ($T_{max}$).

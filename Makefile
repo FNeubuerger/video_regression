@@ -1,6 +1,6 @@
 # Makefile for Video Regression Benchmarks
 
-PYTHON := python3
+PYTHON := .venv/bin/python
 LOG_DIR := logs
 MODELS_DIR := models
 CHECKPOINTS_DIR := checkpoints
@@ -10,7 +10,38 @@ $(shell mkdir -p $(LOG_DIR) $(MODELS_DIR) $(CHECKPOINTS_DIR))
 
 # Targets
 .PHONY: all cnnlstm pretrained_cnnlstm simple_resnet physics_cnnlstm ensemble bayesian full_bayesian spatial_bioheat spatial_convection spatial_metabolic \
-        unet_sparse_noprior unet_sparse_withprior tmux_part2 evaluation
+        unet_sparse_noprior unet_sparse_withprior tmux_part2 evaluation \
+        loso_all loso_temporal loso_spatial loso_uncertainty monitor visualize_loso
+
+# --- LOSO Cross-Validation ---
+
+loso_all:
+	@echo "Starting LOSO for all models in parallel..."
+	bash scripts/run_loso_benchmarks.sh
+
+loso_temporal:
+	@for model in CNNLSTM PretrainedCNNLSTM PhysicsCNNLSTM ConvectionBioheat ConvLTC; do \
+		bash scripts/run_loso_benchmarks.sh $$model; \
+	done
+
+loso_spatial:
+	@for model in SimpleResNet SpatialResNet; do \
+		bash scripts/run_loso_benchmarks.sh $$model; \
+	done
+
+loso_uncertainty:
+	@for model in BayesianResNet FullBayesianResNet BayesianCNNLSTM; do \
+		bash scripts/run_loso_benchmarks.sh $$model; \
+	done
+
+monitor:
+	@bash scripts/monitor_loso.sh
+
+visualize_loso:
+	@echo "Generating LOSO Visualization plots..."
+	$(PYTHON) evaluation/visualize_loso.py
+
+# --- General ---
 
 all: cnnlstm pretrained_cnnlstm simple_resnet physics_cnnlstm ensemble bayesian full_bayesian spatial_bioheat spatial_convection spatial_metabolic
 
@@ -33,6 +64,29 @@ unet_sparse_withprior:
 tmux_part2:
 	@echo "Launching Part 2 benchmarks in tmux..."
 	./launch_benchmarks_tmux.sh part2_baseline
+
+# Target to retrain all models on the new dataset (Unmasked)
+retrain_all:
+	@echo "Starting Full Retraining (Unmasked) on new data..."
+	@mkdir -p $(LOG_DIR)/retrain
+	$(PYTHON) training/train_all_models.py --models all --epochs 50 --patience 10 2>&1 | tee $(LOG_DIR)/retrain/all_models_unmasked.log
+
+# Target to retrain all models on the new dataset (Masked)
+retrain_all_masked:
+	@echo "Starting Full Retraining (Masked) on new data..."
+	@mkdir -p $(LOG_DIR)/retrain
+	$(PYTHON) training/train_all_models.py --models all --masked --epochs 50 --patience 10 2>&1 | tee $(LOG_DIR)/retrain/all_models_masked.log
+
+# Target to archive old models and start fresh retraining
+fresh_start:
+	@echo "Archiving legacy models..."
+	@mkdir -p models/archive_legacy_data/masked
+	@-mv models/*.pth models/archive_legacy_data/ 2>/dev/null || true
+	@-mv models/masked/*.pth models/archive_legacy_data/masked/ 2>/dev/null || true
+	@echo "Starting parallel retraining streams..."
+	@make retrain_all > $(LOG_DIR)/retrain/main_stream.log 2>&1 &
+	@make retrain_all_masked > $(LOG_DIR)/retrain/masked_stream.log 2>&1 &
+	@echo "Launched background training. Check logs in $(LOG_DIR)/retrain/"
 
 # --- Part 1 Targets ---
 

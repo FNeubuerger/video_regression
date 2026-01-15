@@ -25,7 +25,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.backbones import CNNLSTM, PretrainedCNNLSTM, SimpleResNet, SpatialResNet
 from physics.models import PhysicsCNNLSTM, SpatialPhysicsCNNLSTM
-from utils.dataset import TemperatureSequenceDataset
+from utils.sequence_dataset import SequenceHeatmapDataset
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -33,7 +33,7 @@ warnings.filterwarnings('ignore')
 class ModelEvaluator:
     """Comprehensive model evaluation and comparison class."""
     
-    def __init__(self, data_dir="data", batch_size=256, device=None):
+    def __init__(self, data_dir="data/level1_cropped", batch_size=256, device=None):
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -44,18 +44,21 @@ class ModelEvaluator:
             print(f"Using {self.n_gpu} GPUs for evaluation!")
         
         # Initialize dataset and data loader
+        # SequenceHeatmapDataset handles resize internally if transform doesn't
+        # But we added logic to utilize transform if passed (PIL)
         self.transform = transforms.Compose([
             transforms.Resize((64, 64)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
-        self.dataset = TemperatureSequenceDataset(
-            data_dir, 
+        self.dataset = SequenceHeatmapDataset(
+            data_dir=data_dir, 
             sequence_length=5, 
             transform=self.transform,
             use_optical_flow=True,
-            image_size=(64, 64)
+            target_size=(64, 64),
+            use_artifact_masking=True
         )
         
         # Split dataset (80% train, 20% test)
@@ -84,36 +87,39 @@ class ModelEvaluator:
         frame_shape = (64, 64, 5)
         time_steps = 5
         
+        # Strip masked suffix for model type check
+        base_model_name = model_name.replace("_masked", "")
+        
         try:
-            if model_name == "CNNLSTM":
+            if base_model_name == "CNNLSTM":
                 model = CNNLSTM(frame_shape=frame_shape, time_steps=time_steps)
                 # Load weights before DataParallel wrapping
                 model.load_state_dict(torch.load(model_path, map_location=self.device))
                 
-            elif model_name == "PretrainedCNNLSTM":
+            elif base_model_name == "PretrainedCNNLSTM":
                 # Recreate the pretrained CNN
                 pretrained_cnn = resnet18(weights='IMAGENET1K_V1')
                 pretrained_cnn.fc = torch.nn.Linear(pretrained_cnn.fc.in_features, 1)
                 model = PretrainedCNNLSTM(pretrained_cnn, frame_shape=frame_shape, time_steps=time_steps)
                 model.load_state_dict(torch.load(model_path, map_location=self.device))
                 
-            elif model_name == "SimpleResNet":
+            elif base_model_name == "SimpleResNet":
                 model = SimpleResNet(frame_shape=frame_shape)
                 model.load_state_dict(torch.load(model_path, map_location=self.device))
                 
-            elif model_name in ["SpatialBioheat", "SpatialConvection", "SpatialMetabolic"]:
+            elif base_model_name in ["SpatialBioheat", "SpatialConvection", "SpatialMetabolic"]:
                 # These were likely trained with SpatialResNet but check the state dict keys
                 # if they have 'lstm' they should be SpatialPhysicsCNNLSTM
                 model = SpatialResNet(frame_shape=frame_shape)
                 state_dict = torch.load(model_path, map_location=self.device)
                 model.load_state_dict(state_dict)
 
-            elif model_name in ["BioheatPINN", "ConvectionBioheat", "MetabolicBioheat"]:
+            elif base_model_name in ["BioheatPINN", "ConvectionBioheat", "MetabolicBioheat"]:
                 model = SpatialPhysicsCNNLSTM(frame_shape=frame_shape, time_steps=time_steps)
                 state_dict = torch.load(model_path, map_location=self.device)
                 model.load_state_dict(state_dict)
 
-            elif model_name == "PhysicsCNNLSTM":
+            elif base_model_name == "PhysicsCNNLSTM":
                 model = PhysicsCNNLSTM(frame_shape=frame_shape, time_steps=time_steps)
                 model.load_state_dict(torch.load(model_path, map_location=self.device))
 
@@ -140,9 +146,44 @@ class ModelEvaluator:
         print(f"Evaluating {model_name}...")
         
         with torch.no_grad():
-            for images, labels in tqdm(self.test_loader, desc=f"Testing {model_name}"):
+            for batch in tqdm(self.test_loader, desc=f"Testing {model_name}"):
+                scalars = None
+                if len(batch) == 4:
+                    images, labels_raw, priors_or_mask, scalars = batch
+                elif len(batch) == 3:
+                     # Fallback
+                    images, labels_raw, priors_or_mask = batch
+                else:
+                    images, labels = batch
+                    mask = None
+                
+                # Setup mask
+                mask = priors_or_mask if len(batch) >= 3 else None
+                    
                 images = images.to(self.device, non_blocking=True)
-                labels = labels.to(self.device, non_blocking=True)
+                
+                # Determine Truth Labels
+                if scalars is not None:
+                     # If we have ground truth scalars, use them for everything for now to compare against 
+                     # unless it is a spatial model where we want to eval the map.
+                     # But evaluate_models typically computes RMSE scalars.
+                     labels = scalars.to(self.device, non_blocking=True)
+                else:
+                    labels = labels_raw.to(self.device, non_blocking=True)
+                    # Convert heatmap to scalar if needed
+                    if labels.dim() == 5:
+                         labels = labels.amax(dim=(2, 3, 4))
+                    elif labels.dim() == 4:
+                         labels = labels.amax(dim=(1, 2, 3))
+                
+                # Apply mask if this is a masked model
+                if "_masked" in model_name and mask is not None:
+                    mask = mask.to(self.device, non_blocking=True)
+                    # Handle broadcasting for sequence data: images (B, T, C, H, W), mask (B, 1, H, W)
+                    if images.dim() == 5:
+                        images = images * (1.0 - mask.unsqueeze(1))
+                    else:
+                        images = images * (1.0 - mask)
                 
                 # Forward pass
                 outputs = model(images)
@@ -171,7 +212,11 @@ class ModelEvaluator:
         r2 = r2_score(true_values, predictions)
         
         # Calculate correlation
-        correlation, p_value = stats.pearsonr(true_values, predictions)
+        if true_values.ndim > 1:
+            # Flatten for global correlation
+            correlation, p_value = stats.pearsonr(true_values.flatten(), predictions.flatten())
+        else:
+            correlation, p_value = stats.pearsonr(true_values, predictions)
         
         # Calculate percentage of predictions within certain thresholds
         abs_errors = np.abs(predictions - true_values)
@@ -222,9 +267,9 @@ class ModelEvaluator:
             max_val = max(true_values.max(), predictions.max())
             plt.plot([min_val, max_val], [min_val, max_val], 'r--', lw=2, label='Perfect Prediction')
             
-            plt.xlabel('True Temperature (°C)')
-            plt.ylabel('Predicted Temperature (°C)')
-            plt.title(f'{result["model_name"]}\nR² = {result["r2_score"]:.3f}, RMSE = {result["rmse"]:.2f}°C')
+            plt.xlabel('True Temperature $T/K$')
+            plt.ylabel('Predicted Temperature $T/K$')
+            plt.title(f'{result["model_name"]}\nR² = {result["r2_score"]:.3f}, RMSE = {result["rmse"]:.2f} K')
             plt.legend()
             plt.grid(True, alpha=0.3)
         
@@ -236,9 +281,9 @@ class ModelEvaluator:
             
             plt.hist(errors, bins=50, alpha=0.7, density=True)
             plt.axvline(0, color='red', linestyle='--', linewidth=2)
-            plt.xlabel('Prediction Error (°C)')
+            plt.xlabel('Prediction Error $\Delta T/K$')
             plt.ylabel('Density')
-            plt.title(f'{result["model_name"]}\nError Distribution\nMAE = {result["mae"]:.2f}°C')
+            plt.title(f'{result["model_name"]}\nError Distribution\nMAE = {result["mae"]:.2f} K')
             plt.grid(True, alpha=0.3)
         
         # 3. Metrics comparison bar plot
@@ -331,16 +376,31 @@ class ModelEvaluator:
         all_targets = []
         
         with torch.no_grad():
-            for images, labels in tqdm(self.test_loader, desc="Evaluating all models"):
+            for batch in tqdm(self.test_loader, desc="Evaluating all models"):
+                if len(batch) == 3:
+                    images, labels, mask = batch
+                else:
+                    images, labels = batch
+                    mask = None
+                    
                 images = images.to(self.device, non_blocking=True)
                 labels = labels.to(self.device, non_blocking=True)
+                if mask is not None:
+                    mask = mask.to(self.device, non_blocking=True)
                 
                 # Store targets once
                 all_targets.extend(labels.cpu().numpy())
                 
                 # Run inference for each model
                 for name, model in loaded_models.items():
-                    outputs = model(images)
+                    # Apply masking only if the model is a masked variant
+                    is_masked_variant = "_masked" in name
+                    if is_masked_variant and mask is not None:
+                        model_input = images * (1.0 - mask)
+                    else:
+                        model_input = images
+                        
+                    outputs = model(model_input)
                     
                     # Handle spatial output or temporal sequence output
                     if name in ["SpatialBioheat", "SpatialConvection", "SpatialMetabolic", "BioheatPINN", "ConvectionBioheat", "MetabolicBioheat", "PhysicsCNNLSTM"]:
@@ -462,6 +522,14 @@ def main():
         "SpatialConvection": os.path.join(args.models_dir, "spatial_convection_bioheat_resnet.pth"),
         "SpatialMetabolic": os.path.join(args.models_dir, "spatial_metabolic_bioheat_resnet.pth")
     }
+    
+    # Check for masked variants
+    masked_dir = os.path.join(args.models_dir, "masked")
+    if os.path.exists(masked_dir):
+        for model_name, path in list(model_configs.items()):
+            masked_path = os.path.join(masked_dir, os.path.basename(path))
+            if os.path.exists(masked_path):
+                model_configs[f"{model_name}_masked"] = masked_path
     
     # Initialize evaluator
     evaluator = ModelEvaluator(

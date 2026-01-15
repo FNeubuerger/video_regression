@@ -1,7 +1,0 @@
-Display Name,MSE,MAE,RMSE,NLL,PICP_95,MPIW_95
-CNNLSTM,,,,,,
-Convection Bioheat,,,,,,
-Physics CNNLSTM,,,,,,
-Metabolic Bioheat,,,,,,
-Bioheat PINN,,,,,,
-Pretrained CNNLSTM,,,,,,

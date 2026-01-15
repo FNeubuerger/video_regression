@@ -21,28 +21,32 @@ class AdvancedBioHeatLoss(nn.Module):
                  arterial_temp=37.0,
                  learnable_params=True,
                  dx=1.0, # Spatial step size (mm)
-                 dt=1.0): # Time step size (s)
+                 dt=1.0, # Time step size (s)
+                 spatial_params=False,
+                 frame_shape=(64, 64)): 
         super().__init__()
         self.mse = nn.MSELoss()
         self.physics_weight = physics_weight
         self.T_a = arterial_temp
         self.dt = dt
         self.dx = dx
+        self.spatial_params = spatial_params
         
         # Learnable Parameters
         # We use Log-space to ensure positivity
+        param_shape = (1, 1, *frame_shape) if spatial_params else (1,)
+        
         if learnable_params:
-            self.log_alpha = nn.Parameter(torch.log(torch.tensor(initial_perfusion)))
-            self.log_beta = nn.Parameter(torch.log(torch.tensor(initial_conductivity)))
-            # Metabolic rate can be zero, so we don't use log space for it, or we use a small epsilon
-            # Let's assume it's positive and use log space for stability, initialized to a small value if 0
+            self.log_alpha = nn.Parameter(torch.log(torch.full(param_shape, initial_perfusion)))
+            self.log_beta = nn.Parameter(torch.log(torch.full(param_shape, initial_conductivity)))
+            
             init_qm = initial_metabolic_rate if initial_metabolic_rate > 1e-6 else 1e-6
-            self.log_qm = nn.Parameter(torch.log(torch.tensor(init_qm)))
+            self.log_qm = nn.Parameter(torch.log(torch.full(param_shape, init_qm)))
         else:
-            self.register_buffer('log_alpha', torch.log(torch.tensor(initial_perfusion)))
-            self.register_buffer('log_beta', torch.log(torch.tensor(initial_conductivity)))
+            self.register_buffer('log_alpha', torch.log(torch.full(param_shape, initial_perfusion)))
+            self.register_buffer('log_beta', torch.log(torch.full(param_shape, initial_conductivity)))
             init_qm = initial_metabolic_rate if initial_metabolic_rate > 1e-6 else 1e-6
-            self.register_buffer('log_qm', torch.log(torch.tensor(init_qm)))
+            self.register_buffer('log_qm', torch.log(torch.full(param_shape, init_qm)))
 
     @property
     def alpha(self):
@@ -89,7 +93,7 @@ class AdvancedBioHeatLoss(nn.Module):
         T_y = (T_padded[:, :, 2:, 1:-1] - T_padded[:, :, :-2, 1:-1]) / (2 * self.dx)
         return T_x, T_y
 
-    def forward(self, predictions, targets, flow=None):
+    def forward(self, predictions, targets, flow=None, mask=None, alpha_map=None, beta_map=None):
         """
         Args:
             predictions: 
@@ -97,10 +101,11 @@ class AdvancedBioHeatLoss(nn.Module):
                 - Spatial Map Sequence: (batch, time, H, W)
             targets: (batch, time) or (batch, 1)
             flow: Optional (batch, time, 2, H_in, W_in) - Optical Flow field
+            mask: Optional (batch, 1, H, W) - Spatial mask for artifacts
+            alpha_map: Optional (batch, 1, H, W) - Learnable perfusion map (Issue #41)
+            beta_map: Optional (batch, 1, H, W) - Learnable conductivity map (Issue #41)
         """
         # 1. Data Fidelity (MSE)
-        # If predictions are spatial, we need to aggregate them to match scalar targets
-        # Assumption: The scalar target corresponds to the MEAN temperature of the ROI (or center)
         if predictions.dim() == 4: # (B, T, H, W)
             pred_scalar = predictions.mean(dim=(2, 3)) # Global Average Pooling
         else:
@@ -123,111 +128,90 @@ class AdvancedBioHeatLoss(nn.Module):
                 T_current = predictions[:, :-1]
                 
                 # Spatial Diffusion Term
-                # div(k grad T) -> beta * Laplacian(T)
                 lap_T = self.laplacian(T_current)
-                diffusion_term = self.beta * lap_T
                 
-                # Convection Term (if flow is provided)
+                # Use provided maps or scalar parameters
+                curr_beta = beta_map if beta_map is not None else self.beta
+                curr_alpha = alpha_map if alpha_map is not None else self.alpha
+                
+                diffusion_term = curr_beta * lap_T
+                
+                # Convection Term
                 convection_term = 0.0
                 if flow is not None:
-                    # Flow is usually (B, T, 2, H_in, W_in)
-                    # We need to downsample it to match T (B, T, H, W)
-                    # T is usually 4x4, Flow is 64x64
-                    B, T, H, W = T_current.shape
-                    
-                    # Reshape flow for interpolation: (B*T, 2, H_in, W_in)
+                    B, T_raw, H, W = T_current.shape
                     flow_flat = flow.view(-1, 2, flow.shape[-2], flow.shape[-1])
                     flow_down = torch.nn.functional.adaptive_avg_pool2d(flow_flat, (H, W))
                     flow_down = flow_down.view(B, flow.shape[1], 2, H, W)
-                    
-                    # Align flow time with T_current (remove last frame if needed, or first?)
-                    # Flow[t] is usually flow from t-1 to t.
-                    # T_current is T[0...N-1]. dT/dt is T[1...N] - T[0...N-1].
-                    # We should use flow corresponding to the interval.
-                    # Let's assume flow input matches T sequence length.
-                    flow_current = flow_down[:, :-1] # Match T_current time steps
-                    
+                    flow_current = flow_down[:, :-1]
                     v_x = flow_current[:, :, 0]
                     v_y = flow_current[:, :, 1]
-                    
                     T_x, T_y = self.gradient(T_current)
-                    
-                    # v . grad(T)
                     convection_term = v_x * T_x + v_y * T_y
                     
+                # Residual
+                perfusion_term = -curr_alpha * (T_current - self.T_a)
+                metabolic_term = self.qm
+                
+                residual = dT_dt + convection_term - (diffusion_term + perfusion_term + metabolic_term)
+                
+                # Apply Mask if provided
+                if mask is not None:
+                    # mask is (B, 1, H_in, W_in), residual is (B, T-1, H, W)
+                    # Downsample mask to match residual resolution
+                    B, _, H_in, W_in = mask.shape
+                    _, _, H, W = residual.shape
+                    if H_in != H or W_in != W:
+                        mask_down = torch.nn.functional.adaptive_avg_pool2d(mask, (H, W))
+                    else:
+                        mask_down = mask
+                        
+                    # Broadcase mask to match time steps (residual has T-1 frames)
+                    residual = residual * (1.0 - mask_down)
+                
+                physics_loss = torch.mean(residual ** 2)
             else:
-                # Scalar case (Lumped parameter)
+                # Scalar Sequence
                 dT_dt = (predictions[:, 1:] - predictions[:, :-1]) / self.dt
                 T_current = predictions[:, :-1]
-                diffusion_term = 0.0 # No spatial info
-                convection_term = 0.0
-            
-            # Perfusion Term: - alpha * (T - T_a)
-            perfusion_term = -self.alpha * (T_current - self.T_a)
-            
-            # Metabolic Heat Generation Term: + qm
-            metabolic_term = self.qm
-            
-            # Residual
-            # dT/dt + v.grad(T) = Diffusion + Perfusion + Metabolic + Source
-            # Residual = dT/dt + Convection - (Diffusion + Perfusion + Metabolic)
-            residual = dT_dt + convection_term - (diffusion_term + perfusion_term + metabolic_term)
-            
-            physics_loss = torch.mean(residual ** 2)
+                perfusion_term = -self.alpha * (T_current - self.T_a)
+                metabolic_term = self.qm
+                residual = dT_dt - (perfusion_term + metabolic_term)
+                physics_loss = torch.mean(residual ** 2)
             
             total_loss += self.physics_weight * physics_loss
             
         elif (predictions.dim() == 4 and predictions.shape[1] == 1) or predictions.dim() == 3:
-            # Single Frame Spatial Case (e.g. SpatialResNet on single image)
-            # We cannot compute dT/dt, so we cannot enforce the full Bioheat equation.
-            # However, we can enforce the Steady-State Bioheat Equation:
-            # 0 = Diffusion + Perfusion + Metabolic - Convection
-            # Or just Spatial Smoothness if we want to be simple.
-            
+            # Single Frame Spatial Case
             if predictions.dim() == 3: # (B, H, W)
                 T_current = predictions.unsqueeze(1)
             else:
                 T_current = predictions
                 
-            # Spatial Diffusion Term
             lap_T = self.laplacian(T_current)
             diffusion_term = self.beta * lap_T
-            
-            # Perfusion Term
             perfusion_term = -self.alpha * (T_current - self.T_a)
-            
-            # Metabolic Term
             metabolic_term = self.qm
             
-            # Convection Term (if flow is provided)
             convection_term = 0.0
             if flow is not None:
-                # Flow is usually (B, 1, 2, H_in, W_in) or (B, 2, H_in, W_in)
-                if flow.dim() == 5:
-                    flow_current = flow
-                elif flow.dim() == 4:
-                    flow_current = flow.unsqueeze(1)
-                
-                # Downsample if needed
-                if flow_current.shape[-1] != T_current.shape[-1]:
-                     B_f, T_f, C_f, H_f, W_f = flow_current.shape
-                     flow_flat = flow_current.view(-1, C_f, H_f, W_f)
-                     flow_down = torch.nn.functional.adaptive_avg_pool2d(flow_flat, (T_current.shape[-2], T_current.shape[-1]))
-                     flow_current = flow_down.view(B_f, T_f, C_f, T_current.shape[-2], T_current.shape[-1])
-
-                v_x = flow_current[:, :, 0]
-                v_y = flow_current[:, :, 1]
+                if flow.dim() == 4: flow = flow.unsqueeze(1)
+                B, T, C_f, H_f, W_f = flow.shape
+                flow_flat = flow.view(-1, C_f, H_f, W_f)
+                flow_down = torch.nn.functional.adaptive_avg_pool2d(flow_flat, (T_current.shape[-2], T_current.shape[-1]))
+                flow_current = flow_down.view(B, T, C_f, T_current.shape[-2], T_current.shape[-1])
+                v_x = flow_current[:, :, 0]; v_y = flow_current[:, :, 1]
                 T_x, T_y = self.gradient(T_current)
                 convection_term = v_x * T_x + v_y * T_y
 
-            # Steady State Residual:
-            # 0 = Diffusion + Perfusion + Metabolic - Convection
-            # Residual = Convection - (Diffusion + Perfusion + Metabolic)
             residual = convection_term - (diffusion_term + perfusion_term + metabolic_term)
             
+            # Apply Mask if provided
+            if mask is not None:
+                residual = residual * (1.0 - mask)
+                
             physics_loss = torch.mean(residual ** 2)
-            
             total_loss += self.physics_weight * physics_loss
 
-        return total_loss, self.alpha.item(), self.beta.item()
+        return total_loss
 

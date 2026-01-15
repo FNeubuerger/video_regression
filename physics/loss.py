@@ -12,19 +12,21 @@ class PhysicsInformedLoss(nn.Module):
        Residual = | dT/dt + k * (T - T_env) |^2
     3. Monotonicity Loss (Optional)
     """
-    def __init__(self, physics_weight=0.1, k=0.1, T_env=25.0, monotonicity_weight=0.0):
+    def __init__(self, physics_weight=0.1, k=0.1, T_env=25.0, monotonicity_weight=0.0, smoothness_weight=0.0):
         super().__init__()
         self.mse = nn.MSELoss()
         self.physics_weight = physics_weight
         self.k = k
         self.T_env = T_env
         self.monotonicity_weight = monotonicity_weight
+        self.smoothness_weight = smoothness_weight
 
-    def forward(self, predictions, targets):
+    def forward(self, predictions, targets, mask=None):
         """
         Args:
             predictions: Tensor of shape (batch_size, time_steps)
             targets: Tensor of shape (batch_size, time_steps) or (batch_size, 1)
+            mask: Optional mask (ignored for scalar predictions)
         """
         # 1. Data Fidelity (MSE)
         # If predictions are sequence but targets are scalar (last frame), take last prediction
@@ -57,10 +59,18 @@ class PhysicsInformedLoss(nn.Module):
             
             # 3. Monotonicity (Optional)
             if self.monotonicity_weight > 0:
-                # If heating, dT/dt should be positive? 
-                # Or if cooling, negative. 
-                # Let's assume general smoothness/monotonicity if requested
-                # For now, let's stick to the physics loss as the primary regularizer
-                pass
+                # If heating, dT/dt should be positive
+                # Penalty if dT/dt < 0
+                mono_loss = torch.mean(torch.relu(-dT_dt))
+                total_loss += self.monotonicity_weight * mono_loss
+            
+            # 4. Smoothness (Optional - Temporal Smoothness for scalar)
+            if self.smoothness_weight > 0:
+                # d2T/dt2 (finite difference)
+                # (T[i+1] - 2T[i] + T[i-1]) / dt^2
+                if predictions.shape[1] > 2:
+                    d2T_dt2 = predictions[:, 2:] - 2*predictions[:, 1:-1] + predictions[:, :-2]
+                    smooth_loss = torch.mean(d2T_dt2 ** 2)
+                    total_loss += self.smoothness_weight * smooth_loss
                 
         return total_loss

@@ -9,10 +9,10 @@ To better align our neural architecture with this physical reality, we propose i
 \end{equation}
 This formulation has a striking structural similarity to the perfusion term in the BHTE ($Q_{perfusion} \propto -w_b (T - T_{art})$), which acts as a "leakage" mechanism. By employing LTCs, specifically structured via Neural Circuit Policies (NCPs), we aim to create a model that naturally learns the decay and diffusion dynamics of tissue heating, offering potentially superior generation to irregular sampling rates and improved stability.
 
-Our proposed architecture, \textbf{Latent-LTC}, operates in a compressed latent space:
+Our proposed architecture, \textbf{Latent-LTC}, operates in a compressed latent space to ensure computational efficiency for edge deployment:
 \begin{enumerate}
-    \item \textbf{Encoder}: A ResNet processes the frame $V_t$ into a latent vector $z_t$.
-    \item \textbf{Dynamics}: An LTC layer evolves $z_t \to z_{t+1}$ using the learned ODE dynamics.
-    \item \textbf{Decoder}: A U-Net decoder reconstructs the dense temperature map $\hat{T}_{t+1}$ from the evolved state.
+    \item \textbf{Feature Extraction}: A ResNet-based backbone processes the input sequence frames $V_t$ into high-dimensional feature maps.
+    \item \textbf{Latent Dynamics}: These features are compressed and fed into a Liquid Time Constant (LTC) layer which evolves the latent state $z_t \to z_{t+1}$ by solving the underlying LTC differential equation. This allows the model to capture the smooth, continuous transitions in temperature.
+    \item \textbf{Spatial Reconstruction}: A U-Net style decoder reconstructs the 2D temperature distribution from the LTC hidden state, ensuring that the continuous temporal dynamics are translated back into accurate spatial maps.
 \end{enumerate}
-Implementation utilizes the \texttt{ncps} library, with experiments forthcoming in Phase 3.
+By leveraging the \texttt{ncps} library, we have successfully implemented and benchmarked these continuous-time dynamics against traditional discrete-time RNNs. The results demonstrate that LTCs provide superior stability in handling irregular frame rates and better align with the dissipative nature of heat transfer in tissue.

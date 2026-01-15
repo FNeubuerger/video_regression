@@ -1,0 +1,14 @@
+{
+  "cnnlstm": {
+    "error": "name 'args' is not defined"
+  },
+  "pretrained_cnnlstm": {
+    "error": "name 'args' is not defined"
+  },
+  "simple_resnet": {
+    "error": "name 'args' is not defined"
+  },
+  "physics_cnnlstm": {
+    "error": "name 'args' is not defined"
+  }
+}

@@ -1,0 +1,15 @@
+\begin{table}
+\caption{Temporal Model Comparison}
+\begin{tabular}{lrrrrrr}
+\toprule
+Display Name & MSE & MAE & RMSE & NLL & PICP_95 & MPIW_95 \\
+\midrule
+Convection Bioheat & 0.3836 & 0.2412 & 0.6193 & NaN & NaN & NaN \\
+Metabolic Bioheat & 0.6975 & 0.2118 & 0.8351 & NaN & NaN & NaN \\
+Bioheat PINN & 1.3489 & 0.2355 & 1.1614 & NaN & NaN & NaN \\
+Physics CNNLSTM & 11.1560 & 1.5855 & 3.3401 & NaN & NaN & NaN \\
+CNNLSTM & 320.9001 & 8.4144 & 17.9137 & NaN & NaN & NaN \\
+Pretrained CNNLSTM & 614.1210 & 19.5921 & 24.7815 & NaN & NaN & NaN \\
+\bottomrule
+\end{tabular}
+\end{table}

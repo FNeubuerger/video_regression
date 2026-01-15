@@ -37,9 +37,9 @@ We evaluate and compare several architectures tailored for this task:
 ## 🏋️ Training
 
 ### Part 1: Vector Regression
-Train the baseline CNN-LSTM or Physics-Informed models:
+Train the baseline CNN-LSTM or Physics-Informed models. Use the `--masked` flag to suppress shortcuts learned from thermometer artifacts:
 ```bash
-python training/train_all_models.py --models cnnlstm --epochs 50
+python training/train_all_models.py --models cnnlstm --epochs 50 --masked
 ```
 
 ### Part 2: Dense Map Estimation (U-Net)
@@ -65,26 +65,34 @@ python training/train_ltc.py --run_name ltc_model --epochs 50
 ./run_part3_benchmarks.sh
 ```
 
+### Part 4: LOSO Cross-Validation (Generalization)
+To test model generalization across different sequences, we use **Leave-One-Sequence-Out (LOSO)** cross-validation. This ensures the model isn't just memorizing specific video backgrounds or lighting conditions.
+
+We provide a streamlined workflow using `make` and `tmux` for parallel fold training:
+
+| Goal | Command |
+| :--- | :--- |
+| **Run All Benchmarks** | `make loso_all` |
+| **Run Temporal Models** | `make loso_temporal` |
+| **Run Spatial Models** | `make loso_spatial` |
+| **Run Uncertainty Models**| `make loso_uncertainty` |
+| **Monitor Progress** | `make monitor` |
+
+The monitoring script `scripts/monitor_loso.sh` provides a live dashboard of all active training folds and their current epoch/loss.
+
 ## 📉 Evaluation & Uncertainty Quantification
 
-We provide comprehensive evaluation scripts to assess model accuracy and calibration.
-
-### Dense Map Evaluation
-To evaluate dense heatmap prediction and get uncertainty metrics (NLL, PICP, MPIW):
+We provide comprehensive evaluation scripts to assess model accuracy and calibration. The easiest way to run the full evaluation suite is:
 
 ```bash
-python evaluation/evaluate_dense.py \
-    --model ResNetUNet \
-    --checkpoint checkpoints/bayesian_unet.pth \
-    --visualize \
-    --mc_samples 20
+make evaluation
 ```
 
-This script calculates:
-*   **RMSE:** Root Mean Squared Error at sensor locations.
-*   **NLL:** Negative Log Likelihood (Calibration).
-*   **PICP:** Prediction Interval Coverage Probability (Target: 0.95).
-*   **MPIW:** Mean Prediction Interval Width (Sharpness).
+This runs:
+1.  **Deterministic Evaluation:** Standard accuracy metrics for point-estimate models.
+2.  **Uncertainty Evaluation:** Monte Carlo sampling for Bayesian models (RMSE, NLL, PICP, MPIW).
+3.  **LOSO Aggregation:** Consolidates all 7 sequence folds into a single summary (Mean $\pm$ Std).
+4.  **Scientific Plots:** Generates temporal fit plots, error heatmaps, and spatial physics maps in `results/plots/`.
 
 The project includes a full deployment pipeline using **ONNX Runtime** to ensure real-time performance on edge devices.
 

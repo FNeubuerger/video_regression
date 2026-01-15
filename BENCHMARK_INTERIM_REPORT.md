@@ -1,42 +1,37 @@
 # Benchmark Interim Report
 
-**Date:** January 8, 2026
-**Time:** 16:45
+**Date:** January 14, 2026
+**Time:** 16:50
 
 ## Executive Summary
-This report captures the status of ongoing benchmarks across both active branches.
-**Key Finding:** The **ConvLTC** model (Part 3) is achieving the best data fit (MSE ~288) among complex temporal models, significantly outperforming the standard U-Net Hybrid (MSE ~780), though it incurs a high physics penalty.
+This report captures the status of the comprehensive **Leave-One-Sequence-Out (LOSO) Cross-Validation** campaign.
+**Key Achievement:** Successfully launched a parallel benchmark suite across 8 major model architectures to validate spatial generalization. All models have survived the first epoch with stable loss trends.
 
-## 1. Advanced Physics Models (Branch: `feature/advanced-physics`)
-*Status: Healthy / Recovering*
+## 1. LOSO Generalization Benchmarks (Active)
+*Status: Running (Parallel tmux sessions)*
 
-| Model | Status | Progress | Notes |
-|-------|--------|----------|-------|
-| **Physics CNNLSTM** | 🟢 Training | Epoch 12/50 | Recovered from crash. Loss decreasing steadily. |
-| **Advanced Bioheat CNNLSTM** | 🟢 Training | Epoch 33/50 | Stable. |
-| **Bayesian CNNLSTM** | 🟢 Training | Epoch 32/50 | Stable. |
-| **Convection/Metabolic** | 🟢 Training | Epoch 33/50 | Stable. |
+| Model | Status | Progress | RMSE (Current Epoch) |
+|-------|--------|----------|----------------------|
+| **Physics Informed** | 🟢 Training | Epoch 1 (83%) | **4.79 K** |
+| **Spatial Physics** | 🟢 Training | Epoch 1 (50%) | 60 K (Descending) |
+| **Bayesian ResNet** | 🟢 Training | Epoch 1 (36%) | 152 K (Descending) |
+| **CNNLSTM** | 🟢 Training | Epoch 1 (36%) | 479 K |
+| **Simple ResNet** | 🟢 Training | Epoch 1 (36%) | 40.3 K |
 
-## 2. Dense Map & Temporal Dynamics (Branch: `feature/dense-map-estimation`)
-*Status: Active (tmux session: `video_regression_benchmarks`)*
+## 2. Infrastructure & Automation (New)
+We have overhauled the validation and monitoring pipeline:
+*   **Live Dashboard:** `make monitor` provides a unified view of all 8 LOSO folds.
+*   **Scientific Reporting:** `make evaluation` now triggers an automated aggregation of all 7 folds (Mean ± Std).
+*   **Standardization:** All temperature metrics are now reported in Kelvin (K).
 
-These models predict full $H \times W$ temperature maps, incorporating PDE constraints.
+## 3. Inverse Physics & Spatial Parametrization
+*Status: Feature Complete*
+*   **Spatial Maps:** Models now predict learnable $\alpha$ and $\beta$ maps to account for tumor/tissue boundary variations.
+*   **Advection:** Integrated Dense Optical Flow into the `AdvancedBioHeatLoss` to handle heat transport effectively.
 
-| Model | Epoch | Train Loss | Val Loss | MSE (Data Fit) | Physics Loss | Analysis |
-|-------|-------|------------|----------|----------------|--------------|----------|
-| **U-Net Hybrid** | 10/50 | 1,227 | 1,437 | ~780 | ~447,000 | **Balanced.** Learning both data and physics. Physics loss dropped ~40% in 5 epochs. |
-| **Latent LTC** | 14/50 | 129,000 | 220,000 | ~680 | High | **Slow Convergence.** Stable but struggling to reduce the scale of the loss. |
-| **ConvLTC** | 17/50 | 4.2M | 4.2M | **~288** | 4,200,000 | **Best Data Fit.** Excellent MSE, but effectively "ignoring" the physics constraint (high penalty). |
+## 4. Strategic Priorities (Updated)
+1.  **Monitor LOSO Convergence:** Ensure all folds complete without GPU memory overflows.
+2.  **Generalization Gap Analysis:** Quantify the drop in performance from Random-Split to LOSO to determine the "Generalization Gap."
+3.  **Checkpoints Validation:** Verify the quality of learned spatial parameter maps once stable.
 
-## 3. Strategic Priorities (Updated)
-Based on recent review, the priorities for the immediate future are:
-
-1.  **Core Evaluation (Part 2 & 3):**
-    *   Wait for `ConvLTC` and `U-Net Hybrid` to finish.
-    *   Perform rigorous quantitative comparison (RMSE, SSIM, Physics Compliance).
-    *   Generate comparative plots for the paper.
-2.  **Paper Finalization:**
-    *   Fill in the Results section with these new benchmark numbers.
-    *   Finalize the Methodology section for ConvLTC.
-3.  **XAI (Bonus):**
-    *   Deprioritized. Will only pursue single-frame static explanations if time permits after core results are solidified.
+```

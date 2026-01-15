@@ -1,0 +1,45 @@
+# Video Temperature Regression - LOSO Benchmark Automation
+
+PYTHON=./.venv/bin/python
+SCRIPTS=scripts
+EVAL=evaluation
+
+.PHONY: all loso_all clean help
+
+help:
+	@echo "Video Temperature Regression LOSO Benchmark Makefile"
+	@echo "Usage:"
+	@echo "  make loso_all         - Run LOSO for all models in parallel (using tmux)"
+	@echo "  make loso_temporal    - Run LOSO for temporal models (CNNLSTM, Physics, etc)"
+	@echo "  make loso_spatial     - Run LOSO for spatial models (ResNet, SpatialResNet)"
+	@echo "  make loso_uncertainty - Run LOSO for Bayesian and Ensemble models"
+	@echo "  make model-<NAME>     - Run LOSO for a specific model (e.g. make model-ConvLTC)"
+
+# Run all models defined in the benchmark script
+loso_all:
+	bash $(SCRIPTS)/run_loso_benchmarks.sh
+
+# Target specific groups
+loso_temporal:
+	@for model in CNNLSTM PretrainedCNNLSTM PhysicsCNNLSTM ConvectionBioheat ConvLTC; do \
+		bash $(SCRIPTS)/run_loso_benchmarks.sh $$model; \
+	done
+
+loso_spatial:
+	@for model in SimpleResNet SpatialResNet; do \
+		bash $(SCRIPTS)/run_loso_benchmarks.sh $$model; \
+	done
+
+loso_uncertainty:
+	@for model in BayesianResNet FullBayesianResNet BayesianCNNLSTM; do \
+		bash $(SCRIPTS)/run_loso_benchmarks.sh $$model; \
+	done
+
+# Run a single specific model
+# Usage: make model-CNNLSTM
+model-%:
+	bash $(SCRIPTS)/run_loso_benchmarks.sh $*
+
+clean:
+	rm -rf logs/loso/*
+	rm -rf checkpoints/loso/*

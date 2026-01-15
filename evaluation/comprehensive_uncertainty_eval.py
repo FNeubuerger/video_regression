@@ -115,6 +115,7 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
     
     # 2. Load Data
     is_dense_model = "UNet" in model_name or "LTC" in model_name
+    use_masking = "_masked" in model_name
     
     transform = transforms.Compose([
         transforms.Resize((64, 64)),
@@ -127,20 +128,23 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
             data_dir=data_dir, 
             sequence_length=10, # Match training
             image_size=(64, 64),
-            transform=transform
+            transform=transform,
+            use_artifact_masking=use_masking
         )
     elif "UNet" in model_name:
         dataset = TemperatureHeatmapDataset(
             data_dir=data_dir,
             image_size=(64, 64),
-            transform=transform
+            transform=transform,
+            use_artifact_masking=use_masking
         )
     else:
-        dataset = TemperatureRegressionDataset(
-            data_dir=data_dir, 
-            sequence_length=5,
+        # Fallback for generic/legacy models: Use HeatmapDataset (frame-based) on new data
+        dataset = TemperatureHeatmapDataset(
+            data_dir=data_dir,
             image_size=(64, 64),
-            transform=transform
+            transform=transform,
+            use_artifact_masking=use_masking
         )
     
     # Create a simple train/test split (80/20) for demonstration if no explicit test set
@@ -165,15 +169,26 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
     
     with torch.no_grad():
         for batch in tqdm(test_loader, desc="Evaluating"):
-            if len(batch) == 5:  # SequenceHeatmapDataset/TemperatureHeatmapDataset
-                images, _, priors, targets, _ = batch
+            if len(batch) >= 5:  # Heatmap datasets
+                images, _, mask, _, priors, _ = batch if len(batch) == 6 else (batch[0], None, batch[1], None, batch[2], None)
                 priors = priors.to(device)
-            else:
+            elif len(batch) == 3: # Regression dataset with mask
+                images, targets, mask = batch
+                priors = None
+            else: # Regression dataset without mask
                 images, targets = batch
+                mask = None
                 priors = None
 
             images = images.to(device)
-            
+            if mask is not None:
+                mask = mask.to(device)
+                # Apply masking for the input
+                # Handle broadcasting for sequence data: images (B, T, C, H, W), mask (B, 1, H, W)
+                if images.dim() == 5:
+                    images = images * (1.0 - mask.unsqueeze(1))
+                else:
+                    images = images * (1.0 - (mask.unsqueeze(1) if mask.dim() == 3 else mask))
             # Extract number of expected channels from model
             sample_model = models[0]
             if hasattr(sample_model, "n_channels"):
@@ -292,8 +307,8 @@ def plot_results(targets, means, stds, model_name, output_dir):
     plt.figure(figsize=(10, 6))
     plt.errorbar(targets, means, yerr=stds, fmt='o', alpha=0.2, label='Predictions')
     plt.plot([min(targets), max(targets)], [min(targets), max(targets)], 'r--', label='Ideal')
-    plt.xlabel('Ground Truth Temperature')
-    plt.ylabel('Predicted Temperature')
+    plt.xlabel('Ground Truth Temperature $T/K$')
+    plt.ylabel('Predicted Temperature $T/K$')
     plt.title(f'{model_name}: Predicted vs Actual with Uncertainty')
     plt.legend()
     plt.savefig(os.path.join(output_dir, f'{model_name}_calibration.png'))
@@ -303,8 +318,8 @@ def plot_results(targets, means, stds, model_name, output_dir):
     errors = np.abs(targets - means)
     plt.figure(figsize=(10, 6))
     plt.scatter(stds, errors, alpha=0.3)
-    plt.xlabel('Predicted Uncertainty (Std Dev)')
-    plt.ylabel('Absolute Error')
+    plt.xlabel('Predicted Uncertainty $\sigma/K$')
+    plt.ylabel('Absolute Error $|T_{pred} - T_{gt}|/K$')
     plt.title(f'{model_name}: Uncertainty vs Error')
     
     # Add correlation coefficient
@@ -342,7 +357,7 @@ def main():
     parser.add_argument("--model", type=str, required=True, help="Model name (e.g., BayesianResNet)")
     parser.add_argument("--checkpoint", type=str, help="Path to model checkpoint")
     parser.add_argument("--ensemble_dir", type=str, help="Directory containing ensemble checkpoints")
-    parser.add_argument("--data_dir", type=str, default="data", help="Path to data directory")
+    parser.add_argument("--data_dir", type=str, default="data/level1_cropped", help="Path to data directory")
     parser.add_argument("--output_dir", type=str, default="results/uncertainty_eval", help="Directory to save results")
     parser.add_argument("--samples", type=int, default=50, help="Number of Monte Carlo samples")
     parser.add_argument("--batch_size", type=int, default=32)
