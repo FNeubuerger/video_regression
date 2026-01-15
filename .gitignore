@@ -190,5 +190,6 @@ wandb/
 *.onnx
 #ignore videos
 *.mp4
-#ignore pdf files in literature
-literature/*.pdf
+#ignore pdf files in research and subfolders
+research/**/*.pdf
+research/*.pdf
