@@ -260,7 +260,8 @@ class SequenceHeatmapDataset(Dataset):
         cap.release()
         
         if not read_success or len(frames) != self.sequence_length:
-            C, H, W = 3, self.target_size[0], self.target_size[1]
+            C = 5 if self.use_optical_flow else 3
+            H, W = self.target_size[0], self.target_size[1]
             return (torch.zeros((self.sequence_length, C, H, W)), 
                     torch.zeros((self.sequence_length, 1, H, W)), 
                     torch.zeros((self.sequence_length, 1, H, W)),

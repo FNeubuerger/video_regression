@@ -217,7 +217,16 @@ class TemperatureHeatmapDataset(Dataset):
         
         if not ret:
             # Fallback: return zero tensor
-            return torch.zeros((3, *self.target_size)), torch.zeros((4,)), torch.zeros((1, *self.target_size))
+            # Return correct shapes: frame, target, mask, temps, prior, artifact_mask
+            th, tw = self.target_size
+            prior = item['prior_map'] if 'prior_map' in item else torch.zeros((1, th, tw), dtype=torch.float32)
+            
+            return (torch.zeros((3, th, tw)), 
+                    torch.zeros((1, th, tw)), 
+                    torch.zeros((1, th, tw)), 
+                    torch.zeros((4,), dtype=torch.float32), 
+                    prior, 
+                    torch.zeros((1, th, tw)))
 
         # BGR to RGB
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
