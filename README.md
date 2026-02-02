@@ -9,7 +9,7 @@ This repository contains the implementation for the paper **"Hybrid CNN-LSTM and
 
 ## 🏥 Research Context
 
-In non-invasive thermal ablation therapies (e.g., High-Intensity Focused Ultrasound - HIFU), precise temperature monitoring is critical to ensure tumor destruction while preserving healthy tissue. Direct temperature measurement is often impossible. This project implements a **non-invasive, privacy-preserving monitoring system** that estimates temperature dynamics directly from ultrasonic video sequences.
+In non-invasive thermal ablation therapies (e.g., microwave ablattion - MWA - or High-Intensity Focused Ultrasound - HIFU), precise temperature monitoring is critical to ensure tumor destruction while preserving healthy tissue. Direct temperature measurement is often impossible. This project implements a **non-invasive, privacy-preserving monitoring system** that estimates temperature dynamics directly from ultrasonic video sequences.
 
 ### Key Constraints & Goals
 *   **Privacy-First:** Patient data is processed locally on edge devices.
