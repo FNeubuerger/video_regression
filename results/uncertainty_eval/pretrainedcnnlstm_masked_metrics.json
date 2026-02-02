@@ -1,0 +1,20 @@
+{
+    "model_name": "PretrainedCNNLSTM_masked",
+    "mse": 1339.78271484375,
+    "rmse": 36.60304242605729,
+    "mae": 32.24432373046875,
+    "r2_score": -3.0225930213928223,
+    "correlation": 0.38769617676734924,
+    "within_1c": 0.9651076466221231,
+    "within_2c": 2.208611729769859,
+    "within_5c": 5.725686711210097,
+    "num_samples": 10776,
+    "s0_rmse": NaN,
+    "s1_rmse": NaN,
+    "s2_rmse": NaN,
+    "s3_rmse": NaN,
+    "s0_mae": NaN,
+    "s1_mae": NaN,
+    "s2_mae": NaN,
+    "s3_mae": NaN
+}

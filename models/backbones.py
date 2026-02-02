@@ -25,13 +25,14 @@ class CNNLSTM(nn.Module):
                     (batch_size, time_steps, channels, height, width).
                 torch.Tensor: Output tensor of shape (batch_size, 1).
     """
-    def __init__(self, frame_shape, time_steps):
+    def __init__(self, frame_shape, time_steps, output_dim=4):
         """
         Initializes the CNN-LSTM model for video regression.
 
         Parameters:
         - frame_shape: Tuple representing the shape of a single frame (height, width, channels).
         - time_steps: Number of frames in the video sequence.
+        - output_dim: Number of output regression targets.
         """
         super(CNNLSTM, self).__init__()
         self.time_steps = time_steps
@@ -72,7 +73,7 @@ class CNNLSTM(nn.Module):
         # Smaller fully connected layers for regression
         self.fc1 = nn.Linear(64, 32)
         self.dropout = nn.Dropout(0.2)  # Add dropout for regularization
-        self.fc2 = nn.Linear(32, 4) # Output 4 temperatures (one for each sensor)
+        self.fc2 = nn.Linear(32, output_dim) # Output temperatures (one for each sensor)
 
     def forward(self, x):
         """
@@ -117,7 +118,7 @@ class PretrainedCNNLSTM(nn.Module):
     and an LSTM for temporal processing, designed for video regression tasks.
     """
 
-    def __init__(self, pretrained_cnn, frame_shape, time_steps):
+    def __init__(self, pretrained_cnn, frame_shape, time_steps, output_dim=4):
         """
         Initializes the Pretrained CNN-LSTM model for video regression.
 
@@ -125,6 +126,7 @@ class PretrainedCNNLSTM(nn.Module):
         - pretrained_cnn: A pretrained CNN model (e.g., ResNet, EfficientNet).
         - frame_shape: Tuple representing the shape of a single frame (height, width, channels).
         - time_steps: Number of frames in the video sequence.
+        - output_dim: Number of output regression targets.
         """
         super(PretrainedCNNLSTM, self).__init__()
         self.time_steps = time_steps
@@ -173,7 +175,7 @@ class PretrainedCNNLSTM(nn.Module):
 
         # Fully connected layers for regression
         self.fc1 = nn.Linear(128, 64)
-        self.fc2 = nn.Linear(64, 4) # Output 4 temperatures
+        self.fc2 = nn.Linear(64, output_dim) # Output temperatures
 
     def forward(self, x):
         """
@@ -215,12 +217,13 @@ class SimpleResNet(nn.Module):
     Simple ResNet for temperature regression from single images (no temporal component).
     """
 
-    def __init__(self, frame_shape):
+    def __init__(self, frame_shape, output_dim=4):
         """
         Initializes the Simple ResNet model for temperature regression.
 
         Parameters:
         - frame_shape: Tuple representing the shape of a single frame (height, width, channels).
+        - output_dim: Number of output regression targets.
         """
         super(SimpleResNet, self).__init__()
         
@@ -255,7 +258,7 @@ class SimpleResNet(nn.Module):
         # Replace the final layer for regression
         self.backbone.fc = nn.Linear(num_features, 512)
         self.dropout = nn.Dropout(0.2)
-        self.regressor = nn.Linear(512, 4) # Output 4 temperatures
+        self.regressor = nn.Linear(512, output_dim) # Output temperatures
 
     def forward(self, x):
         """
@@ -371,9 +374,18 @@ class SpatialResNet(nn.Module):
             batch, time, c, h, w = x.size()
             x = x.view(batch * time, c, h, w)
             features = self.cnn(x)
-            out = self.decoder(features) # (B*T, 1, 4, 4)
-            return out.view(batch, time, 4, 4)
+            out = self.decoder(features) # Output shape depends on decoder upsample size
+            
+            # The decoder upsamples to output_map_size.
+            # If output_map_size is (4,4), then shape is (B*T, 1, 4, 4)
+            # If output_map_size is (64,64) which is typical for UNet, it is (B*T, 1, 64, 64)
+            
+            # We should dynamically determine the resize shape based on `out`
+            # out shape: (batch*time, channels_out=1, H_out, W_out)
+            _, c_out, h_out, w_out = out.size()
+            
+            return out.view(batch, time, c_out, h_out, w_out).squeeze(2) # (Batch, Time, H_out, W_out)
         else:
             features = self.cnn(x)
             out = self.decoder(features)
-            return out.squeeze(1) # (Batch, 4, 4)
+            return out.squeeze(1) # (Batch, H_out, W_out)

@@ -7,7 +7,7 @@ class PhysicsCNNLSTM(nn.Module):
     Physics-Informed CNN-LSTM that outputs a sequence of temperature predictions.
     This allows applying temporal consistency constraints (physics loss).
     """
-    def __init__(self, frame_shape, time_steps, pretrained=True):
+    def __init__(self, frame_shape, time_steps, pretrained=True, output_dim=4):
         super(PhysicsCNNLSTM, self).__init__()
         self.time_steps = time_steps
         
@@ -63,7 +63,7 @@ class PhysicsCNNLSTM(nn.Module):
         self.fc = nn.Sequential(
             nn.Linear(128, 64),
             nn.ReLU(),
-            nn.Linear(64, 4) # Output 4
+            nn.Linear(64, output_dim) # Output
         )
 
     def forward(self, x):

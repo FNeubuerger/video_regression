@@ -51,7 +51,7 @@ def main():
     bayesian_models = [
         ("BayesianResNet", "checkpoints/bayesian_resnet.pth"),
         ("BayesianCNNLSTM", "models/bayesian_cnnlstm.pth"),
-        ("BayesianSpatialResNet", "models/bayesian_spatial_convection.pth"),
+        ("BayesianSpatialResNet", "models/bayesian_convection_pinn.pth"),
         ("LatentLTC_UNet", "checkpoints/ltc_unet/best_model.pth"),
         ("ResNetUNet", "checkpoints/unet_hybrid/best_model.pth"),
         ("BayesianPINN", "models/bayesian_pinn.pth"),

@@ -1,5 +1,20 @@
 # TODO: Project Status & Issues
 
+## Evaluation Pipeline Repairs (Critical)
+- [ ] **Fix Shape Mismatches in `evaluate_models.py`**
+    - **Error**: `ValueError: operands could not be broadcast together with shapes (10776,) (43104,)`.
+    - **Analysis**: Mismatch between prediction count (43104) and ground truth count (10776). Ratio is ~4. Likely related to sequence length (5) minus 1, or some frame-level vs sequence-level output discrepancy in legacy models (`PretrainedCNNLSTM`, `SimpleResNet`).
+    - **Action**: Debug `evaluate_model` method to correctly reduce frame-level predictions to sequence-level (e.g., mean, or taking the last frame), or filter out legacy models.
+- [ ] **Fix Shape Mismatches in `comprehensive_uncertainty_eval.py`**
+    - **Error**: `ValueError: operands could not be broadcast together with shapes (10776,) (21552,)`.
+    - **Analysis**: Ratio is exactly 2. Likely related to `BayesianResNet` or `BayesianCNNLSTM` returning duplicate predictions per sample, or an accumulation error in the evaluation loop (appending twice?).
+    - **Action**: Inspect the `evaluate_model` loop in `comprehensive_uncertainty_eval.py` for double appending or incorrect concatenation of means/stds.
+- [ ] **Restore `metrics_comparison.csv` generation**
+    - **Issue**: File is not created because `evaluate_models.py` crashes before the saving step.
+    - **Impact**: `paper/viz_performance.py` and `generate_tables.py` fail.
+- [ ] **Cleanup Legacy Models**: User indicated legacy models don't need to work. Consider removing them from the automated evaluation queue to stabilize the pipeline for NEW models.
+
+
 ## Critical Issues
 - [x] **Data Migration**: Models were training on legacy `data/` instead of `data/level1_cropped`.
     - **Fix**: Updated `SequenceHeatmapDataset` and all training scripts to point to `level1_cropped`.

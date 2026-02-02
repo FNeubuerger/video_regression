@@ -10,6 +10,7 @@ MODEL_REGISTRY = {
     "PhysicsCNNLSTM": (PhysicsCNNLSTM, {"frame_shape": (64, 64, 5), "time_steps": 5}),
     "SpatialPhysicsCNNLSTM": (SpatialPhysicsCNNLSTM, {"frame_shape": (64, 64, 5), "time_steps": 5}),
     "BayesianResNet": (BayesianResNet, {"frame_shape": (64, 64, 5)}),
+    "BayesianPINN": (BayesianResNet, {"frame_shape": (64, 64, 5)}),
     "BayesianCNNLSTM": (BayesianCNNLSTM, {"frame_shape": (64, 64, 5)}),
     "FullBayesianResNet": (FullBayesianResNet, {"frame_shape": (64, 64, 5)}),
     "BayesianSpatialResNet": (BayesianSpatialResNet, {"frame_shape": (64, 64, 5)}),

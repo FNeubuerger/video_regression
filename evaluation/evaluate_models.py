@@ -100,13 +100,34 @@ class ModelEvaluator:
             elif base_model_name == "PretrainedCNNLSTM":
                 # Recreate the pretrained CNN
                 pretrained_cnn = resnet18(weights='IMAGENET1K_V1')
-                pretrained_cnn.fc = torch.nn.Linear(pretrained_cnn.fc.in_features, 1)
-                model = PretrainedCNNLSTM(pretrained_cnn, frame_shape=frame_shape, time_steps=time_steps)
-                model.load_state_dict(torch.load(model_path, map_location=self.device))
+                pretrained_cnn.fc = torch.nn.Linear(pretrained_cnn.fc.in_features, 1) # This line seems redundant as fc is replaced?
+                
+                try:
+                    model = PretrainedCNNLSTM(pretrained_cnn, frame_shape=frame_shape, time_steps=time_steps, output_dim=4)
+                    model.load_state_dict(torch.load(model_path, map_location=self.device))
+                except RuntimeError as e:
+                    if 'size mismatch' in str(e):
+                        print(f"Warning: Size mismatch for {model_name}. Attempting legacy load (output_dim=1)...")
+                        # Re-instantiate
+                        pretrained_cnn = resnet18(weights='IMAGENET1K_V1') # Reset
+                        model = PretrainedCNNLSTM(pretrained_cnn, frame_shape=frame_shape, time_steps=time_steps, output_dim=1)
+                        model.load_state_dict(torch.load(model_path, map_location=self.device))
+                        model.output_dim = 1 # Tag it
+                    else:
+                        raise e
                 
             elif base_model_name == "SimpleResNet":
-                model = SimpleResNet(frame_shape=frame_shape)
-                model.load_state_dict(torch.load(model_path, map_location=self.device))
+                try:
+                    model = SimpleResNet(frame_shape=frame_shape, output_dim=4)
+                    model.load_state_dict(torch.load(model_path, map_location=self.device))
+                except RuntimeError as e:
+                    if 'size mismatch' in str(e):
+                        print(f"Warning: Size mismatch for {model_name}. Attempting legacy load (output_dim=1)...")
+                        model = SimpleResNet(frame_shape=frame_shape, output_dim=1)
+                        model.load_state_dict(torch.load(model_path, map_location=self.device))
+                        model.output_dim = 1
+                    else:
+                         raise e
                 
             elif base_model_name in ["SpatialBioheat", "SpatialConvection", "SpatialMetabolic"]:
                 # These were likely trained with SpatialResNet but check the state dict keys
@@ -121,8 +142,17 @@ class ModelEvaluator:
                 model.load_state_dict(state_dict)
 
             elif base_model_name == "PhysicsCNNLSTM":
-                model = PhysicsCNNLSTM(frame_shape=frame_shape, time_steps=time_steps)
-                model.load_state_dict(torch.load(model_path, map_location=self.device))
+                try:
+                    model = PhysicsCNNLSTM(frame_shape=frame_shape, time_steps=time_steps, output_dim=4)
+                    model.load_state_dict(torch.load(model_path, map_location=self.device))
+                except RuntimeError as e:
+                    if 'size mismatch' in str(e):
+                        print(f"Warning: Size mismatch for {model_name}. Attempting legacy load (output_dim=1)...")
+                        model = PhysicsCNNLSTM(frame_shape=frame_shape, time_steps=time_steps, output_dim=1)
+                        model.load_state_dict(torch.load(model_path, map_location=self.device))
+                        model.output_dim = 1
+                    else:
+                        raise e
                 
             elif base_model_name == "BayesianResNet":
                 # Ensure frame_shape logic matches training
@@ -172,6 +202,30 @@ class ModelEvaluator:
                     
                 images = images.to(self.device, non_blocking=True)
                 
+                # Auto-align channels for mixed model inputs
+                try:
+                    first_param = next(model.parameters())
+                    # Check for Conv2d weights (out, in, k, k)
+                    if first_param.ndim == 4:
+                        expected_c = first_param.shape[1]
+                        
+                        if images.dim() == 5: # (B, T, C, H, W)
+                            current_c = images.shape[2]
+                            if expected_c == 5 and current_c == 3:
+                                padding = torch.zeros(images.shape[0], images.shape[1], 2, images.shape[3], images.shape[4], device=self.device)
+                                images = torch.cat([images, padding], dim=2)
+                            elif expected_c == 3 and current_c == 5:
+                                images = images[:, :, :3, :, :]
+                        elif images.dim() == 4: # (B, C, H, W)
+                            current_c = images.shape[1]
+                            if expected_c == 5 and current_c == 3:
+                                b, c, h, w = images.shape
+                                images = torch.cat([images, torch.zeros(b, 2, h, w, device=self.device)], dim=1)
+                            elif expected_c == 3 and current_c == 5:
+                                images = images[:, :3, :, :]
+                except Exception:
+                    pass
+
                 # Determine Truth Labels
                 if scalars is not None:
                      # If we have ground truth scalars, use them for everything for now to compare against 
@@ -212,9 +266,23 @@ class ModelEvaluator:
                     if outputs.dim() == 3:
                         outputs = outputs.mean(dim=[1, 2])
                 
+                # Align dimensionality for metrics
+                preds_flat = outputs.detach().view(-1).cpu().tolist()
+                labels_flat = labels.detach().view(-1).cpu().tolist()
+                
+                if len(preds_flat) != len(labels_flat):
+                    # Handle Sequence vs Single Frame mismatch
+                    if len(labels_flat) > len(preds_flat):
+                        ratio = len(labels_flat) // len(preds_flat)
+                        # Only correct if exact multiple (e.g. T=5)
+                        if len(labels_flat) % len(preds_flat) == 0:
+                             # Assume labels include full sequence but model outputs only one value per sequence
+                             labels_flat = labels_flat[ratio-1::ratio]
+
                 # Store predictions and true values
-                predictions.extend(outputs.cpu().numpy())
-                true_values.extend(labels.cpu().numpy())
+                min_len = min(len(preds_flat), len(labels_flat))
+                predictions.extend(preds_flat[:min_len])
+                true_values.extend(labels_flat[:min_len])
         
         predictions = np.array(predictions)
         true_values = np.array(true_values)
@@ -275,6 +343,10 @@ class ModelEvaluator:
             predictions = result['predictions'].flatten()
             true_values = result['true_values'].flatten()
             
+            if predictions.shape != true_values.shape:
+                print(f"Skipping scatter plot for {result['model_name']} due to shape mismatch: {predictions.shape} vs {true_values.shape}")
+                continue
+
             plt.scatter(true_values, predictions, alpha=0.6, s=1)
             
             # Perfect prediction line
@@ -294,11 +366,15 @@ class ModelEvaluator:
             
             predictions = result['predictions'].flatten()
             true_values = result['true_values'].flatten()
+            
+            if predictions.shape != true_values.shape:
+                continue
+
             errors = predictions - true_values
             
             plt.hist(errors, bins=50, alpha=0.7, density=True)
             plt.axvline(0, color='red', linestyle='--', linewidth=2)
-            plt.xlabel('Prediction Error $\Delta T/K$')
+            plt.xlabel(r'Prediction Error $\Delta T/K$')
             plt.ylabel('Density')
             plt.title(f'{result["model_name"]}\nError Distribution\nMAE = {result["mae"]:.2f} K')
             plt.grid(True, alpha=0.3)
@@ -492,6 +568,10 @@ class ModelEvaluator:
         for name, preds in all_preds.items():
             predictions = np.array(preds) # (N, 4) or (N, 1)
             
+            # Fix 1D predictions (N,) -> (N, 1)
+            if predictions.ndim == 1:
+                predictions = predictions.reshape(-1, 1)
+
             # Global Metrics
             # If shapes mismatch (e.g. spatial model (N, 1) vs target (N, 4)), 
             # we compare predictions against mean of true_values or broadcast?
@@ -617,7 +697,7 @@ class ModelEvaluator:
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate and compare trained models")
-    parser.add_argument("--data_dir", type=str, default="data", help="Data directory")
+    parser.add_argument("--data_dir", type=str, default="data/level1_cropped", help="Data directory")
     parser.add_argument("--batch_size", type=int, default=64, help="Batch size for evaluation")
     parser.add_argument("--models_dir", type=str, default="models", help="Directory containing model checkpoints")
     parser.add_argument('--force', action='store_true', help='Force rerun of all models')

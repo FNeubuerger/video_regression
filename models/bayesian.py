@@ -10,13 +10,14 @@ class BayesianResNet(nn.Module):
     but the final regression layers are Bayesian (Variational Inference).
     """
 
-    def __init__(self, frame_shape, prior_mu=0.0, prior_sigma=0.1):
+    def __init__(self, frame_shape, prior_mu=0.0, prior_sigma=0.1, out_features=4):
         """
         Initializes the Bayesian ResNet model.
 
         Parameters:
         - frame_shape: Tuple representing the shape of a single frame (channels, height, width) 
                        or (time, channels, height, width).
+        - out_features: Number of output regression targets (default: 4 for sensors).
         """
         super(BayesianResNet, self).__init__()
         
@@ -68,7 +69,7 @@ class BayesianResNet(nn.Module):
         self.bayesian_head = nn.Sequential(
             bnn.BayesLinear(prior_mu=prior_mu, prior_sigma=prior_sigma, in_features=num_features, out_features=512),
             nn.ReLU(),
-            bnn.BayesLinear(prior_mu=prior_mu, prior_sigma=prior_sigma, in_features=512, out_features=4) # Output 4
+            bnn.BayesLinear(prior_mu=prior_mu, prior_sigma=prior_sigma, in_features=512, out_features=out_features) # Output determined by arg
         )
 
     def forward(self, x):

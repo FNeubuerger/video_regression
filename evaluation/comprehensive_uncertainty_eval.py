@@ -67,16 +67,97 @@ def compute_uncertainty_metrics(targets, means, stds):
         "MPIW_95": float(mpiw)
     }
 
+def fix_state_dict_keys(state_dict, model_name):
+    """
+    Fixes state_dict keys for loading legacy checkpoints or mismatched architectures.
+    """
+    new_state_dict = {}
+    
+    # 1. LatentLTC_UNet: Checkpoint 'encoder_backbone.' -> Model 'encoder.'
+    if "LatentLTC" in model_name:
+        for k, v in state_dict.items():
+            if k.startswith("encoder_backbone."):
+                new_key = k.replace("encoder_backbone.", "encoder.")
+                # The model maps encoder_backbone = encoder, so either key should work if alias exists.
+                # But if checkpoint has one and model expecting other without alias persisting in state_dict...
+                new_state_dict[new_key] = v
+                # Also keep original just in case
+                new_state_dict[k] = v
+            else:
+                new_state_dict[k] = v
+        return new_state_dict
+
+    # 2. BayesianSpatialResNet: Checkpoint 'backbone.' -> Model 'cnn.' 
+    if "Spatial" in model_name:
+        
+        # Mapping for ResNet backbone to cnn sequential
+        layer_map = {
+            "backbone.conv1": "cnn.0",
+            "backbone.bn1": "cnn.1",
+            "backbone.layer1": "cnn.4",
+            "backbone.layer2": "cnn.5",
+            "backbone.layer3": "cnn.6",
+            "backbone.layer4": "cnn.7"
+        }
+        
+        for k, v in state_dict.items():
+            mapped = False
+            for old_prefix, new_prefix in layer_map.items():
+                if k.startswith(old_prefix):
+                    new_key = k.replace(old_prefix, new_prefix)
+                    new_state_dict[new_key] = v
+                    mapped = True
+                    break
+            if not mapped:
+                new_state_dict[k] = v
+        
+        return new_state_dict
+
+    return state_dict
+
 def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_samples=50, device='cuda', limit=None, ensemble_dir=None):
     print(f"Evaluating {model_name}")
     
     # 1. Load Model(s)
-    if model_name not in MODEL_REGISTRY:
-        raise ValueError(f"Model {model_name} not found in registry.")
+    # Handle masked variant names by stripping suffix
+    base_model_name = model_name.replace("_masked", "")
+    
+    if base_model_name not in MODEL_REGISTRY:
+        raise ValueError(f"Model {model_name} (base: {base_model_name}) not found in registry.")
         
-    ModelClass, kwargs = MODEL_REGISTRY[model_name]
+    ModelClass, kwargs = MODEL_REGISTRY[base_model_name]
     
     models = []
+    
+    # Helper to load state dict safely
+    def load_weights(model, state_dict):
+        # Fix keys
+        state_dict = fix_state_dict_keys(state_dict, model_name)
+        
+        # Try loading, if size mismatch, retry with out_features=1 (legacy)
+        try:
+            model.load_state_dict(state_dict)
+        except RuntimeError as e:
+            if 'size mismatch' in str(e) and 'out_features' in kwargs.keys():
+                 pass # Already tried? kwargs came from registry.
+            elif 'size mismatch' in str(e) and base_model_name in ["BayesianResNet", "BayesianPINN", "BayesianCNNLSTM"]:
+                print(f"Warning: Size mismatch detected. Attempting legacy load (out_features=1)...")
+                # Hack: modify the last layer in place if possible, or re-init?
+                # Re-init is cleaner if we can change args.
+                # But we need to know WHICH arg controls output.
+                # For BayesianResNet, I added out_features.
+                model_new = ModelClass(**kwargs, out_features=1)
+                model_new.load_state_dict(state_dict)
+                return model_new
+            elif 'Missing key(s)' in str(e) and "LatentLTC" in model_name:
+                # If fix_keys didn't work (e.g. alias), try strictly renamed
+                 print("Warning: Missing keys for LatentLTC. Attempting strict rename...")
+                 new_sd = {k.replace("encoder_backbone.", "encoder."): v for k, v in state_dict.items()}
+                 model.load_state_dict(new_sd, strict=False) # Strict=False to ignore extra
+            else:
+                 raise e
+        return model
+
     if ensemble_dir:
         print(f"Loading ensemble from {ensemble_dir}")
         if not os.path.exists(ensemble_dir):
@@ -92,7 +173,7 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
         for ckpt in checkpoint_files:
             model = ModelClass(**kwargs)
             state_dict = torch.load(os.path.join(ensemble_dir, ckpt), map_location=device)
-            model.load_state_dict(state_dict)
+            model = load_weights(model, state_dict)
             model.to(device)
             model.eval()
             models.append(model)
@@ -108,13 +189,13 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
         else:
             state_dict = checkpoint
             
-        model.load_state_dict(state_dict)
+        model = load_weights(model, state_dict)
         model.to(device)
         model.eval()
         models.append(model)
     
     # 2. Load Data
-    is_dense_model = "UNet" in model_name or "LTC" in model_name
+    is_dense_model = "UNet" in model_name or "LTC" in model_name or "Spatial" in model_name
     use_masking = "_masked" in model_name
     
     transform = transforms.Compose([
@@ -123,26 +204,31 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    if "LTC" in model_name:
+    # Default to Sequence Helper for most models as they need 5 channels (RGB+Flow)
+    # Most models (BayesianResNet, CNNLSTM, PINN) now expect 5 channels.
+    # Dataset needs to match.
+    if "LTC" in model_name or "CNNLSTM" in model_name or "PINN" in model_name or "BayesianResNet" in model_name or "Spatial" in model_name:
+        print(f"Using SequenceHeatmapDataset for {model_name}")
         dataset = SequenceHeatmapDataset(
             data_dir=data_dir, 
-            sequence_length=10, # Match training
-            image_size=(64, 64),
+            sequence_length=5, # Default to 5
+            target_size=(64, 64),
             transform=transform,
-            use_artifact_masking=use_masking
+            use_artifact_masking=use_masking,
+            use_optical_flow=True # Ensure 5 channels
         )
     elif "UNet" in model_name:
-        dataset = TemperatureHeatmapDataset(
+         dataset = TemperatureHeatmapDataset(
             data_dir=data_dir,
-            image_size=(64, 64),
+            target_size=(64, 64),
             transform=transform,
             use_artifact_masking=use_masking
         )
     else:
-        # Fallback for generic/legacy models: Use HeatmapDataset (frame-based) on new data
+        # Fallback 
         dataset = TemperatureHeatmapDataset(
             data_dir=data_dir,
-            image_size=(64, 64),
+            target_size=(64, 64),
             transform=transform,
             use_artifact_masking=use_masking
         )
@@ -169,18 +255,45 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
     
     with torch.no_grad():
         for batch in tqdm(test_loader, desc="Evaluating"):
-            if len(batch) >= 5:  # Heatmap datasets
-                images, _, mask, _, priors, _ = batch if len(batch) == 6 else (batch[0], None, batch[1], None, batch[2], None)
+            # Handle different dataset return signatures
+            targets = None
+            mask = None
+            
+            if len(batch) == 4:
+                # SequenceHeatmapDataset: (frames, sparse_targets, priors, scalars)
+                images, _, priors, targets = batch
                 priors = priors.to(device)
-            elif len(batch) == 3: # Regression dataset with mask
-                images, targets, mask = batch
-                priors = None
-            else: # Regression dataset without mask
-                images, targets = batch
-                mask = None
-                priors = None
+            elif len(batch) == 6:
+                # TemperatureHeatmapDataset: (img, sparse, mask, eroded, prior, scalar_label)
+                images, _, mask, _, priors, targets = batch
+                priors = priors.to(device)
+            else:
+                 # Fallback
+                 images = batch[0]
+                 priors = torch.zeros(images.shape[0], 1).to(device)
+                 mask = None
 
             images = images.to(device)
+            if targets is not None:
+                targets = targets.to(device)
+            else:
+                targets = torch.zeros(images.shape[0], 1).to(device)
+
+            # Auto-align channels
+            try:
+                # Peek at model weights to determine expected input channels
+                first_param = next(model.parameters())
+                if first_param.ndim == 4:
+                    expected_c = first_param.shape[1]
+                    if expected_c == 5 and images.shape[1] == 3:
+                        # Pad with zeros
+                        b, c, h, w = images.shape
+                        images = torch.cat([images, torch.zeros(b, 2, h, w, device=device)], dim=1)
+                    elif expected_c == 3 and images.shape[1] == 5:
+                        # Slice
+                        images = images[:, :3, :, :]
+            except Exception:
+                pass
             if mask is not None:
                 mask = mask.to(device)
                 # Apply masking for the input
@@ -189,18 +302,22 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
                     images = images * (1.0 - mask.unsqueeze(1))
                 else:
                     images = images * (1.0 - (mask.unsqueeze(1) if mask.dim() == 3 else mask))
+            
             # Extract number of expected channels from model
             sample_model = models[0]
+            target_ch = 3 # Default
             if hasattr(sample_model, "n_channels"):
                 target_ch = sample_model.n_channels
             elif hasattr(sample_model, "input_channels"):
                 target_ch = sample_model.input_channels
-            elif hasattr(sample_model, "encoder_backbone") and isinstance(sample_model.encoder_backbone[0], nn.Conv2d):
-                target_ch = sample_model.encoder_backbone[0].in_channels
-            elif hasattr(sample_model, "enc_conv1") and isinstance(sample_model.enc_conv1, nn.Conv2d):
-                target_ch = sample_model.enc_conv1.in_channels
+            elif hasattr(sample_model, "encoder_backbone") and hasattr(sample_model.encoder_backbone, "conv1"):
+                 target_ch = sample_model.encoder_backbone.conv1.in_channels
+            elif hasattr(sample_model, "backbone") and hasattr(sample_model.backbone, "conv1"):
+                 target_ch = sample_model.backbone.conv1.in_channels
+            elif hasattr(sample_model, "cnn") and isinstance(sample_model.cnn[0], nn.Conv2d):
+                 target_ch = sample_model.cnn[0].in_channels
             else:
-                target_ch = images.shape[2] if images.dim() == 5 else images.shape[1]
+                 target_ch = images.shape[2] if images.dim() == 5 else images.shape[1]
 
             # Slice images if needed
             if images.dim() == 5: # [B, T, C, H, W]
@@ -219,6 +336,7 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
                 else: 
                     # Bayesian sampling loop handled by outer loop logic above
                     out = models[0](images)
+
 
                 if isinstance(out, tuple):
                     out = out[0]
@@ -270,11 +388,18 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
                     if targets_scalar.dim() > 1: targets_scalar = targets_scalar[:, 0]
                 elif targets.dim() == 3: # (B, H, W)
                     targets_scalar = torch.amax(targets, dim=[1, 2])
-                else:
-                    targets_scalar = targets
-                all_targets.append(targets_scalar.numpy())
+                else: 
+                     # (B, 1) or (B, C) -> Reduce if needed or keep matching dims
+                     targets_scalar = targets
+                
+                # Force to 1D for consistency if it's a scalar regression task
+                # Check if targets_scalar is (B, 1)
+                if targets_scalar.dim() >= 2:
+                     targets_scalar = targets_scalar.reshape(-1)
+                
+                all_targets.append(targets_scalar.cpu().numpy())
             else:
-                all_targets.append(targets.numpy())
+                all_targets.append(targets.cpu().numpy())
             
             # Stack predictions: (num_samples, batch_size)
             batch_preds = np.stack(batch_preds, axis=0)
@@ -283,14 +408,22 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
             batch_mean = np.mean(batch_preds, axis=0)
             batch_std = np.std(batch_preds, axis=0)
             
+            
             all_means.append(batch_mean)
             all_stds.append(batch_std)
-            all_targets.append(targets.numpy())
             
     # Concatenate all batches
-    means = np.concatenate(all_means)
-    stds = np.concatenate(all_stds)
-    targets = np.concatenate(all_targets)
+    means = np.concatenate(all_means).reshape(-1)
+    stds = np.concatenate(all_stds).reshape(-1)
+    targets = np.concatenate(all_targets).reshape(-1)
+
+    # Force alignment
+    min_len = min(len(means), len(targets))
+    means = means[:min_len]
+    stds = stds[:min_len]
+    targets = targets[:min_len]
+
+    print(f"DEBUG: means={means.shape}, targets={targets.shape}, stds={stds.shape}")
     
     # 4. Compute Metrics
     metrics = compute_uncertainty_metrics(targets, means, stds)

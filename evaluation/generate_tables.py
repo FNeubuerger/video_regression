@@ -119,8 +119,8 @@ def generate_tables(results_dir="results", output_dir="results/tables"):
             # Calculate stats across folds
             loso_data.append({
                 'Model': model_name,
-                'MAE (K)': f"{df_loso['mae'].mean():.4f} \pm {df_loso['mae'].std():.4f}",
-                'RMSE (K)': f"{df_loso['rmse'].mean():.4f} \pm {df_loso['rmse'].std():.4f}",
+                'MAE (K)': f"{df_loso['mae'].mean():.4f} $\\pm$ {df_loso['mae'].std():.4f}",
+                'RMSE (K)': f"{df_loso['rmse'].mean():.4f} $\\pm$ {df_loso['rmse'].std():.4f}",
                 'MAE_Mean': df_loso['mae'].mean(),
                 'RMSE_Mean': df_loso['rmse'].mean(),
                 'Folds': len(df_loso)
@@ -142,7 +142,7 @@ def generate_tables(results_dir="results", output_dir="results/tables"):
         
         # LaTeX export for LOSO
         latex_path = os.path.join(output_dir, "loso_summary.tex")
-        display_df.to_latex(latex_path, index=False, escape=False, caption="LOSO Cross-Validation Performance (Mean $\pm$ Std)")
+        display_df.to_latex(latex_path, index=False, escape=False, caption=r"LOSO Cross-Validation Performance (Mean $\pm$ Std)")
         
     print(f"\nTables saved to {output_dir}")
         

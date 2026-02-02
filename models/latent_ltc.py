@@ -61,7 +61,8 @@ class LatentLTC_UNet(nn.Module):
             )
             
         # Remove fc layer, keep everything else
-        self.encoder_backbone = nn.Sequential(*list(resnet.children())[:-1]) # Output: (B, 512, 1, 1)
+        self.encoder = nn.Sequential(*list(resnet.children())[:-1]) # Output: (B, 512, 1, 1)
+        self.encoder_backbone = self.encoder # Alias for compatibility
         
         # Project to latent space
         if self.variational:

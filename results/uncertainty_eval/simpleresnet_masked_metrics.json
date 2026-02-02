@@ -1,0 +1,20 @@
+{
+    "model_name": "SimpleResNet_masked",
+    "mse": 1648.4337158203125,
+    "rmse": 40.60090782014994,
+    "mae": 35.57941436767578,
+    "r2_score": -3.9492931365966797,
+    "correlation": -0.1711922138929367,
+    "within_1c": 0.714550853749072,
+    "within_2c": 1.6889383815887158,
+    "within_5c": 4.992576095025983,
+    "num_samples": 10776,
+    "s0_rmse": NaN,
+    "s1_rmse": NaN,
+    "s2_rmse": NaN,
+    "s3_rmse": NaN,
+    "s0_mae": NaN,
+    "s1_mae": NaN,
+    "s2_mae": NaN,
+    "s3_mae": NaN
+}
