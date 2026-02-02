@@ -1,0 +1,123 @@
+\section{Introduction and Motivation}
+
+\subsection{Clinical Context: Thermal Ablation and Temperature Monitoring}
+
+Thermal ablation has emerged as a minimally invasive treatment option for solid tumors across diverse anatomical sites, including the liver, lung, kidney, prostate, bone, and breast \cite{vogl2017, shibata2000, ahmed2014}. 
+Among ablation modalities, Microwave Ablation (MWA) has gained significant clinical adoption due to several advantages over traditional radiofrequency ablation (RFA).
+Compared to RFA, MWA produces faster heating rates, achieves higher intratumoral temperatures, creates larger ablation zones with shorter procedure times, demonstrates superior efficacy in high-perfusion areas due to reduced heat-sink effects, and generates more predictable and demarcated ablation zones \cite{vogl2017, lubner2010}.
+These characteristics make MWA particularly suitable for treating large tumors (up to 5 cm) and lesions located adjacent to major blood vessels.
+
+Successful thermal ablation requires precise control and monitoring to ensure complete tumor destruction while preserving healthy surrounding tissue.
+Clinical standards define technically successful ablation as complete coverage of the target tumor plus a circumferential ablative margin of at least 5 mm (ideally 10 mm) \cite{ahmed2014}. 
+Tissue coagulation and necrosis occur when temperature is maintained in the range of 50--60°C for at least 5 minutes; higher temperatures (>100°C) lead to vaporization and carbonization \cite{vogl2017}. 
+This narrow therapeutic window necessitates continuous real-time monitoring of temperature dynamics to prevent both undertreatment (incomplete tumor necrosis leading to recurrence) and overtreatment (collateral damage to adjacent healthy structures).
+
+Despite the clinical importance of temperature monitoring, direct measurement remains challenging. 
+Invasive temperature sensors such as thermocouples and fiber-optic probes provide high temporal resolution but sample only discrete spatial locations, add procedural complexity, and increase infection risk. 
+Therefore, clinicians seek non-invasive temperature imaging modalities.
+
+\subsection{Current Monitoring Modalities: Capabilities and Limitations}
+
+Non-invasive temperature monitoring for thermal ablation can be accomplished through several complementary imaging modalities, each with distinct trade-offs \cite{geoghegan2022}:
+
+\begin{itemize}
+    \item \textbf{Magnetic Resonance Thermometry (MRT)} is considered the gold standard for non-invasive temperature mapping, offering high spatial and temporal resolution and accurate quantitative temperature estimates. 
+    However, MRT is prohibitively expensive, immobile, and requires complex MRI-compatible ablation equipment. Moreover, MRT is contraindicated in patients with pacemakers and ferromagnetic implants, and its availability remains limited in most clinical settings \cite{vogl2017, geoghegan2022}.
+
+    \item \textbf{Computed Tomography (CT)} can delineate the ablation zone post-procedure through visualization of necrotic tissue but provides no real-time feedback during the procedure.
+    Additionally, CT delivers ionizing radiation to both patient and clinician \cite{geoghegan2022}.
+
+    \item \textbf{Ultrasound (US) B-mode imaging} is widely available, portable, cost-effective, non-invasive, and permits real-time observation during the procedure. 
+    However, conventional B-mode ultrasound offers poor intrinsic contrast between the thermal lesion and surrounding normal tissue, limiting the ability to precisely demarcate ablation zone boundaries \cite{zhang2020, geoghegan2022}. 
+    Indirect visual markers of heating such as hyperechogenic microbubbles, speckle decorrelation, and echo shift can be observed but do not correlate reliably with absolute tissue temperature \cite{seip2002}.
+
+    \item \textbf{Invasive thermometry} (thermocouples, fiber-optic sensors) provides accurate point measurements at discrete locations but suffers from spatial limitations and procedural complexity \cite{geoghegan2022}.
+\end{itemize}
+
+Given these trade-offs, ultrasound-based monitoring is an attractive candidate for routine clinical deployment due to its ubiquity, real-time capability, and absence of radiation. 
+However, the indirect relationship between observable ultrasound markers and absolute tissue temperature represents a significant scientific challenge.
+
+\subsection{Deep Learning for Ultrasound-Based Monitoring}
+
+Recent advances in deep learning have demonstrated the potential to enhance ultrasound-based monitoring of thermal lesions.
+Zhang et al. \cite{zhang2020} proposed a Convolutional Neural Network (CNN) architecture for detecting and segmenting thermally induced lesions in ultrasound radiofrequency (RF) data acquired from porcine livers during MWA.
+Their modified CNN achieved an area under the receiver operating characteristic curve (AUC) of 0.8948, substantially outperforming conventional B-mode image analysis (AUC 0.6904). This seminal work demonstrates that deep learning can extract features from ultrasound data that are more predictive of thermal damage than manual visual inspection.
+
+However, existing deep learning approaches for ultrasound monitoring of ablation have focused primarily on lesion detection and segmentation---classifying whether tissue is coagulated or not---rather than regressing continuous temperature values. 
+Furthermore, most state-of-the-art models are computationally intensive and designed for post-hoc analysis rather than real-time clinical deployment. 
+There remains a significant gap between proof-of-concept studies and clinically feasible real-time systems.
+
+\subsection{Physics-Informed Machine Learning}
+
+An emerging paradigm in medical machine learning is the integration of domain knowledge and physical laws into the learning process. 
+Physics-Informed Neural Networks (PINNs) represent one such approach, where partial differential equations (PDEs) governing physical processes are incorporated as soft constraints during training \cite{raissi2019physics}. 
+
+For thermal ablation, the relevant physics is captured by the bioheat equation (Pennes equation), which governs temperature evolution in tissue:
+\begin{equation}
+    \frac{\partial T}{\partial t} = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{ext}
+\end{equation}
+where $T$ is tissue temperature, $\beta$ is thermal conductivity, $\alpha$ is the perfusion coefficient accounting for heat dissipation due to blood flow, $T_{arterial}$ is arterial blood temperature, and $Q_{ext}$ represents external heating from the ablation device.
+
+By constraining neural networks to respect this equation, PINNs can improve generalization, particularly in data-scarce regimes common in medical imaging. 
+The physical constraints act as a form of inductive bias, reducing the hypothesis space and improving robustness to noise. 
+However, implementing PINNs for video regression from ultrasound sequences is non-trivial and has not been extensively studied for ablation monitoring.
+
+\subsection{Edge Computing and Real-Time Deployment Requirements}
+
+Clinical deployment of machine learning models in interventional radiology imposes stringent constraints:
+
+\begin{itemize}
+    \item \textbf{Data Privacy}: Transmitting sensitive patient imaging data to cloud servers for processing violates privacy regulations (HIPAA, GDPR) and introduces security risks. 
+    Inference must occur locally on-device.
+    
+    \item \textbf{Real-Time Requirements}: High-Intensity Focused Ultrasound (HIFU) and interventional procedures require feedback at rates exceeding 30 FPS to enable timely operator response to thermal runaway or insufficient heating.
+    
+    \item \textbf{Hardware Constraints}: To enable retrofit to existing ultrasound machines and ensure accessibility, models must run on low-cost, resource-constrained devices such as the Raspberry Pi 4 or NVIDIA Jetson Nano, which feature limited RAM and CPU/GPU capacity.
+    
+    \item \textbf{Interpretability}: Black-box predictions are clinically unacceptable. Clinicians require confidence intervals and uncertainty estimates alongside temperature predictions to assess reliability and inform treatment decisions.
+\end{itemize}
+
+These constraints are often in tension: achieving high accuracy typically demands large, computationally intensive models, while edge deployment demands extreme efficiency. 
+Furthermore, uncertainty quantification---critical for clinical safety---adds additional computational overhead.
+
+\subsection{Motivation and Research Gaps}
+
+Despite progress in deep learning for medical imaging and physics-informed learning, several research gaps remain:
+
+\begin{enumerate}
+    \item Most existing deep learning models for ultrasound monitoring perform classification (coagulated vs. not coagulated) rather than continuous temperature regression, which is necessary for precise ablation control.
+    
+    \item There is limited evidence that physics-informed constraints can improve video regression models for temperature estimation in ablation monitoring.
+    
+    \item Real-time deployment of video regression models on edge devices while maintaining accuracy has not been comprehensively benchmarked.
+    
+    \item Uncertainty quantification for temperature estimation in clinical settings remains underexplored; most thermal ablation studies report point estimates without confidence intervals.
+    
+    \item The role of temporal information (e.g., optical flow) as an explicit input feature to capture transient thermal dynamics has not been systematically investigated for ultrasound-based ablation monitoring.
+\end{enumerate}
+
+\subsection{Contributions of This Work}
+
+To address these gaps, this paper presents a comprehensive study of deep learning architectures for real-time temperature regression from ultrasonic video sequences, optimized for edge deployment and augmented with principled uncertainty quantification.
+
+Our main contributions are:
+
+\begin{itemize}
+    \item \textbf{Lightweight Architecture Design}: We propose a custom CNN-LSTM architecture with only $\sim$60k parameters, optimized for real-time inference on CPU-class hardware while maintaining competitive accuracy. 
+    We compare this against pretrained ResNet-based models and physics-informed variants.
+    
+    \item \textbf{Physics-Informed Regularization}: We incorporate domain knowledge via physics-informed loss functions based on the bioheat equation, enabling the model to generate physically plausible predictions and improve generalization in data-limited regimes. 
+    We explore both simple cooling constraints and advanced formulations incorporating tissue perfusion, spatial diffusion, convection, and metabolic heat generation.
+    
+    \item \textbf{Explicit Temporal Dynamics via Optical Flow}: We integrate dense optical flow as an explicit input feature to capture motion-induced temperature changes (e.g., convection currents, tissue deformation), enriching the model's ability to infer thermal dynamics from visual cues.
+    
+    \item \textbf{Uncertainty Quantification}: We implement two complementary probabilistic approaches---Deep Ensembles and Bayesian Neural Networks (BNNs)---to provide clinically actionable confidence intervals alongside temperature predictions. We propose a novel Bayesian Physics-Informed Neural Network (B-PINN) that synergizes uncertainty quantification with physical constraints.
+    
+    \item \textbf{Edge Deployment Evaluation}: We rigorously benchmark inference latency on CPU-constrained environments, demonstrating that optimized models achieve real-time performance (>30 FPS) on Raspberry Pi 4 and Jetson Nano, while maintaining high predictive accuracy (MAE $\le 1°$C).
+    
+    \item \textbf{Leave-One-Sequence-Out Validation}: We employ rigorous cross-validation strategies that account for temporal correlations within experimental runs, ensuring unbiased generalization estimates.
+\end{itemize}
+
+The remainder of this paper is organized as follows. Section \ref{sec:related_work} reviews related work on non-invasive temperature monitoring, deep learning in medical imaging, and physics-informed machine learning.
+ Section \ref{sec:methodology} details our proposed architectures, preprocessing pipeline, and uncertainty quantification techniques. Section \ref{sec:experiments} describes the experimental setup, datasets, and evaluation metrics. Section \ref{sec:results} presents comparative results across architectures, and Section \ref{sec:discussion} contextualizes findings with respect to clinical deployment and future work.
+

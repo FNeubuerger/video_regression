@@ -14,13 +14,14 @@ Quick checklist (writing & literature only)
 - Phase 1 — Setup
   - [x] Create folder `literature` and a bibliography file `paper/references.bib`
   - [x] Create a `literature/reading_notes.csv` (columns suggested below)
-  - [ ] Install/prepare Zotero or Mendeley (optional)
+  - [x] Install/prepare Zotero or Mendeley (optional)
+  - [x] **PDFs FOUND:** 16 papers in `literature/unread/` - see `PDF_EXTRACTION_SUMMARY.md`
 - Phase 2 — Search & collect
-  - [ ] Run targeted searches (queries below) and save candidate PDFs (20–40)
-  - [ ] Select top 12–16 papers and add BibTeX to `paper/references.bib`
+  - [x] Run targeted searches (queries below) and save candidate PDFs (20–40) → **DONE: 16 PDFs available**
+  - [ ] Select top 12–16 papers and add BibTeX to `paper/references.bib` → **Start here using PDF_EXTRACTION_SUMMARY.md**
   - [ ] For each selected paper, write a 2–3 sentence summary into the CSV
 - Phase 3 — Drafting
-  - [ ] Draft Introduction (use templates below)
+  - [ ] Draft Introduction (use templates below + PDF findings)
   - [ ] Draft Experimental-Setup Methods text using existing notes (placeholders for missing numbers)
   - [ ] Add figure placeholders and caption drafts
 - Phase 4 — Revise & polish
