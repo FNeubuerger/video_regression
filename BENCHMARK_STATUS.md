@@ -11,7 +11,7 @@
 | Stream | Component | Models Included | Status | Log Location | Type |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **1. Retrain** | `restart_failed_due_to_dataset.sh` | Bayesian, Convection | 🚀 **Running** (Restarted) | `logs/retrain/` | Standard Train (80/20) |
-| **2. LOSO** | `scripts/run_loso_benchmarks.sh` | All Core Models (x15) | 🚀 **Running** (New) | `logs/loso/` | Cross Validation |
+| **2. LOSO** | `scripts/run_loso_benchmarks.sh` | All Core Models (x15) | 🚀 **In Progress** (restarted 2026-02-02) | tmux sessions: loso_* | Cross Validation |
 
 ### LOSO Details (Launched 2026-01-19)
 Running Leave-One-Sequence-Out CV for:
@@ -41,15 +41,15 @@ Running Leave-One-Sequence-Out CV for:
 ## 3. Pending / Killed / Failed Benchmarks
 
 ### A. Killed (User Intervention / Server Restart)
-*   **ConvLTC**: Terminated. No checkpoint found.
-*   **LatentLTC**: Terminated. No checkpoint found.
-*   **LatentLTC Variational**: Terminated. No checkpoint found.
-*   **Ensemble**: Terminated at Epoch 4/20.
-*   **U-Net Stream**: Terminated at Epoch 1.
-*   **Spatial Convection Bioheat**: Terminated at Epoch 7/30. (Checkpoint exists).
+*   **ConvLTC**: In Progress (restarted 2026-02-02)
+*   **LatentLTC**: In Progress (restarted 2026-02-02)
+*   **LatentLTC Variational**: In Progress (restarted 2026-02-02)
+*   **Ensemble**: Issue detected (make reports 'Nothing to be done'). Needs review.
+*   **U-Net Stream**: In Progress (restarted 2026-02-02)
+*   **Spatial Convection Bioheat**: In Progress (restarted 2026-02-02)
 
 ### B. Restarting (Dataset Error Fix)
-The following models caused a dataset collate error and are currently retraining in the **Retrain** session:
+The following models caused a dataset collate error and are currently retraining in the **Retrain** session (all In Progress as of 2026-02-02):
 *   `Bayesian CNNLSTM`, `Bayesian PINN`
 *   `Bayesian Convection PINN`, `Bayesian Metabolic PINN`
 *   `Convection Bioheat` (Scalar)
@@ -60,7 +60,8 @@ The following models caused a dataset collate error and are currently retraining
 ## 4. Evaluation & Next Steps
 
 ### Action Items
-1.  **Monitor LOSO:** Ensure cross-validation sessions start correctly (`tmux ls`).
-2.  **Monitor Retrain:** Watch for stability in the restarted physics models.
-3.  **Evaluate Completed:** Run `make evaluation` or `python evaluation/run_unified_evaluation.py` for models that have finished.
+1.  **Monitor LOSO:** All core models launched in tmux sessions (2026-02-02). Check results in results/loso_*.csv.
+2.  **Monitor Retrain:** Physics and Bayesian models retraining in benchmark_retrain session.
+3.  **Evaluate Completed:** Run `make evaluation` or `python evaluation/run_unified_evaluation.py` for completed models.
+4.  **Commit and push status updates.**
 
