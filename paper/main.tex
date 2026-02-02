@@ -54,10 +54,12 @@ To enhance robustness and provide a transparent monitoring system, we integrate 
 Video Regression, Physics-Informed Machine Learning, Edge Computing, Bayesian Neural Networks, Optical Flow, Thermal Ablation, Medical Imaging
 \end{IEEEkeywords}
 
+ %\input{INTRODUCTION_DRAFT.tex}
 \section{Introduction and Motivation}
-Estimating physical parameters, such as temperature, from medical imaging data is a critical challenge in non-invasive thermal ablation therapies. In procedures like High-Intensity Focused Ultrasound (HIFU), precise temperature monitoring is essential to ensure tumor destruction while preserving healthy surrounding tissue. However, direct temperature measurement is often impossible or requires invasive probes. In this work, we explore the feasibility of using ultrasonic video sequences to regress temperature values, leveraging temporal coherence and visual cues present in the footage.
+Estimating physical parameters, such as temperature, from medical imaging data is a critical challenge in non- and minimally-invasive thermal ablation therapies.
+In procedures like High-Intensity Focused Ultrasound (HIFU), radiofrequency (RFA) and microwave ablation (MWA), precise temperature monitoring is essential to ensure tumor destruction while preserving healthy surrounding tissue. However, direct temperature measurement is often impossible or requires invasive probes. In this work, we explore the feasibility of using ultrasonic video sequences to regress temperature values, leveraging temporal coherence and visual cues present in the footage.
 
-% TODO: Add specific details about the HIFU device and the frequency used in the experiments
+% TODO: Maybe we should just focus on minimally-invasive ablation methonds and ignore HIFU
 
 A major constraint in clinical deployment is data privacy. Transmitting sensitive patient data to cloud servers for processing poses significant security risks and regulatory hurdles. Therefore, inference must be performed locally on edge devices. Furthermore, to ensure widespread accessibility, these devices must be cost-effective and easily retrofittable to existing ultrasonic machines. This necessitates models that are not only accurate but also lightweight enough to run on low-cost hardware like the Raspberry Pi or Jetson Nano.
 
