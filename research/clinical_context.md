@@ -5,20 +5,8 @@
 
 1. [1] Vogl, T. J., Nour-Eldin, N. A., Hammerstingl, R. M., Panahi, B., & Naguib, N. N. N. (2017). Microwave Ablation (MWA): Basics, Technique and Results in Primary and Metastatic Liver Neoplasms - Review Article. Mikrowellenablation (MWA): Grundlagen, Technik und Ergebnisse in primären und sekundären Lebertumoren – Übersichtsarbeit. RoFo : Fortschritte auf dem Gebiete der Rontgenstrahlen und der Nuklearmedizin, 189(11), 1055–1066. https://doi.org/10.1055/s-0043-117410
 
-2. [2]
+2. [2]P. Seda, R. Abbey, L. Peng, I. Ezeaku, S.T. Laroia, H. Aziz (2026). A review of established and new developments in local therapies for liver cancer. ESMO Gastrointestinal Oncology, Volume 11,100283, ISSN 2949-8198,https://doi.org/10.1016/j.esmogo.2025.100283.
  
- @article{SEDA2026100283,
-title = {A review of established and new developments in local therapies for liver cancer},
-journal = {ESMO Gastrointestinal Oncology},
-volume = {11},
-pages = {100283},
-year = {2026},
-issn = {2949-8198},
-doi = {https://doi.org/10.1016/j.esmogo.2025.100283},
-url = {https://www.sciencedirect.com/science/article/pii/S2949819825001529},
-author = {P. Seda and R. Abbey and L. Peng and I. Ezeaku and S.T. Laroia and H. Aziz},
-keywords = {liver cancer, radiotherapy, locoregional therapy, targeted treatment immunotherapy},
-
 3. [3] (scihub) Lubner, Meghan G.; Brace, Christopher L.; Hinshaw, J. Louis; Lee, Fred T.. (2010). Microwave Tumor Ablation: Mechanism of Action, Clinical Results, and Devices. , 21(8), –. doi:10.1016/j.jvir.2010.04.007  
  
 4. [4] Ahmed, Muneeb et al. “Image-guided tumor ablation: standardization of terminology and reporting criteria--a 10-year update.” Journal of vascular and interventional radiology : JVIR vol. 25,11 (2014): 1691-705.e4. doi:10.1016/j.jvir.2014.08.027
@@ -88,7 +76,7 @@ keywords = {liver cancer, radiotherapy, locoregional therapy, targeted treatment
             - MR only modality for near real-time temperature monitoring
     - intraprocedural modification: repositioning and this stuff during procedure based on image-based information or by thermal feedback (e.g. automated system automatically termination the ablation at a critical point)
             
-(1)- near real-time imaging asscessment during ablation essential to determine adequacy of treatment preventing under- or overtreatment [31]
+(1)- near real-time imaging asscessment during ablation essential to determine adequacy of treatment preventing under- or overtreatment 
 (1)- pre-ablation
 (1)    - CT or preferably MRI
 (1)    - positioning MWA antenna 
@@ -124,10 +112,10 @@ Radiol 2014; 25: 1706 – 1708 ~~
 tumors: a systematic review. Hepatobiliary Surgery and Nutrition 2014;
 3: 317 – 323
 
-[ ] Sun Y, Cheng Z, Dong L et al. Comparison of temperature curve and
+~~[ ] Sun Y, Cheng Z, Dong L et al. Comparison of temperature curve and
 ablation zone between 915- and 2450-MHz cooled-shaft microwave
 antenna: results in ex vivo porcine livers. European Journal of Radiology
-2012; 81: 553 – 557
+2012; 81: 553 – 557~~
 
 [ ] Yang D, Converse MC, Mahvi DM et al. Measurement and Analysis of
 Tissue Temperature During Microwave Liver Ablation. IEEE Trans Biomed
