@@ -21,20 +21,21 @@ if [ "$1" != "" ]; then
     MODELS=("$1")
 fi
 
+i=0
 for MODEL in "${MODELS[@]}"; do
-    echo "Starting LOSO for $MODEL..."
-    
-    # We run in background using tmux sessions for each model 
-    # to avoid terminal blocking and allow for parallel execution
+    GPU=$((i % 2))
     SESSION_NAME="loso_${MODEL,,}"
-    
+    LOG_FILE="logs/loso/${SESSION_NAME}.log"
+    echo "Starting LOSO for $MODEL on GPU $GPU (log: $LOG_FILE)..."
+
     # Kill session if it already exists to ensure a fresh run
     tmux kill-session -t $SESSION_NAME 2>/dev/null
-    
+
     tmux new-session -d -s $SESSION_NAME \
-        "$VENV_PATH evaluation/loso_cross_validation.py --model $MODEL --epochs $EPOCHS --batch_size $BATCH_SIZE --masked"
-    
+        "CUDA_VISIBLE_DEVICES=$GPU $VENV_PATH evaluation/loso_cross_validation.py --model $MODEL --epochs $EPOCHS --batch_size $BATCH_SIZE --masked --no-wandb 2>&1 | tee $LOG_FILE"
+
     echo "Launched $MODEL in tmux session: $SESSION_NAME"
+    i=$((i + 1))
 done
 
 echo "Use 'tmux ls' to monitor progress."

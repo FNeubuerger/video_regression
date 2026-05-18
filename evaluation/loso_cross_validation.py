@@ -13,6 +13,11 @@ import pandas as pd
 import argparse
 import sys
 import json
+
+try:
+    import wandb
+except ImportError:  # wandb is optional for the LOSO driver
+    wandb = None
 from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 from tqdm import tqdm
@@ -27,7 +32,7 @@ from models.conv_ltc import ConvLTC
 from physics.models import SpatialPhysicsCNNLSTM, PhysicsCNNLSTM
 from physics.loss import PhysicsInformedLoss
 from physics.bioheat_loss import AdvancedBioHeatLoss
-from training.train_all_models import train_model_with_validation
+from training.train_all_models import train_model_with_validation, align_outputs_target
 
 def run_loso_fold(holdout_seq, model_type, args):
     """Run a single LOSO fold holding out holdout_seq."""
@@ -56,13 +61,15 @@ def run_loso_fold(holdout_seq, model_type, args):
     # Split based on sequence names
     train_indices = []
     test_indices = []
-    
+
     # SequenceHeatmapDataset uses .videos list for meta, but indices map to (vid_idx, start)
-    # We need to filter indices based on video path in videos[vid_idx]
-    
+    # We match by video basename (without extension) so the holdout id can be a
+    # legacy 'sequence_X' tag OR a real filename like 'US_001_30W_10min'.
+    holdout_token = str(holdout_seq).replace('.mp4', '')
     for idx_in_ds, (vid_idx, start_frame) in enumerate(full_dataset.indices):
         vid_path = full_dataset.videos[vid_idx]['path']
-        if holdout_seq in vid_path:
+        vid_basename = os.path.splitext(os.path.basename(vid_path))[0]
+        if holdout_token == vid_basename or holdout_token in vid_path:
             test_indices.append(idx_in_ds)
         else:
             train_indices.append(idx_in_ds)
@@ -182,7 +189,14 @@ def run_loso_fold(holdout_seq, model_type, args):
                 mask = None
                 
             if args.masked and mask is not None:
-                imgs = imgs * (1.0 - mask.unsqueeze(1))
+                # imgs is (B, T, C, H, W). mask can be (B, 1, H, W),
+                # (B, T, 1, H, W) or (B, T, H, W).
+                if mask.dim() == 4 and imgs.dim() == 5:
+                    mask = mask.unsqueeze(1)            # -> (B, 1, 1, H, W)
+                elif mask.dim() == 4 and imgs.dim() == 4:
+                    pass                                # (B, 1, H, W) ok
+                # else assume already broadcast-compatible
+                imgs = imgs * (1.0 - mask.float())
             
             imgs = imgs.to(device)
             
@@ -190,43 +204,31 @@ def run_loso_fold(holdout_seq, model_type, args):
             batch_samples = []
             for _ in range(mc_samples):
                 out = model(imgs)
-                
+
                 # Handle multiple outputs (Issue #41)
                 if isinstance(out, tuple):
                     out = out[0]
-                
-                # Reduce if spatial (Spatial Map is (B, T, H, W) or (B, H, W))
-                if out.dim() == 4: 
-                    # Sequence of maps: Take last time step and average spatial
-                    out = out[:, -1].mean(dim=(1, 2))
-                elif out.dim() == 3:
-                    # Single map: average spatial
-                    out = out.mean(dim=(1, 2))
-                # (B, 4) or (B, T) or (B, 1)
-                # We assume correct models output (B, 4) now for 4 sensors
-                
+
+                # Use the same shape-alignment helper as training so we
+                # never have to maintain two parallel reduction paths.
+                # gt may be (B, 4) or (B, T, 4); pass through unchanged
+                # so align_outputs_target picks the right target shape.
+                gt_t = gt if torch.is_tensor(gt) else torch.as_tensor(gt)
+                out, _ = align_outputs_target(out, gt_t.to(out.device).float())
                 batch_samples.append(out.cpu().numpy())
-            
-            # Mean across MC samples
-            out_mean = np.mean(batch_samples, axis=0) # (B, 4) or (B, T)
-            
-            gt_np = gt.numpy()
-            # If gt is sequence (B, T, 4), take last frame (B, 4)
-            if gt_np.ndim == 3:
-                 gt_np = gt_np[:, -1, :]
-            
-            # If output is (B, T), take last frame
-            if out_mean.ndim == 2 and out_mean.shape[1] == 5: # Assuming T=5
-                 out_mean = out_mean[:, -1]
-                 # If out was (B, T), it implies single channel output per frame?
-                 # If we want 4 sensors, out should be (B, 4).
-            
-            # We compare flattened arrays. 
-            # If out is (B, 4) and gt is (B, 4), error is calculated on all 4 sensors.
-            # If out is (B, 1) and gt is (B, 4), we squeeze or broadcast?
-            # We assume models are fixed to output 4 now.
-            
-            batch_errors = (out_mean - gt_np).flatten()
+
+            # Mean across MC samples (now in helper-reduced shape).
+            out_mean = np.mean(batch_samples, axis=0)
+
+            # Pair the reduced out_mean with the gt through the helper once
+            # more so both come out length-matched (the helper truncates to
+            # the smaller of the two as a last resort).
+            out_t = torch.as_tensor(out_mean)
+            gt_t = gt if torch.is_tensor(gt) else torch.as_tensor(gt)
+            out_aligned, gt_aligned = align_outputs_target(out_t, gt_t.float())
+
+            batch_errors = (out_aligned.cpu().numpy().reshape(-1)
+                            - gt_aligned.cpu().numpy().reshape(-1))
             errors.extend(batch_errors.tolist())
             
     mae = np.mean(np.abs(errors))
@@ -241,17 +243,57 @@ def main():
     parser.add_argument("--epochs", type=int, default=15)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--masked", action="store_true")
+    parser.add_argument(
+        "--data_dir", type=str, default="data/level1_cropped",
+        help="Where to scan for fold ids (one fold per video file).",
+    )
+    parser.add_argument(
+        "--folds", type=str, default=None,
+        help="Comma-separated list of fold ids to run. Default: every .mp4 in --data_dir.",
+    )
+    parser.add_argument(
+        "--no-wandb", action="store_true",
+        help="Disable wandb logging entirely (overrides --wandb_project).",
+    )
+    parser.add_argument(
+        "--wandb_project", type=str, default="video-regression-loso",
+    )
     args = parser.parse_args()
-    
-    # Identify sequences (limiting to valid sequence folders in our phantom study)
-    seq_ids = [f"sequence_{i}" for i in [1, 2, 3, 5, 6, 7, 8]]
+
+    # Identify sequences: one fold per video in the canonical dataset directory.
+    if args.folds:
+        seq_ids = [s.strip() for s in args.folds.split(',') if s.strip()]
+    else:
+        import glob as _glob
+        seq_ids = sorted(
+            os.path.splitext(os.path.basename(p))[0]
+            for p in _glob.glob(os.path.join(args.data_dir, '*.mp4'))
+        )
+    if not seq_ids:
+        raise SystemExit(
+            f"No fold ids resolved. Pass --folds or populate {args.data_dir} with .mp4 videos."
+        )
+
+    if wandb is not None and not args.no_wandb:
+        try:
+            wandb.init(
+                project=args.wandb_project,
+                name=f"LOSO_{args.model}{'_masked' if args.masked else ''}",
+                config=vars(args),
+                reinit=True,
+            )
+        except Exception as e:  # offline / no auth
+            print(f"[loso] wandb init failed ({e}); continuing without logging.")
     
     results = []
     for seq_id in seq_ids:
         try:
             res = run_loso_fold(seq_id, args.model, args)
             if res:
+                res["model"] = args.model
                 results.append(res)
+                if wandb is not None and getattr(wandb, "run", None) is not None:
+                    wandb.log({f"fold/{seq_id}/mae": res["mae"], f"fold/{seq_id}/rmse": res["rmse"]})
         except Exception as e:
             print(f"Error in fold {seq_id}: {e}")
             
@@ -266,8 +308,8 @@ def main():
     print("="*60)
     print(df.to_string(index=False))
     print("-" * 60)
-    print(f"MEAN MAE:  {df['mae'].mean():.4f} \pm {df['mae'].std():.4f} K")
-    print(f"MEAN RMSE: {df['rmse'].mean():.4f} \pm {df['rmse'].std():.4f} K")
+    print(f"MEAN MAE:  {df['mae'].mean():.4f} +/- {df['mae'].std():.4f} K")
+    print(f"MEAN RMSE: {df['rmse'].mean():.4f} +/- {df['rmse'].std():.4f} K")
     
     os.makedirs("results", exist_ok=True)
     output_path = f"results/loso_{args.model}_{'masked' if args.masked else 'unmasked'}.csv"

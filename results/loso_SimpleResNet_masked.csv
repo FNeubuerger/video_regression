@@ -1,0 +1,2 @@
+fold,mae,rmse,model
+US_001_30W_10min,56.11800499268394,61.645701430174526,SimpleResNet

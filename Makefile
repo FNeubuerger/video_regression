@@ -166,3 +166,140 @@ clean:
 start_benchmarks:
 	@echo "Starting ALL benchmarks (Scalar, Spatial, U-Net, Bayesian PINN) in tmux..."
 	@bash scripts/run_benchmarks.sh
+
+# ========================================================================
+# AUDIT-DRIVEN TARGETS (added by academic-rigor pass)
+# ========================================================================
+
+RESULTS_DIR := results
+VALIDATION_DIR := validation_results
+DATA_DIR := data/level1_cropped
+
+.PHONY: missing list_missing loso_aggregate master_table validation \
+        calibration stat_tests physics_losses_ablation \
+        lint format test ci_local docs_pdf consolidate_paper \
+        eval_all eval_uq help_audit
+
+## list_missing : Print which model checkpoints are not on disk.
+list_missing:
+	@$(PYTHON) scripts/find_missing_experiments.py
+
+## missing     : Train only the models that have no checkpoint yet.
+missing: list_missing
+	@for m in $$($(PYTHON) scripts/find_missing_experiments.py --list-only); do \
+	    echo "=== Training missing: $$m ==="; \
+	    case $$m in \
+	      CNNLSTM)              $(MAKE) cnnlstm ;; \
+	      PretrainedCNNLSTM)    $(MAKE) pretrained_cnnlstm ;; \
+	      SimpleResNet)         $(MAKE) simple_resnet ;; \
+	      PhysicsCNNLSTM)       $(MAKE) physics_cnnlstm ;; \
+	      Ensemble)             $(MAKE) ensemble ;; \
+	      BayesianResNet)       $(MAKE) bayesian ;; \
+	      FullBayesianResNet)   $(MAKE) full_bayesian ;; \
+	      SpatialBioheat)       $(MAKE) spatial_bioheat ;; \
+	      SpatialConvection)    $(MAKE) spatial_convection ;; \
+	      SpatialMetabolic)     $(MAKE) spatial_metabolic ;; \
+	      *) echo "No Makefile rule for $$m, skipping." ;; \
+	    esac; \
+	done
+
+## eval_all    : Run scalar evaluation across every checkpoint we have.
+eval_all:
+	$(PYTHON) evaluation/evaluate_models.py 2>&1 | tee $(LOG_DIR)/eval_all.log
+
+## eval_uq     : Run uncertainty-aware evaluation across UQ checkpoints.
+eval_uq:
+	$(PYTHON) evaluation/comprehensive_uncertainty_eval.py 2>&1 | tee $(LOG_DIR)/eval_uq.log
+
+## loso_aggregate : Aggregate per-fold LOSO CSVs into summary statistics.
+loso_aggregate:
+	$(PYTHON) evaluation/aggregate_loso.py \
+	    --pattern '$(RESULTS_DIR)/loso_*.csv' \
+	    --out-summary $(RESULTS_DIR)/loso_summary.csv \
+	    --out-long $(RESULTS_DIR)/loso_per_fold.csv \
+	    --allow-empty
+
+## master_table : Build the master CSV + LaTeX table for the paper.
+master_table:
+	$(PYTHON) evaluation/build_master_table.py \
+	    --pattern '$(RESULTS_DIR)/model_*.csv' \
+	    --pattern '$(RESULTS_DIR)/tables/*.csv' \
+	    --pattern '$(RESULTS_DIR)/loso_summary.csv' \
+	    --out-csv $(RESULTS_DIR)/MASTER_RESULTS.csv \
+	    --out-tex $(RESULTS_DIR)/MASTER_RESULTS.tex \
+	    --allow-empty
+
+## stat_tests  : Pairwise Wilcoxon p-value matrix across LOSO folds.
+stat_tests: loso_aggregate
+	$(PYTHON) evaluation/pairwise_stat_tests.py \
+	    --input $(RESULTS_DIR)/loso_per_fold.csv \
+	    --metric MAE \
+	    --out-csv $(RESULTS_DIR)/pairwise_wilcoxon.csv \
+	    --out-png $(RESULTS_DIR)/pairwise_wilcoxon.png \
+	    --allow-empty
+
+## calibration : Reliability + sharpness diagnostics on UQ outputs.
+##   Override INPUT and NAME, e.g.: make calibration INPUT=results/bayes_resnet_preds.csv NAME=bayes_resnet
+INPUT ?= $(RESULTS_DIR)/uq_predictions.csv
+NAME ?= model
+calibration:
+	$(PYTHON) evaluation/calibration_diagnostics.py \
+	    --input $(INPUT) --name $(NAME) --out-dir $(RESULTS_DIR)/calibration
+
+## validation  : Cut-phantom + CEM43 + IoU/Dice end-to-end.
+##   Required: MODEL=<registry-name>  CKPT=<path/to/ckpt.pth>
+MODEL ?= stub
+CKPT ?=
+CEM43_THRESH ?= 240
+MC ?= 1
+validation:
+	$(PYTHON) validation/validate_ablation_zone.py \
+	    --video_dir data/new_data/videos \
+	    --phantom_dir data/new_data/phantoms \
+	    --model $(MODEL) \
+	    $(if $(CKPT),--checkpoint $(CKPT)) \
+	    --cem43_thresh $(CEM43_THRESH) \
+	    --mc_samples $(MC) \
+	    --output_dir $(VALIDATION_DIR)
+	$(PYTHON) validation/analyze_validation_metrics.py \
+	    --input $(VALIDATION_DIR)/metrics.csv \
+	    --output_dir $(VALIDATION_DIR)
+
+## physics_losses_ablation : Sweep over the new additional physics losses.
+physics_losses_ablation:
+	@for w in 0.0 0.01 0.1 1.0; do \
+	    echo "=== Ablation w_energy=$$w ==="; \
+	    $(PYTHON) training/train_spatial_bioheat.py \
+	        --epochs 20 --extra-loss energy --extra-weight $$w \
+	        --tag energy_w$$w 2>&1 | tee $(LOG_DIR)/ablation_energy_$$w.log; \
+	done
+
+## consolidate_paper : Pull paper-related files from sibling branches.
+consolidate_paper:
+	bash scripts/consolidate_paper_branches.sh
+
+## lint        : Run Black + isort + Flake8 in check mode.
+lint:
+	black --check --line-length=88 .
+	isort --check-only --profile=black --line-length=88 .
+	flake8 --max-line-length=88 --extend-ignore=E203,W503,E501 .
+
+## format      : Apply Black + isort.
+format:
+	black --line-length=88 .
+	isort --profile=black --line-length=88 .
+
+## test        : Run unit tests.
+test:
+	$(PYTHON) -m pytest -q tests
+
+## ci_local    : Lint + tests, the same set CI runs.
+ci_local: lint test
+
+## docs_pdf    : Build the paper PDF.
+docs_pdf:
+	$(MAKE) -C paper
+
+## help_audit  : List the academic-audit targets with their docstrings.
+help_audit:
+	@grep -E '^## ' Makefile | sed 's/^## //'

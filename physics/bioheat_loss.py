@@ -31,7 +31,8 @@ class AdvancedBioHeatLoss(nn.Module):
         self.dt = dt
         self.dx = dx
         self.spatial_params = spatial_params
-        
+        self.frame_shape = tuple(frame_shape)
+
         # Learnable Parameters
         # We use Log-space to ensure positivity
         param_shape = (1, 1, *frame_shape) if spatial_params else (1,)

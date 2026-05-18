@@ -1,0 +1,48 @@
+\begin{table}
+\caption{Master results across all models and evaluation criteria.}
+\label{tab:master_results}
+\begin{tabular}{lllrllllllllrrrrrrrr}
+\toprule
+model & MAE & RMSE & NLL & ECE & PICP_95 & MPIW_95 & params_M & latency_ms & loso_gap & Category & Display Name & MSE ($K^2$) & MAE (K) & RMSE (K) & PICP$_{95}$ & MPIW$_{95}$ (K) & Within 1°C (%) & Within 2°C (%) & Within 5°C (%) \\
+\midrule
+comprehensive_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & Other & physicscnnlstm (Masked) & 582.898 & 19.129 & 24.143 & -- & -- & 4.201 & 7.846 & 18.084 \\
+comprehensive_results & -- & -- & 29.033 & -- & -- & -- & -- & -- & -- & Other & BayesianCNNLSTM & 889.036 & 28.544 & 29.817 & 0.030 & 16.251 & -- & -- & -- \\
+comprehensive_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & Other & pretrainedcnnlstm (Masked) & 1339.783 & 32.244 & 36.603 & -- & -- & 0.965 & 2.209 & 5.726 \\
+comprehensive_results & -- & -- & 136107706548224.000 & -- & -- & -- & -- & -- & -- & Other & best & 1372.850 & 37.052 & 37.052 & 0.000 & 0.000 & -- & -- & -- \\
+comprehensive_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & Other & simpleresnet (Masked) & 1648.434 & 35.579 & 40.601 & -- & -- & 0.715 & 1.689 & 4.993 \\
+comprehensive_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & Spatial & Spatial Bioheat & 3.570 & 1.242 & 1.890 & -- & -- & 48.862 & 63.461 & 99.768 \\
+comprehensive_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & Spatial & Spatial Metabolic & 4.036 & 1.027 & 2.009 & -- & -- & 53.397 & 87.185 & 99.665 \\
+comprehensive_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & Spatial & Simple ResNet & 635.134 & 20.535 & 25.202 & -- & -- & 1.271 & 2.348 & 5.791 \\
+comprehensive_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & Spatial & Spatial Convection & 2861.193 & 50.283 & 53.490 & -- & -- & 0.000 & 0.000 & 0.000 \\
+comprehensive_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & Temporal & Convection Bioheat & 0.384 & 0.241 & 0.619 & -- & -- & 96.143 & 99.192 & 99.833 \\
+comprehensive_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & Temporal & Metabolic Bioheat & 0.697 & 0.212 & 0.835 & -- & -- & 97.612 & 99.554 & 99.861 \\
+comprehensive_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & Temporal & Bioheat PINN & 1.349 & 0.235 & 1.161 & -- & -- & 97.816 & 99.647 & 99.833 \\
+comprehensive_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & Temporal & CNNLSTM & 8.949 & 2.253 & 2.991 & -- & -- & 30.368 & 55.322 & 90.326 \\
+comprehensive_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & Temporal & Physics CNNLSTM & 617.294 & 20.277 & 24.845 & -- & -- & 0.872 & 1.661 & 4.352 \\
+comprehensive_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & Temporal & Pretrained CNNLSTM & 658.726 & 21.159 & 25.666 & -- & -- & 0.334 & 1.049 & 4.436 \\
+comprehensive_results & -- & -- & 49.338 & -- & -- & -- & -- & -- & -- & Uncertainty & Bayesian CNNLSTM & 840.860 & 22.128 & 28.998 & 0.235 & 12.391 & -- & -- & -- \\
+comprehensive_results & -- & -- & 65.768 & -- & -- & -- & -- & -- & -- & Uncertainty & Bayesian Spatial Convection & 1105.239 & 31.150 & 33.245 & 0.047 & 15.160 & -- & -- & -- \\
+comprehensive_results & -- & -- & 200.794 & -- & -- & -- & -- & -- & -- & Uncertainty & Bayesian Head & 1150.835 & 28.775 & 33.924 & 0.068 & 7.378 & -- & -- & -- \\
+comprehensive_results & -- & -- & 56.763 & -- & -- & -- & -- & -- & -- & Uncertainty & Bayesian PINN & 1432.281 & 32.119 & 37.845 & 0.147 & 16.671 & -- & -- & -- \\
+other_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & physicscnnlstm (Masked) & 582.898 & 19.129 & 24.143 & -- & -- & 4.201 & 7.846 & 18.084 \\
+other_results & -- & -- & 29.033 & -- & -- & -- & -- & -- & -- & -- & BayesianCNNLSTM & 889.036 & 28.544 & 29.817 & 0.030 & 16.251 & -- & -- & -- \\
+other_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & pretrainedcnnlstm (Masked) & 1339.783 & 32.244 & 36.603 & -- & -- & 0.965 & 2.209 & 5.726 \\
+other_results & -- & -- & 136107706548224.000 & -- & -- & -- & -- & -- & -- & -- & best & 1372.850 & 37.052 & 37.052 & 0.000 & 0.000 & -- & -- & -- \\
+other_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & simpleresnet (Masked) & 1648.434 & 35.579 & 40.601 & -- & -- & 0.715 & 1.689 & 4.993 \\
+spatial_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & Spatial Bioheat & 3.570 & 1.242 & 1.890 & -- & -- & 48.862 & 63.461 & 99.768 \\
+spatial_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & Spatial Metabolic & 4.036 & 1.027 & 2.009 & -- & -- & 53.397 & 87.185 & 99.665 \\
+spatial_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & Simple ResNet & 635.134 & 20.535 & 25.202 & -- & -- & 1.271 & 2.348 & 5.791 \\
+spatial_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & Spatial Convection & 2861.193 & 50.283 & 53.490 & -- & -- & 0.000 & 0.000 & 0.000 \\
+temporal_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & Convection Bioheat & 0.384 & 0.241 & 0.619 & -- & -- & 96.143 & 99.192 & 99.833 \\
+temporal_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & Metabolic Bioheat & 0.697 & 0.212 & 0.835 & -- & -- & 97.612 & 99.554 & 99.861 \\
+temporal_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & Bioheat PINN & 1.349 & 0.235 & 1.161 & -- & -- & 97.816 & 99.647 & 99.833 \\
+temporal_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & CNNLSTM & 8.949 & 2.253 & 2.991 & -- & -- & 30.368 & 55.322 & 90.326 \\
+temporal_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & Physics CNNLSTM & 617.294 & 20.277 & 24.845 & -- & -- & 0.872 & 1.661 & 4.352 \\
+temporal_results & -- & -- & -- & -- & -- & -- & -- & -- & -- & -- & Pretrained CNNLSTM & 658.726 & 21.159 & 25.666 & -- & -- & 0.334 & 1.049 & 4.436 \\
+uncertainty_results & -- & -- & 49.338 & -- & -- & -- & -- & -- & -- & -- & Bayesian CNNLSTM & 840.860 & 22.128 & 28.998 & 0.235 & 12.391 & -- & -- & -- \\
+uncertainty_results & -- & -- & 65.768 & -- & -- & -- & -- & -- & -- & -- & Bayesian Spatial Convection & 1105.239 & 31.150 & 33.245 & 0.047 & 15.160 & -- & -- & -- \\
+uncertainty_results & -- & -- & 200.794 & -- & -- & -- & -- & -- & -- & -- & Bayesian Head & 1150.835 & 28.775 & 33.924 & 0.068 & 7.378 & -- & -- & -- \\
+uncertainty_results & -- & -- & 56.763 & -- & -- & -- & -- & -- & -- & -- & Bayesian PINN & 1432.281 & 32.119 & 37.845 & 0.147 & 16.671 & -- & -- & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
