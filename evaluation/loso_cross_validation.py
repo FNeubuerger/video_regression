@@ -174,11 +174,24 @@ def run_loso_fold(holdout_seq, model_type, args):
     
     is_bayesian = "Bayesian" in model_type
     mc_samples = 10 if is_bayesian else 1
-    
+
+    # Spatial models emit a temperature field; we evaluate it against the
+    # pooled ground-truth heatmap in addition to the scalar reduction.
+    spatial_models = {
+        "SpatialResNet",
+        "ConvectionBioheat",
+        "SpatialPhysicsCNNLSTM",
+        "ConvLTC",
+    }
+    is_spatial = model_type in spatial_models
+
     errors = []
+    field_abs_errors = []
+    field_sq_errors = []
     with torch.no_grad():
         for batch in tqdm(test_loader, desc="Testing Fold"):
             scalars = None
+            gt_maps = None
             if len(batch) == 4:
                 imgs, gt_maps, mask, scalars = batch
                 gt = scalars
@@ -202,6 +215,7 @@ def run_loso_fold(holdout_seq, model_type, args):
             
             # Monte Carlo sampling for Bayesian models
             batch_samples = []
+            batch_field_samples = []
             for _ in range(mc_samples):
                 out = model(imgs)
 
@@ -209,13 +223,15 @@ def run_loso_fold(holdout_seq, model_type, args):
                 if isinstance(out, tuple):
                     out = out[0]
 
-                # Use the same shape-alignment helper as training so we
-                # never have to maintain two parallel reduction paths.
-                # gt may be (B, 4) or (B, T, 4); pass through unchanged
-                # so align_outputs_target picks the right target shape.
+                # Keep a copy of the raw field BEFORE scalar reduction so
+                # we can evaluate per-pixel temperature estimation.
+                if is_spatial and gt_maps is not None:
+                    batch_field_samples.append(out.detach().cpu())
+
+                # Scalar reduction (sensor-level metric).
                 gt_t = gt if torch.is_tensor(gt) else torch.as_tensor(gt)
-                out, _ = align_outputs_target(out, gt_t.to(out.device).float())
-                batch_samples.append(out.cpu().numpy())
+                out_red, _ = align_outputs_target(out, gt_t.to(out.device).float())
+                batch_samples.append(out_red.cpu().numpy())
 
             # Mean across MC samples (now in helper-reduced shape).
             out_mean = np.mean(batch_samples, axis=0)
@@ -230,12 +246,65 @@ def run_loso_fold(holdout_seq, model_type, args):
             batch_errors = (out_aligned.cpu().numpy().reshape(-1)
                             - gt_aligned.cpu().numpy().reshape(-1))
             errors.extend(batch_errors.tolist())
-            
+
+            # --- Field-level temperature estimation ---
+            if is_spatial and batch_field_samples:
+                # Stack MC samples on a new leading axis then mean.
+                fields = torch.stack(batch_field_samples, dim=0).mean(dim=0)
+                # fields is the model output; could be (B, T, h, w),
+                # (B, T, C, h, w), or (B, h, w).  Reduce to (B, T, h, w)
+                # or (B, h, w) by averaging any channel axis.
+                if fields.dim() == 5:
+                    fields = fields.mean(dim=2)         # (B, T, h, w)
+                elif fields.dim() == 4 and fields.shape[1] not in (1, imgs.shape[1]):
+                    # (B, C, h, w) without time -> mean over C
+                    fields = fields.mean(dim=1)         # (B, h, w)
+
+                # Pool the ground-truth heatmap (B, T, 1, H, W) down to the
+                # predicted spatial resolution and align temporal shape.
+                gt_field = gt_maps.float()              # (B, T, 1, H, W)
+                if gt_field.dim() == 5:
+                    gt_field = gt_field.squeeze(2)      # (B, T, H, W)
+                if fields.dim() == 3 and gt_field.dim() == 4:
+                    gt_field = gt_field[:, -1]          # (B, H, W)
+                if fields.dim() == 4 and gt_field.dim() == 4 \
+                        and fields.shape[1] != gt_field.shape[1]:
+                    # mismatched T -> use last frame on both
+                    fields = fields[:, -1:]
+                    gt_field = gt_field[:, -1:]
+
+                # Adaptive-pool ground truth to predicted spatial shape.
+                target_hw = fields.shape[-2:]
+                if gt_field.shape[-2:] != target_hw:
+                    flat = gt_field.reshape(-1, 1, *gt_field.shape[-2:])
+                    pooled = torch.nn.functional.adaptive_avg_pool2d(flat, target_hw)
+                    gt_field = pooled.reshape(*gt_field.shape[:-2], *target_hw)
+
+                diff = (fields - gt_field).numpy().reshape(-1)
+                field_abs_errors.extend(np.abs(diff).tolist())
+                field_sq_errors.extend((diff ** 2).tolist())
+
     mae = np.mean(np.abs(errors))
     rmse = np.sqrt(np.mean(np.square(errors)))
-    
-    print(f"Fold {holdout_seq} Results: MAE={mae:.4f} K, RMSE={rmse:.4f} K")
-    return {"fold": holdout_seq, "mae": float(mae), "rmse": float(rmse)}
+
+    field_mae = float(np.mean(field_abs_errors)) if field_abs_errors else float("nan")
+    field_rmse = float(np.sqrt(np.mean(field_sq_errors))) if field_sq_errors else float("nan")
+
+    if is_spatial and field_abs_errors:
+        print(
+            f"Fold {holdout_seq} Results: MAE={mae:.4f} K, RMSE={rmse:.4f} K | "
+            f"Field MAE={field_mae:.4f} K, Field RMSE={field_rmse:.4f} K"
+        )
+    else:
+        print(f"Fold {holdout_seq} Results: MAE={mae:.4f} K, RMSE={rmse:.4f} K")
+
+    return {
+        "fold": holdout_seq,
+        "mae": float(mae),
+        "rmse": float(rmse),
+        "field_mae": field_mae,
+        "field_rmse": field_rmse,
+    }
 
 def main():
     parser = argparse.ArgumentParser()
