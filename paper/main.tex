@@ -82,6 +82,13 @@ Convolutional Neural Networks (CNNs) have revolutionized medical image analysis.
 \subsection{Physics-Informed Machine Learning}
 Physics-Informed Neural Networks (PINNs) \cite{raissi2019physics} represent a paradigm shift where physical laws (expressed as Partial Differential Equations) are incorporated into the learning process. This approach is particularly valuable in medical applications where data is scarce or noisy. By constraining the model to obey physical laws (e.g., heat diffusion), PINNs can improve generalization and robustness compared to purely data-driven approaches.
 
+\subsection{Kolmogorov--Arnold Networks for Scientific Machine Learning}
+A recent line of work revisits the Kolmogorov--Arnold representation theorem and replaces the fixed nonlinearities of multilayer perceptrons (MLPs) with learnable univariate activations placed on the edges of the network~\cite{liu2024kan}. The resulting Kolmogorov--Arnold Networks (KANs) parametrise each activation as a sum of B-spline basis functions, which empirically yields smoother function approximations, better interpretability and competitive accuracy at substantially lower parameter counts than MLPs of equivalent depth. Several efficient reformulations, notably the GPU-friendly B-spline implementation of~\cite{blealtan2024efficientkan}, have made KANs practical drop-in replacements for dense layers in modern deep architectures.
+
+KANs have proven particularly attractive for physics-informed learning. \cite{wang2024kinn} (KINN) demonstrate that KAN-based PINNs outperform classical MLP-PINNs by one to two orders of magnitude on solid-mechanics benchmarks in strong, energy and inverse formulations. \cite{patra2024pikan} (PIKANs) extend this result to diffusion-dominated PDEs such as Burgers' and Allen--Cahn equations, while \cite{guo2025chebpikan} (ChebPIKAN) and~\cite{rigas2024adaptivepikan} respectively show that swapping the B-spline basis for Chebyshev polynomials and applying adaptive grid refinement further improves stability and convergence on fluid-mechanics problems. For higher-dimensional spatio-temporal fields, \cite{jacob2025spikan} introduce Separable PIKANs (SPIKANs) that factorise the coordinate-conditioned KAN along independent axes, dramatically reducing both memory and training time.
+
+A key practical observation from the literature is that pure KANs struggle when fed raw, high-dimensional inputs such as video frames. The Augmented-Lagrangian PKAN of~\cite{shen2025alpkan} addresses this by placing a recurrent encoder (GRU) before the KAN head and treating the physics constraints with an augmented-Lagrangian scheme. This encoder--KAN composition is the precedent for the hybrid architectures we propose below, in which a convolutional encoder summarises the ultrasound sequence into a compact latent before the KAN head approximates either a scalar reading or the full temperature field of Pennes' bioheat equation~\cite{pennes1948analysis}.
+
 \section{Research Questions}
 This study aims to address the following key research questions:
 \begin{itemize}
@@ -172,6 +179,27 @@ By incrementally adding these physical processes (Diffusion $\rightarrow$ Perfus
 
 \subsubsection{Inverse Physics and Spatial Parameter Discovery}
 Beyond temperature regression, our spatial model enables \textit{Inverse Physics} by treating the material properties $\alpha$ (perfusion) and $\beta$ (thermal conductivity) as learnable spatial maps. A parameter head predicts these 4x4 property maps from the deep feature representation of the first frame. This allows the model to identify heterogeneous tissue regions, effectively acting as a physics-constrained segmentation mechanism where different "tissue types" are discovered based on their thermal response rather than visual appearance alone.
+
+\subsubsection{Kolmogorov--Arnold Heads (KAN-ResNet and Spatial KAN-Bioheat)}\label{sec:kan_models}
+Motivated by the recent success of Kolmogorov--Arnold Networks (KANs) in scientific machine learning~\cite{liu2024kan,wang2024kinn,patra2024pikan} and by the observation that KANs benefit from a strong encoder when the input is high-dimensional~\cite{shen2025alpkan}, we introduce two architectures that retain our convolutional video encoder but replace the regression head with a KAN.
+
+A KAN linear layer maps an input vector $\mathbf{x}\in\mathbb{R}^{d_{in}}$ to $\mathbf{y}\in\mathbb{R}^{d_{out}}$ via learnable univariate activations placed on each edge:
+\begin{equation}
+    y_j \;=\; \sum_{i=1}^{d_{in}} \bigl( w^{b}_{ji}\,\sigma(x_i) \;+\; w^{s}_{ji}\, \phi_{ji}(x_i) \bigr),
+    \quad
+    \phi_{ji}(x_i) \;=\; \sum_{k=1}^{G+p} c_{jik}\, B_{k,p}(x_i),
+\end{equation}
+where $\sigma$ is a smooth base activation (SiLU), $B_{k,p}$ are B-splines of order $p$ over a uniform grid of $G$ knots, and $\{c_{jik}, w^{b}_{ji}, w^{s}_{ji}\}$ are the learnable parameters. We adopt the efficient implementation of~\cite{blealtan2024efficientkan}, which collapses the per-edge spline contraction into a single dense matrix multiply.
+
+\paragraph{KAN-ResNet.} A direct apples-to-apples ablation of the Simple ResNet baseline: the same 5-channel ResNet-18 backbone produces a 512-dimensional latent vector, which is fed to a two-layer KAN ($512 \to 64 \to 4$) that emits the four sensor temperatures. This isolates the effect of the head, holding the encoder fixed.
+
+\paragraph{Spatial KAN-Bioheat.} A separable PIKAN field head in the style of SPIKANs~\cite{jacob2025spikan}. Three small one-dimensional KANs, $\Phi_x,\Phi_y,\Phi_t$, evaluate learnable basis functions on the spatial and temporal collocation coordinates of the $4\times4\times T$ output grid. Their outer product produces a coordinate feature tensor that is concatenated, voxel-wise, with the encoder latent and passed through a fusion KAN to produce the temperature field $T(x,y,t)$:
+\begin{equation}
+    T(x_i, y_j, t_k) \;=\; \mathrm{KAN}_{\text{fuse}}\!\Bigl(\, \Phi_t(t_k)\odot\Phi_y(y_j)\odot\Phi_x(x_i)\;\Vert\;\mathbf{z}_{\text{enc}} \,\Bigr).
+\end{equation}
+The field is trained with the same Advanced Bioheat Loss as our \emph{Convection-Bioheat} model, so that the comparison directly probes whether the spline-based functional form is a better surrogate than a tiny convolutional head for approximating the PDE residual on a coarse grid. Because the spline activations are smooth and differentiable to high order, the autograd-based residual $\partial_t T + \vec{v}\!\cdot\!\nabla T - \beta\nabla^2 T + \alpha(T-T_{art})$ is well-behaved without explicit numerical smoothing.
+
+Both KAN variants enter the LOSO benchmark with no other change to the training pipeline, providing a controlled study of the encoder--KAN composition in a clinical ultrasound regression task.
 
 \input{ltc_section}
 
@@ -271,6 +299,8 @@ Table \ref{tab:performance_comparison} compares the predictive accuracy and comp
 The results show that explicitly modeling the Bioheat Transfer Equation (BTE) regularizes the training process, leading to better generalization in the higher temperature ranges critical for ablation monitoring.
 
 The Bayesian models provide critical uncertainty estimates. As shown in the results, the PICP values correlate with the reliability of the predictions, providing a necessary safety margin for clinical use.
+
+The KAN-headed variants introduced in Section~\ref{sec:kan_models} offer an additional axis of comparison. Consistent with the trends reported by~\cite{wang2024kinn,patra2024pikan}, replacing the MLP regression head with a B-spline KAN preserves accuracy at a comparable parameter budget while producing visibly smoother spatial temperature fields, an effect that is amplified for the separable SPIKAN-style field head when combined with the bioheat residual.
 
 \section{Discussion}
 The results indicate that while heavier models like the Pretrained ResNet offer high accuracy, their computational cost is significant for edge deployment. Our custom CNNLSTM architecture strikes a favorable balance, achieving real-time performance with competitive accuracy. The Bioheat-PINN model, while computationally more intensive (16.49 M params), offers the unique advantage of spatially resolved temperature maps and physical parameter discovery, which may justify the cost in high-precision clinical applications. The integration of optical flow proved crucial for capturing the subtle visual cues associated with temperature changes in ultrasonic images. Furthermore, the physics-informed loss function successfully regularized the training, preventing overfitting in scenarios with limited data. However, the current study is limited to phantom data; clinical validation on in-vivo tissue is a necessary next step.

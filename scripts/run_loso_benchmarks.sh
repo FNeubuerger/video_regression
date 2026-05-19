@@ -10,7 +10,7 @@ VENV_PATH="/mnt/data2/video_regression/.venv/bin/python"
 #          ConvectionBioheat, SpatialResNet, BayesianResNet, 
 #          FullBayesianResNet, BayesianCNNLSTM, ConvLTC
 
-MODELS=("CNNLSTM" "PretrainedCNNLSTM" "PhysicsCNNLSTM" "ConvectionBioheat" "SimpleResNet" "SpatialResNet" "BayesianResNet" "FullBayesianResNet" "BayesianCNNLSTM" "ConvLTC")
+MODELS=("CNNLSTM" "PretrainedCNNLSTM" "PhysicsCNNLSTM" "ConvectionBioheat" "SimpleResNet" "SpatialResNet" "BayesianResNet" "FullBayesianResNet" "BayesianCNNLSTM" "ConvLTC" "KANResNet" "SpatialKANBioheat")
 EPOCHS=10   # Reduced for full benchmark run
 BATCH_SIZE=32
 

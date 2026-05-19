@@ -47,6 +47,8 @@ MODELS = [
     "FullBayesianResNet",
     "BayesianCNNLSTM",
     "ConvLTC",
+    "KANResNet",
+    "SpatialKANBioheat",
 ]
 
 

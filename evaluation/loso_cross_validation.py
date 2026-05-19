@@ -29,6 +29,7 @@ from utils.sequence_dataset import SequenceHeatmapDataset
 from models.backbones import CNNLSTM, SimpleResNet, PretrainedCNNLSTM, SpatialResNet
 from models.bayesian import BayesianResNet, FullBayesianResNet, BayesianSpatialResNet, BayesianCNNLSTM
 from models.conv_ltc import ConvLTC
+from models.kan import KANResNet, SpatialKANBioheat
 from physics.models import SpatialPhysicsCNNLSTM, PhysicsCNNLSTM
 from physics.loss import PhysicsInformedLoss
 from physics.bioheat_loss import AdvancedBioHeatLoss
@@ -141,6 +142,19 @@ def run_loso_fold(holdout_seq, model_type, args):
     elif model_type == "ConvLTC":
         model = ConvLTC(in_channels=5, hidden_channels=32)
         criterion = torch.nn.MSELoss()
+    elif model_type == "KANResNet":
+        model = KANResNet(frame_shape=frame_shape)
+        criterion = torch.nn.MSELoss()
+    elif model_type == "SpatialKANBioheat":
+        model = SpatialKANBioheat(
+            frame_shape=frame_shape, time_steps=time_steps, output_hw=(4, 4)
+        )
+        criterion = AdvancedBioHeatLoss(
+            physics_weight=0.1,
+            spatial_params=True,
+            learnable_params=True,
+            frame_shape=(4, 4),
+        )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
     
@@ -182,6 +196,7 @@ def run_loso_fold(holdout_seq, model_type, args):
         "ConvectionBioheat",
         "SpatialPhysicsCNNLSTM",
         "ConvLTC",
+        "SpatialKANBioheat",
     }
     is_spatial = model_type in spatial_models
 
