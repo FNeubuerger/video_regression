@@ -70,8 +70,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--pattern",
-        default="results/loso_*.csv",
-        help="Glob pattern of per-fold CSV files.",
+        action="append",
+        default=None,
+        help="Glob pattern of per-fold CSV files. May be passed multiple times.",
     )
     ap.add_argument("--group-col", default="model")
     ap.add_argument("--out-summary", default="results/loso_summary.csv")
@@ -83,13 +84,21 @@ def main():
     )
     args = ap.parse_args()
 
-    try:
-        df = load_fold_csvs(args.pattern)
-    except FileNotFoundError as e:
+    patterns = args.pattern or ["results/loso_*.csv"]
+    frames = []
+    missing = []
+    for pat in patterns:
+        try:
+            frames.append(load_fold_csvs(pat))
+        except FileNotFoundError as e:
+            missing.append(str(e))
+    if not frames:
+        msg = "; ".join(missing) if missing else "no CSVs matched"
         if args.allow_empty:
-            print(f"[aggregate_loso] {e}\n[aggregate_loso] --allow-empty set, exiting cleanly.")
+            print(f"[aggregate_loso] {msg}\n[aggregate_loso] --allow-empty set, exiting cleanly.")
             return
-        raise
+        raise FileNotFoundError(msg)
+    df = pd.concat(frames, ignore_index=True)
     os.makedirs(os.path.dirname(args.out_long) or ".", exist_ok=True)
     df.to_csv(args.out_long, index=False)
 

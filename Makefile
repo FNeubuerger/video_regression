@@ -214,7 +214,8 @@ eval_uq:
 ## loso_aggregate : Aggregate per-fold LOSO CSVs into summary statistics.
 loso_aggregate:
 	$(PYTHON) evaluation/aggregate_loso.py \
-	    --pattern '$(RESULTS_DIR)/loso_*.csv' \
+	    --pattern '$(RESULTS_DIR)/loso_*_masked.csv' \
+	    --pattern '$(RESULTS_DIR)/loso_*_unmasked.csv' \
 	    --out-summary $(RESULTS_DIR)/loso_summary.csv \
 	    --out-long $(RESULTS_DIR)/loso_per_fold.csv \
 	    --allow-empty
@@ -229,11 +230,19 @@ master_table:
 	    --out-tex $(RESULTS_DIR)/MASTER_RESULTS.tex \
 	    --allow-empty
 
+## loso_plots  : Generate LOSO figures (MAE bars, field MAE bars, per-fold heatmap, KAN comparison) + LaTeX table.
+loso_plots: loso_aggregate
+	$(PYTHON) evaluation/plot_loso_results.py \
+	    --per-fold $(RESULTS_DIR)/loso_per_fold.csv \
+	    --summary $(RESULTS_DIR)/loso_summary.csv \
+	    --figdir paper/figures \
+	    --tabledir paper/tables
+
 ## stat_tests  : Pairwise Wilcoxon p-value matrix across LOSO folds.
 stat_tests: loso_aggregate
 	$(PYTHON) evaluation/pairwise_stat_tests.py \
 	    --input $(RESULTS_DIR)/loso_per_fold.csv \
-	    --metric MAE \
+	    --metric mae \
 	    --out-csv $(RESULTS_DIR)/pairwise_wilcoxon.csv \
 	    --out-png $(RESULTS_DIR)/pairwise_wilcoxon.png \
 	    --allow-empty

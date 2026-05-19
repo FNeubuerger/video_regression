@@ -1,0 +1,23 @@
+\begin{table}[t]
+\centering
+\caption{Leave-one-subject-out cross-validation results (15 folds). Values are mean $\pm$ 95\% confidence interval across folds. Field MAE/RMSE are reported only for models that produce a spatial output.}
+\label{tab:loso_results}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcccc}
+\hline
+\textbf{Model} & \textbf{MAE} (K) $\downarrow$ & \textbf{RMSE} (K) $\downarrow$ & \textbf{Field MAE} (K) $\downarrow$ & \textbf{Field RMSE} (K) $\downarrow$ \\
+\hline
+SpatialResNet & 23.08 $\pm$ 5.05 & 25.93 $\pm$ 4.75 & 65.18 $\pm$ 8.54 & 66.56 $\pm$ 8.39 \\
+CNNLSTM & 23.71 $\pm$ 4.05 & 27.25 $\pm$ 4.18 & -- & -- \\
+BayesianCNNLSTM & 25.68 $\pm$ 4.25 & 30.48 $\pm$ 4.68 & -- & -- \\
+SimpleResNet & 26.67 $\pm$ 5.14 & 30.94 $\pm$ 6.03 & -- & -- \\
+FullBayesianResNet & 32.09 $\pm$ 13.36 & 36.68 $\pm$ 13.31 & -- & -- \\
+PretrainedCNNLSTM & 32.10 $\pm$ 5.91 & 36.89 $\pm$ 5.96 & -- & -- \\
+PhysicsCNNLSTM & 34.68 $\pm$ 7.35 & 40.08 $\pm$ 7.15 & -- & -- \\
+ConvectionBioheat & 49.85 $\pm$ 10.42 & 51.64 $\pm$ 10.72 & 0.05 $\pm$ 0.01 & 0.11 $\pm$ 0.01 \\
+BayesianResNet & 55.82 $\pm$ 29.65 & 61.92 $\pm$ 30.15 & -- & -- \\
+ConvLTC & 97.14 $\pm$ 19.14 & 98.30 $\pm$ 19.26 & 13.91 $\pm$ 3.11 & 26.28 $\pm$ 6.10 \\
+\hline
+\end{tabular}%
+}
+\end{table}
