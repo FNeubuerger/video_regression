@@ -400,18 +400,12 @@ def evaluate_model(model_name, checkpoint_path, data_dir, batch_size=32, num_sam
                 all_targets.append(targets_scalar.cpu().numpy())
             else:
                 all_targets.append(targets.cpu().numpy())
-            
-            # Stack predictions: (num_samples, batch_size)
-            batch_preds = np.stack(batch_preds, axis=0)
-            
-            # Compute statistics
-            batch_mean = np.mean(batch_preds, axis=0)
-            batch_std = np.std(batch_preds, axis=0)
-            
-            
-            all_means.append(batch_mean)
-            all_stds.append(batch_std)
-            
+
+            # NOTE: do NOT re-append batch_mean / batch_std here.
+            # They are already accumulated earlier in the loop.
+            # The previous duplicate appends caused predictions to be 2x the targets,
+            # producing the (10776,) vs (21552,) shape mismatch.
+
     # Concatenate all batches
     means = np.concatenate(all_means).reshape(-1)
     stds = np.concatenate(all_stds).reshape(-1)

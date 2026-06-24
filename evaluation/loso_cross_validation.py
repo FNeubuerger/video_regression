@@ -13,6 +13,11 @@ import pandas as pd
 import argparse
 import sys
 import json
+
+try:
+    import wandb
+except ImportError:  # wandb is optional for the LOSO driver
+    wandb = None
 from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 from tqdm import tqdm
@@ -24,10 +29,11 @@ from utils.sequence_dataset import SequenceHeatmapDataset
 from models.backbones import CNNLSTM, SimpleResNet, PretrainedCNNLSTM, SpatialResNet
 from models.bayesian import BayesianResNet, FullBayesianResNet, BayesianSpatialResNet, BayesianCNNLSTM
 from models.conv_ltc import ConvLTC
+from models.kan import KANResNet, SpatialKANBioheat
 from physics.models import SpatialPhysicsCNNLSTM, PhysicsCNNLSTM
 from physics.loss import PhysicsInformedLoss
 from physics.bioheat_loss import AdvancedBioHeatLoss
-from training.train_all_models import train_model_with_validation
+from training.train_all_models import train_model_with_validation, align_outputs_target
 
 def run_loso_fold(holdout_seq, model_type, args):
     """Run a single LOSO fold holding out holdout_seq."""
@@ -56,13 +62,15 @@ def run_loso_fold(holdout_seq, model_type, args):
     # Split based on sequence names
     train_indices = []
     test_indices = []
-    
+
     # SequenceHeatmapDataset uses .videos list for meta, but indices map to (vid_idx, start)
-    # We need to filter indices based on video path in videos[vid_idx]
-    
+    # We match by video basename (without extension) so the holdout id can be a
+    # legacy 'sequence_X' tag OR a real filename like 'US_001_30W_10min'.
+    holdout_token = str(holdout_seq).replace('.mp4', '')
     for idx_in_ds, (vid_idx, start_frame) in enumerate(full_dataset.indices):
         vid_path = full_dataset.videos[vid_idx]['path']
-        if holdout_seq in vid_path:
+        vid_basename = os.path.splitext(os.path.basename(vid_path))[0]
+        if holdout_token == vid_basename or holdout_token in vid_path:
             test_indices.append(idx_in_ds)
         else:
             train_indices.append(idx_in_ds)
@@ -134,6 +142,19 @@ def run_loso_fold(holdout_seq, model_type, args):
     elif model_type == "ConvLTC":
         model = ConvLTC(in_channels=5, hidden_channels=32)
         criterion = torch.nn.MSELoss()
+    elif model_type == "KANResNet":
+        model = KANResNet(frame_shape=frame_shape)
+        criterion = torch.nn.MSELoss()
+    elif model_type == "SpatialKANBioheat":
+        model = SpatialKANBioheat(
+            frame_shape=frame_shape, time_steps=time_steps, output_hw=(4, 4)
+        )
+        criterion = AdvancedBioHeatLoss(
+            physics_weight=0.1,
+            spatial_params=True,
+            learnable_params=True,
+            frame_shape=(4, 4),
+        )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
     
@@ -167,11 +188,25 @@ def run_loso_fold(holdout_seq, model_type, args):
     
     is_bayesian = "Bayesian" in model_type
     mc_samples = 10 if is_bayesian else 1
-    
+
+    # Spatial models emit a temperature field; we evaluate it against the
+    # pooled ground-truth heatmap in addition to the scalar reduction.
+    spatial_models = {
+        "SpatialResNet",
+        "ConvectionBioheat",
+        "SpatialPhysicsCNNLSTM",
+        "ConvLTC",
+        "SpatialKANBioheat",
+    }
+    is_spatial = model_type in spatial_models
+
     errors = []
+    field_abs_errors = []
+    field_sq_errors = []
     with torch.no_grad():
         for batch in tqdm(test_loader, desc="Testing Fold"):
             scalars = None
+            gt_maps = None
             if len(batch) == 4:
                 imgs, gt_maps, mask, scalars = batch
                 gt = scalars
@@ -182,58 +217,109 @@ def run_loso_fold(holdout_seq, model_type, args):
                 mask = None
                 
             if args.masked and mask is not None:
-                imgs = imgs * (1.0 - mask.unsqueeze(1))
+                # imgs is (B, T, C, H, W). mask can be (B, 1, H, W),
+                # (B, T, 1, H, W) or (B, T, H, W).
+                if mask.dim() == 4 and imgs.dim() == 5:
+                    mask = mask.unsqueeze(1)            # -> (B, 1, 1, H, W)
+                elif mask.dim() == 4 and imgs.dim() == 4:
+                    pass                                # (B, 1, H, W) ok
+                # else assume already broadcast-compatible
+                imgs = imgs * (1.0 - mask.float())
             
             imgs = imgs.to(device)
             
             # Monte Carlo sampling for Bayesian models
             batch_samples = []
+            batch_field_samples = []
             for _ in range(mc_samples):
                 out = model(imgs)
-                
+
                 # Handle multiple outputs (Issue #41)
                 if isinstance(out, tuple):
                     out = out[0]
-                
-                # Reduce if spatial (Spatial Map is (B, T, H, W) or (B, H, W))
-                if out.dim() == 4: 
-                    # Sequence of maps: Take last time step and average spatial
-                    out = out[:, -1].mean(dim=(1, 2))
-                elif out.dim() == 3:
-                    # Single map: average spatial
-                    out = out.mean(dim=(1, 2))
-                # (B, 4) or (B, T) or (B, 1)
-                # We assume correct models output (B, 4) now for 4 sensors
-                
-                batch_samples.append(out.cpu().numpy())
-            
-            # Mean across MC samples
-            out_mean = np.mean(batch_samples, axis=0) # (B, 4) or (B, T)
-            
-            gt_np = gt.numpy()
-            # If gt is sequence (B, T, 4), take last frame (B, 4)
-            if gt_np.ndim == 3:
-                 gt_np = gt_np[:, -1, :]
-            
-            # If output is (B, T), take last frame
-            if out_mean.ndim == 2 and out_mean.shape[1] == 5: # Assuming T=5
-                 out_mean = out_mean[:, -1]
-                 # If out was (B, T), it implies single channel output per frame?
-                 # If we want 4 sensors, out should be (B, 4).
-            
-            # We compare flattened arrays. 
-            # If out is (B, 4) and gt is (B, 4), error is calculated on all 4 sensors.
-            # If out is (B, 1) and gt is (B, 4), we squeeze or broadcast?
-            # We assume models are fixed to output 4 now.
-            
-            batch_errors = (out_mean - gt_np).flatten()
+
+                # Keep a copy of the raw field BEFORE scalar reduction so
+                # we can evaluate per-pixel temperature estimation.
+                if is_spatial and gt_maps is not None:
+                    batch_field_samples.append(out.detach().cpu())
+
+                # Scalar reduction (sensor-level metric).
+                gt_t = gt if torch.is_tensor(gt) else torch.as_tensor(gt)
+                out_red, _ = align_outputs_target(out, gt_t.to(out.device).float())
+                batch_samples.append(out_red.cpu().numpy())
+
+            # Mean across MC samples (now in helper-reduced shape).
+            out_mean = np.mean(batch_samples, axis=0)
+
+            # Pair the reduced out_mean with the gt through the helper once
+            # more so both come out length-matched (the helper truncates to
+            # the smaller of the two as a last resort).
+            out_t = torch.as_tensor(out_mean)
+            gt_t = gt if torch.is_tensor(gt) else torch.as_tensor(gt)
+            out_aligned, gt_aligned = align_outputs_target(out_t, gt_t.float())
+
+            batch_errors = (out_aligned.cpu().numpy().reshape(-1)
+                            - gt_aligned.cpu().numpy().reshape(-1))
             errors.extend(batch_errors.tolist())
-            
+
+            # --- Field-level temperature estimation ---
+            if is_spatial and batch_field_samples:
+                # Stack MC samples on a new leading axis then mean.
+                fields = torch.stack(batch_field_samples, dim=0).mean(dim=0)
+                # fields is the model output; could be (B, T, h, w),
+                # (B, T, C, h, w), or (B, h, w).  Reduce to (B, T, h, w)
+                # or (B, h, w) by averaging any channel axis.
+                if fields.dim() == 5:
+                    fields = fields.mean(dim=2)         # (B, T, h, w)
+                elif fields.dim() == 4 and fields.shape[1] not in (1, imgs.shape[1]):
+                    # (B, C, h, w) without time -> mean over C
+                    fields = fields.mean(dim=1)         # (B, h, w)
+
+                # Pool the ground-truth heatmap (B, T, 1, H, W) down to the
+                # predicted spatial resolution and align temporal shape.
+                gt_field = gt_maps.float()              # (B, T, 1, H, W)
+                if gt_field.dim() == 5:
+                    gt_field = gt_field.squeeze(2)      # (B, T, H, W)
+                if fields.dim() == 3 and gt_field.dim() == 4:
+                    gt_field = gt_field[:, -1]          # (B, H, W)
+                if fields.dim() == 4 and gt_field.dim() == 4 \
+                        and fields.shape[1] != gt_field.shape[1]:
+                    # mismatched T -> use last frame on both
+                    fields = fields[:, -1:]
+                    gt_field = gt_field[:, -1:]
+
+                # Adaptive-pool ground truth to predicted spatial shape.
+                target_hw = fields.shape[-2:]
+                if gt_field.shape[-2:] != target_hw:
+                    flat = gt_field.reshape(-1, 1, *gt_field.shape[-2:])
+                    pooled = torch.nn.functional.adaptive_avg_pool2d(flat, target_hw)
+                    gt_field = pooled.reshape(*gt_field.shape[:-2], *target_hw)
+
+                diff = (fields - gt_field).numpy().reshape(-1)
+                field_abs_errors.extend(np.abs(diff).tolist())
+                field_sq_errors.extend((diff ** 2).tolist())
+
     mae = np.mean(np.abs(errors))
     rmse = np.sqrt(np.mean(np.square(errors)))
-    
-    print(f"Fold {holdout_seq} Results: MAE={mae:.4f} K, RMSE={rmse:.4f} K")
-    return {"fold": holdout_seq, "mae": float(mae), "rmse": float(rmse)}
+
+    field_mae = float(np.mean(field_abs_errors)) if field_abs_errors else float("nan")
+    field_rmse = float(np.sqrt(np.mean(field_sq_errors))) if field_sq_errors else float("nan")
+
+    if is_spatial and field_abs_errors:
+        print(
+            f"Fold {holdout_seq} Results: MAE={mae:.4f} K, RMSE={rmse:.4f} K | "
+            f"Field MAE={field_mae:.4f} K, Field RMSE={field_rmse:.4f} K"
+        )
+    else:
+        print(f"Fold {holdout_seq} Results: MAE={mae:.4f} K, RMSE={rmse:.4f} K")
+
+    return {
+        "fold": holdout_seq,
+        "mae": float(mae),
+        "rmse": float(rmse),
+        "field_mae": field_mae,
+        "field_rmse": field_rmse,
+    }
 
 def main():
     parser = argparse.ArgumentParser()
@@ -241,17 +327,57 @@ def main():
     parser.add_argument("--epochs", type=int, default=15)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--masked", action="store_true")
+    parser.add_argument(
+        "--data_dir", type=str, default="data/level1_cropped",
+        help="Where to scan for fold ids (one fold per video file).",
+    )
+    parser.add_argument(
+        "--folds", type=str, default=None,
+        help="Comma-separated list of fold ids to run. Default: every .mp4 in --data_dir.",
+    )
+    parser.add_argument(
+        "--no-wandb", action="store_true",
+        help="Disable wandb logging entirely (overrides --wandb_project).",
+    )
+    parser.add_argument(
+        "--wandb_project", type=str, default="video-regression-loso",
+    )
     args = parser.parse_args()
-    
-    # Identify sequences (limiting to valid sequence folders in our phantom study)
-    seq_ids = [f"sequence_{i}" for i in [1, 2, 3, 5, 6, 7, 8]]
+
+    # Identify sequences: one fold per video in the canonical dataset directory.
+    if args.folds:
+        seq_ids = [s.strip() for s in args.folds.split(',') if s.strip()]
+    else:
+        import glob as _glob
+        seq_ids = sorted(
+            os.path.splitext(os.path.basename(p))[0]
+            for p in _glob.glob(os.path.join(args.data_dir, '*.mp4'))
+        )
+    if not seq_ids:
+        raise SystemExit(
+            f"No fold ids resolved. Pass --folds or populate {args.data_dir} with .mp4 videos."
+        )
+
+    if wandb is not None and not args.no_wandb:
+        try:
+            wandb.init(
+                project=args.wandb_project,
+                name=f"LOSO_{args.model}{'_masked' if args.masked else ''}",
+                config=vars(args),
+                reinit=True,
+            )
+        except Exception as e:  # offline / no auth
+            print(f"[loso] wandb init failed ({e}); continuing without logging.")
     
     results = []
     for seq_id in seq_ids:
         try:
             res = run_loso_fold(seq_id, args.model, args)
             if res:
+                res["model"] = args.model
                 results.append(res)
+                if wandb is not None and getattr(wandb, "run", None) is not None:
+                    wandb.log({f"fold/{seq_id}/mae": res["mae"], f"fold/{seq_id}/rmse": res["rmse"]})
         except Exception as e:
             print(f"Error in fold {seq_id}: {e}")
             
@@ -266,8 +392,8 @@ def main():
     print("="*60)
     print(df.to_string(index=False))
     print("-" * 60)
-    print(f"MEAN MAE:  {df['mae'].mean():.4f} \pm {df['mae'].std():.4f} K")
-    print(f"MEAN RMSE: {df['rmse'].mean():.4f} \pm {df['rmse'].std():.4f} K")
+    print(f"MEAN MAE:  {df['mae'].mean():.4f} +/- {df['mae'].std():.4f} K")
+    print(f"MEAN RMSE: {df['rmse'].mean():.4f} +/- {df['rmse'].std():.4f} K")
     
     os.makedirs("results", exist_ok=True)
     output_path = f"results/loso_{args.model}_{'masked' if args.masked else 'unmasked'}.csv"

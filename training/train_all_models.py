@@ -51,6 +51,125 @@ def create_model(model_type, frame_shape, time_steps):
         raise ValueError(f"Unknown model type: {model_type}")
 
 
+def _pool_target_for_bioheat(labels, criterion):
+    """Reduce a dense heatmap target to the (H, W) the bioheat loss expects.
+
+    ConvectionBioheat / SpatialPhysicsCNNLSTM emit a small ``(B, T, h, w)``
+    coarse field (often ``4x4``).  Our dataset's ``labels_raw`` is the full
+    ``(B, T, 1, H, W)`` heatmap (typically ``64x64``).  Adaptive-pool the
+    heatmap down to the criterion's ``frame_shape`` so they line up for
+    elementwise MSE inside ``AdvancedBioHeatLoss``.
+    """
+    import torch.nn.functional as F
+
+    target_hw = getattr(criterion, "frame_shape", None)
+    if target_hw is None:
+        return labels  # nothing to do
+
+    if labels.dim() == 5:
+        # (B, T, C, H, W) -> pool spatial -> (B, T, C, h, w) -> drop C
+        B, T, C, H, W = labels.shape
+        if (H, W) == tuple(target_hw):
+            return labels.squeeze(2) if C == 1 else labels.mean(dim=2)
+        pooled = F.adaptive_avg_pool2d(labels.reshape(B * T * C, 1, H, W), target_hw)
+        pooled = pooled.reshape(B, T, C, *target_hw)
+        return pooled.squeeze(2) if C == 1 else pooled.mean(dim=2)
+    if labels.dim() == 4:
+        # (B, T, H, W) sequence without channel dim
+        B, T, H, W = labels.shape
+        if (H, W) == tuple(target_hw):
+            return labels
+        pooled = F.adaptive_avg_pool2d(labels.reshape(B * T, 1, H, W), target_hw)
+        return pooled.reshape(B, T, *target_hw)
+    return labels
+
+
+def align_outputs_target(outputs, target):
+    """Coerce ``(outputs, target)`` into broadcast-compatible shapes for MSE.
+
+    Handles every output rank we see across the model zoo so that the
+    plain-MSE branch never explodes with a shape mismatch:
+
+    * ``(B, T, 4, 4)`` ConvectionBioheat spatial map -> mean spatial -> ``(B, T)``.
+    * ``(B, 4, 4)``   single spatial map           -> mean spatial -> ``(B,)``.
+    * ``(B, T, C, H, W)`` spatial sequence         -> last frame, mean spatial.
+    * ``(B, T, H, W)``    spatial sequence (no C)  -> last frame, mean spatial.
+    * ``(B, H, W)``       single spatial map       -> mean spatial -> ``(B,)``.
+    * ``(B, T, K)`` sensor-sequence (small K)      -> last frame -> ``(B, K)``.
+    * ``(B, T)``    scalar sequence                -> last frame -> ``(B,)``.
+    * ``(B, 1)`` / ``(B,)`` scalar -> reshape target to match.
+    * Target rank greater than outputs -> take last frame of target.
+
+    Both tensors are returned with matching ranks.  The function never
+    moves data across devices; callers should call ``.to(device)`` first.
+    """
+
+    # 1) Reduce 5D spatial sequences to per-sample scalar.
+    if outputs.dim() == 5:
+        # (B, T, C, H, W) -> last frame, then mean over (C, H, W)
+        outputs = outputs[:, -1].mean(dim=(1, 2, 3))
+
+    # 2) Reduce 4D outputs: distinguish (B, T, H, W) from (B, T, K) and from (B, 4, 4).
+    if outputs.dim() == 4:
+        # ConvectionBioheat returns (B, T, 4, 4).  Keep T axis intact so it can
+        # match a (B, T)-shaped target, then mean over the 4x4 grid.
+        if outputs.shape[-1] <= 8 and outputs.shape[-2] <= 8:
+            outputs = outputs.mean(dim=(2, 3))  # (B, T)
+        else:
+            outputs = outputs[:, -1].mean(dim=(1, 2))  # (B,)
+
+    # 3) Reduce 3D outputs: (B, T, K) sensor sequence vs (B, H, W) map vs (B, 4, 4).
+    if outputs.dim() == 3:
+        if outputs.shape[1:] == (4, 4):
+            outputs = outputs.mean(dim=(1, 2))  # (B,)
+        elif outputs.shape[-1] <= 8 and outputs.shape[-2] <= 8 and outputs.shape[-2] != outputs.shape[-1]:
+            # (B, T, K) with K small  -> take last frame
+            outputs = outputs[:, -1]
+        elif outputs.shape[-1] > 16:
+            # (B, H, W) spatial map -> mean
+            outputs = outputs.mean(dim=(1, 2))
+        else:
+            # Ambiguous; default to last frame (works for K==H==W==4 too).
+            outputs = outputs[:, -1]
+            if outputs.dim() == 3:
+                outputs = outputs.mean(dim=(1, 2))
+
+    # 4) Now align target rank to outputs.
+    # Heatmap target (B, T, 1, H, W) or (B, 1, H, W) -> reduce to sensor-max scalar.
+    if target.dim() == 5:
+        target = target.amax(dim=(2, 3, 4))  # (B, T)
+    if target.dim() == 4:
+        target = target.amax(dim=(1, 2, 3))  # (B,)
+
+    # If outputs are scalar but target is (B, K), match by taking last sensor/time.
+    if outputs.dim() == 1 and target.dim() >= 2:
+        target = target.reshape(target.shape[0], -1)[:, -1]
+
+    # If outputs are (B, K) and target is (B, T, K), take last time step.
+    if outputs.dim() == 2 and target.dim() == 3:
+        target = target[:, -1, :]
+
+    # If outputs are (B, T) and target is (B, T, K), reduce target across sensors.
+    if outputs.dim() == 2 and target.dim() == 3 and outputs.shape[1] == target.shape[1]:
+        target = target.mean(dim=-1)
+
+    # Final guard: if last dims still differ, squeeze trailing singletons.
+    while outputs.dim() > 1 and outputs.shape[-1] == 1:
+        outputs = outputs.squeeze(-1)
+    while target.dim() > 1 and target.shape[-1] == 1:
+        target = target.squeeze(-1)
+
+    # Last resort: flatten both so MSELoss can at least compute.
+    if outputs.shape != target.shape:
+        outputs = outputs.reshape(-1)
+        target = target.reshape(-1)
+        n = min(outputs.numel(), target.numel())
+        outputs = outputs[:n]
+        target = target[:n]
+
+    return outputs, target
+
+
 def train_model_with_validation(model_instance, model_name, criterion_instance, optimizer_instance, 
                                train_loader, val_loader, device, num_epochs=50, patience=10, 
                                model_save_path=None, masked=False):
@@ -104,8 +223,14 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
             if isinstance(batch, (list, tuple)):
                 if len(batch) >= 4:
                     images, labels_raw, mask, scalars = batch[0], batch[1], batch[2], batch[3]
+                    # SequenceHeatmapDataset's third tensor is a 5D prior heatmap,
+                    # not an artifact mask the bioheat loss can use.
+                    if isinstance(mask, torch.Tensor) and mask.dim() != 4:
+                        mask = None
                 elif len(batch) == 3:
                     images, labels_raw, mask = batch[0], batch[1], batch[2]
+                    if isinstance(mask, torch.Tensor) and mask.dim() != 4:
+                        mask = None
                 else:
                     images, labels = batch[0], batch[1]
                     mask = None
@@ -115,8 +240,8 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                 raise ValueError(f"Unexpected batch type: {type(batch)}")
             
             # Determine target based on model type
-            model_name_lower = model_name.lower()
-            scalar_models = ["cnnlstm", "pretrained_cnnlstm", "simple_resnet", "physics_cnnlstm", "bayesian"]
+            model_name_lower = model_name.lower().replace("_", "")
+            scalar_models = ["cnnlstm", "pretrainedcnnlstm", "simpleresnet", "physicscnnlstm", "bayesian"]
             is_scalar_model = any(m in model_name_lower for m in scalar_models) and "spatial" not in model_name_lower
             
             if is_scalar_model:
@@ -127,7 +252,7 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                      # Fix: Handle dimension mismatch for models expecting single frame output
                      # Models: CNNLSTM, PretrainedCNNLSTM, SimpleResNet, BayesianResNet output (B, 4)
                      # PhysicsCNNLSTM outputs (B, T, 4)
-                     if "physics_cnnlstm" not in model_name_lower and labels.dim() == 3:
+                     if "physicscnnlstm" not in model_name_lower and labels.dim() == 3:
                          labels = labels[:, -1, :] # Take last time step -> (B, 4)
                 else:
                     # Fallback to heatmap max if scalars absent (should not happen with new dataset)
@@ -162,23 +287,27 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                         if len(outputs) == 3:
                             outputs, alpha_map, beta_map = outputs
                         elif len(outputs) == 2:
-                            outputs, kl_loss = outputs
+                            # Only treat the second element as KL divergence when
+                            # it's a 0-D scalar (Bayesian convention).  Models like
+                            # ConvLTC return (output, hidden_state) — we discard
+                            # the hidden state here.
+                            outputs, aux = outputs
+                            if isinstance(aux, torch.Tensor) and aux.dim() == 0:
+                                kl_loss = aux
                         
                     # Handle physics model output
                     if isinstance(criterion_instance, AdvancedBioHeatLoss):
-                        loss = criterion_instance(outputs, labels.float(), flow=flow, mask=mask,
+                        labels_phys = _pool_target_for_bioheat(
+                            labels.float(), criterion_instance
+                        )
+                        loss = criterion_instance(outputs, labels_phys, flow=flow, mask=mask,
                                                  alpha_map=alpha_map, beta_map=beta_map)
                     elif isinstance(criterion_instance, PhysicsInformedLoss):
                         if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
                             outputs = outputs.mean(dim=(1, 2))
                         loss = criterion_instance(outputs, labels.float(), mask=mask)
                     else:
-                        target = labels.float()
-                        if outputs.dim() == 1 and target.dim() == 2:
-                            target = target[:, -1]
-                        
-                        if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
-                            outputs = outputs.mean(dim=(1, 2))
+                        outputs, target = align_outputs_target(outputs, labels.float())
                         loss = criterion_instance(outputs, target)
                     
                     if isinstance(kl_loss, torch.Tensor) or kl_loss > 0:
@@ -202,22 +331,22 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                     if len(outputs) == 3:
                         outputs, alpha_map, beta_map = outputs
                     elif len(outputs) == 2:
-                        outputs, kl_loss = outputs
+                        outputs, aux = outputs
+                        if isinstance(aux, torch.Tensor) and aux.dim() == 0:
+                            kl_loss = aux
                     
                 if isinstance(criterion_instance, AdvancedBioHeatLoss):
-                    loss = criterion_instance(outputs, labels.float(), flow=flow, mask=mask,
+                    labels_phys = _pool_target_for_bioheat(
+                        labels.float(), criterion_instance
+                    )
+                    loss = criterion_instance(outputs, labels_phys, flow=flow, mask=mask,
                                              alpha_map=alpha_map, beta_map=beta_map)
                 elif isinstance(criterion_instance, PhysicsInformedLoss):
                     if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
                         outputs = outputs.mean(dim=(1, 2))
                     loss = criterion_instance(outputs, labels.float(), mask=mask)
                 else:
-                        target = labels.float()
-                        if outputs.dim() == 1 and target.dim() == 2:
-                            target = target[:, -1]
-                        
-                        if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
-                            outputs = outputs.mean(dim=(1, 2))
+                        outputs, target = align_outputs_target(outputs, labels.float())
                         loss = criterion_instance(outputs, target)
                         
                 if isinstance(kl_loss, torch.Tensor) or kl_loss > 0:
@@ -245,19 +374,33 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                 if isinstance(batch, (list, tuple)):
                     if len(batch) >= 4:
                         images, labels_raw, mask, scalars = batch[0], batch[1], batch[2], batch[3]
+                        if isinstance(mask, torch.Tensor) and mask.dim() != 4:
+                            mask = None
                     elif len(batch) == 3:
                          images, labels_raw, mask = batch[0], batch[1], batch[2]
+                         if isinstance(mask, torch.Tensor) and mask.dim() != 4:
+                             mask = None
                     else:
                         images, labels = batch[0], batch[1]
                         mask = None
                         labels_raw = labels
                 
-                # Determine target based on model type
-                if model_name in ["cnnlstm", "pretrained_cnnlstm", "simple_resnet", "physics_cnnlstm"]:
+                # Determine target based on model type (same logic as the training pass).
+                model_name_lower = model_name.lower().replace("_", "")
+                scalar_models = [
+                    "cnnlstm", "pretrainedcnnlstm", "simpleresnet",
+                    "physicscnnlstm", "bayesian",
+                ]
+                is_scalar_model = (
+                    any(m in model_name_lower for m in scalar_models)
+                    and "spatial" not in model_name_lower
+                )
+
+                if is_scalar_model:
                     if scalars is not None:
                          labels = scalars
                          # Fix: Handle dimension mismatch for models expecting single frame output
-                         if model_name != "physics_cnnlstm" and labels.dim() == 3:
+                         if "physicscnnlstm" not in model_name_lower and labels.dim() == 3:
                              labels = labels[:, -1, :] # Take last time step -> (B, 4)
                     else:
                         if labels_raw.dim() == 5: 
@@ -277,48 +420,50 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
                         
                         # Handle multiple outputs (Spatial Map + Physics Params)
                         alpha_map, beta_map = None, None
-                        if isinstance(outputs, tuple) and len(outputs) == 3:
-                            outputs, alpha_map, beta_map = outputs
+                        if isinstance(outputs, tuple):
+                            if len(outputs) == 3:
+                                outputs, alpha_map, beta_map = outputs
+                            elif len(outputs) == 2:
+                                outputs, _aux = outputs
                             
                         if isinstance(criterion_instance, AdvancedBioHeatLoss):
                             # Extract flow if present (channels 3 and 4)
                             flow = images[:, :, 3:, :, :] if images.shape[2] >= 5 else None
-                            loss = criterion_instance(outputs, labels.float(), flow=flow, mask=mask, 
+                            labels_phys = _pool_target_for_bioheat(
+                                labels.float(), criterion_instance
+                            )
+                            loss = criterion_instance(outputs, labels_phys, flow=flow, mask=mask, 
                                                      alpha_map=alpha_map, beta_map=beta_map)
                         elif isinstance(criterion_instance, PhysicsInformedLoss):
                             if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
                                 outputs = outputs.mean(dim=(1, 2))
                             loss = criterion_instance(outputs, labels.float(), mask=mask)
                         else:
-                            target = labels.float()
-                            if outputs.dim() == 1 and target.dim() == 2:
-                                target = target[:, -1]
-                            
-                            if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
-                                outputs = outputs.mean(dim=(1, 2))
+                            outputs, target = align_outputs_target(outputs, labels.float())
                             loss = criterion_instance(outputs, target)
                 else:
                     outputs = model_instance(images)
                     
                     # Handle multiple outputs (Spatial Map + Physics Params)
                     alpha_map, beta_map = None, None
-                    if isinstance(outputs, tuple) and len(outputs) == 3:
-                        outputs, alpha_map, beta_map = outputs
+                    if isinstance(outputs, tuple):
+                        if len(outputs) == 3:
+                            outputs, alpha_map, beta_map = outputs
+                        elif len(outputs) == 2:
+                            outputs, _aux = outputs
                         
                     if isinstance(criterion_instance, AdvancedBioHeatLoss):
                         # Extract flow if present (channels 3 and 4)
                         flow = images[:, :, 3:, :, :] if images.shape[2] >= 5 else None
-                        loss = criterion_instance(outputs, labels.float(), flow=flow, mask=mask,
+                        labels_phys = _pool_target_for_bioheat(
+                            labels.float(), criterion_instance
+                        )
+                        loss = criterion_instance(outputs, labels_phys, flow=flow, mask=mask,
                                                  alpha_map=alpha_map, beta_map=beta_map)
                     elif isinstance(criterion_instance, PhysicsInformedLoss):
                         loss = criterion_instance(outputs, labels.float(), mask=mask)
                     else:
-                        target = labels.float()
-                        if outputs.dim() == 1 and target.dim() == 2:
-                            target = target[:, -1]
-                        
-                        if outputs.dim() == 3 and outputs.shape[1:] == (4, 4):
-                            outputs = outputs.mean(dim=(1, 2))
+                        outputs, target = align_outputs_target(outputs, labels.float())
                         loss = criterion_instance(outputs, target)
                 
                 val_loss += loss.item()
@@ -326,12 +471,13 @@ def train_model_with_validation(model_instance, model_name, criterion_instance, 
         
         avg_val_loss = val_loss / len(val_loader)
         
-        # Log to WandB
-        wandb.log({
-            f"{model_name}/train_loss": avg_train_loss,
-            f"{model_name}/val_loss": avg_val_loss,
-            "epoch": epoch + 1
-        })
+        # Log to WandB (guarded — only when a run is already active)
+        if getattr(wandb, "run", None) is not None:
+            wandb.log({
+                f"{model_name}/train_loss": avg_train_loss,
+                f"{model_name}/val_loss": avg_val_loss,
+                "epoch": epoch + 1
+            })
         
         # Record history
         history['train_loss'].append(avg_train_loss)

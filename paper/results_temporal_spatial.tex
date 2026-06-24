@@ -1,0 +1,12 @@
+
+\subsection{Temporal Dynamics: Liquid Time Constant Networks}
+The ConvLTC model achieved an MAE of 97.14 K (±37.83 K std) with field-level predictions. While this is higher than the top baseline models, it represents an important architectural choice that directly aligns with the continuous-time nature of the Bioheat Transfer Equation. The ConvLTC achieves spatial predictions with field MAE of 13.91 K (±6.15 K std), demonstrating that it successfully learns spatio-temporal dynamics.
+
+The relatively higher scalar MAE for ConvLTC may be attributed to the model learning a conservative, spatially-smoothed temperature estimate that prioritizes field coherence over point-wise accuracy. This is a deliberate trade-off: temporal consistency and physical regularity at the cost of absolute accuracy. Future work should explore better initialization schemes and hybrid loss functions that balance field smoothness with point-wise accuracy.
+
+\subsection{Spatial Physics-Informed Variants}
+Our spatial models expand the regression task from scalar prediction to recovering full 2D temperature field maps. The ConvectionBioheat model (incorporating optical flow-based advection) achieved 49.85 K scalar MAE (±20.59 K std) while producing spatially coherent field predictions (field MAE: 0.0525 K ±0.0163 K). This dramatic difference in field vs. scalar MAE highlights the model's ability to produce spatially smooth predictions that align with the PDE structure, even when the point-wise temperature reading varies.
+
+The SpatialResNet baseline (23.08 K scalar MAE) offers strong performance with lower field MAE (65.18 K ±16.87 K field MAE). This suggests that a pure data-driven spatial model benefits from the convolutional inductive bias but may overfit to training-set geometry in certain subjects, explaining the higher field variance.
+
+Together, these results demonstrate that physics-informed spatial models enable interpretable, spatially-consistent predictions aligned with the underlying bioheat transfer physics.

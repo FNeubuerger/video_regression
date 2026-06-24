@@ -228,7 +228,7 @@ class ModelEvaluator:
 
                 # Determine Truth Labels
                 if scalars is not None:
-                     # If we have ground truth scalars, use them for everything for now to compare against 
+                     # If we have ground truth scalars, use them for everything for now to compare against
                      # unless it is a spatial model where we want to eval the map.
                      # But evaluate_models typically computes RMSE scalars.
                      labels = scalars.to(self.device, non_blocking=True)
@@ -239,6 +239,21 @@ class ModelEvaluator:
                          labels = labels.amax(dim=(2, 3, 4))
                     elif labels.dim() == 4:
                          labels = labels.amax(dim=(1, 2, 3))
+
+                # --- Reduce labels to a single scalar per sample ------------------
+                # The dataset yields 4 sensor temperatures per sample (shape (B, 4)),
+                # while scalar regression models produce one value per sample (shape (B,)).
+                # Without reduction we get a 4x label inflation and the previous
+                # "take every 4th" hack silently misaligned predictions and labels,
+                # producing the (10776,) vs (43104,) shape mismatch.
+                # We take the spatial / sensor max which matches how spatial models
+                # are reduced (amax over H, W) below.
+                if labels.dim() == 2 and labels.shape[1] > 1:
+                    labels = labels.amax(dim=1)
+                elif labels.dim() == 3:
+                    # (B, T, 4) -> last frame, then max over sensors
+                    labels = labels[:, -1].amax(dim=-1) if labels.shape[-1] > 1 else labels[:, -1, 0]
+                # ------------------------------------------------------------------
                 
                 # Apply mask if this is a masked model
                 if "_masked" in model_name and mask is not None:
@@ -267,22 +282,26 @@ class ModelEvaluator:
                         outputs = outputs.mean(dim=[1, 2])
                 
                 # Align dimensionality for metrics
-                preds_flat = outputs.detach().view(-1).cpu().tolist()
-                labels_flat = labels.detach().view(-1).cpu().tolist()
-                
-                if len(preds_flat) != len(labels_flat):
-                    # Handle Sequence vs Single Frame mismatch
-                    if len(labels_flat) > len(preds_flat):
-                        ratio = len(labels_flat) // len(preds_flat)
-                        # Only correct if exact multiple (e.g. T=5)
-                        if len(labels_flat) % len(preds_flat) == 0:
-                             # Assume labels include full sequence but model outputs only one value per sequence
-                             labels_flat = labels_flat[ratio-1::ratio]
+                # Reduce predictions to one scalar per sample (matches reduced labels).
+                if outputs.dim() == 3:
+                    # (B, T, C) -> last time, max over C
+                    outputs = outputs[:, -1]
+                if outputs.dim() == 2 and outputs.shape[1] > 1:
+                    outputs = outputs.amax(dim=1)
+                outputs = outputs.reshape(-1)
+                labels = labels.reshape(-1)
+
+                assert outputs.shape == labels.shape, (
+                    f"[{model_name}] pred {tuple(outputs.shape)} vs "
+                    f"label {tuple(labels.shape)} mismatch"
+                )
+
+                preds_flat = outputs.detach().cpu().tolist()
+                labels_flat = labels.detach().cpu().tolist()
 
                 # Store predictions and true values
-                min_len = min(len(preds_flat), len(labels_flat))
-                predictions.extend(preds_flat[:min_len])
-                true_values.extend(labels_flat[:min_len])
+                predictions.extend(preds_flat)
+                true_values.extend(labels_flat)
         
         predictions = np.array(predictions)
         true_values = np.array(true_values)
