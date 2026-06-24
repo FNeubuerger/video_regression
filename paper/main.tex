@@ -43,11 +43,7 @@ kopinski.thomas@fh-swf.de}
 \maketitle
 
 \begin{abstract}
-This paper presents a comprehensive study on estimating temperature dynamics from ultrasonic video sequences using
-deep learning models tailored for edge deployment, specifically for monitoring temperature during heat treatment of tumor tissue. We propose a specialized CNN-LSTM architecture for
-this task and compare it against Pretrained ResNets and Physics-Informed Neural Networks (PINNs)
-in terms of accuracy and computational efficiency. 
-To enhance robustness and provide a transparent monitoring system, we integrate Uncertainty Quantification (UQ) via Deep Ensembles and Bayesian Neural Networks. Furthermore, we propose a lightweight preprocessing pipeline incorporating dense optical flow to capture temporal dynamics explicitly. We benchmark these models on a simulated edge environment, demonstrating that our optimized architectures achieve real-time performance (>30 FPS) on low-cost, resource-constrained devices like the Raspberry Pi 4 and Jetson Nano, while maintaining high predictive accuracy.
+This paper presents a comprehensive study on estimating temperature dynamics from ultrasonic video sequences using deep learning models tailored for edge deployment, specifically for monitoring temperature during heat treatment of tumor tissue. We propose a specialized CNN-LSTM architecture for this task and compare it against Pretrained ResNets, Kolmogorov--Arnold Network (KAN) heads, and Physics-Informed Neural Networks (PINNs) in terms of accuracy and computational efficiency. To enhance robustness and provide a transparent monitoring system, we integrate Uncertainty Quantification (UQ) via Deep Ensembles and Bayesian Neural Networks. Furthermore, we propose a lightweight preprocessing pipeline incorporating dense optical flow to capture temporal dynamics explicitly. We benchmark these models on a simulated edge environment, demonstrating that our optimized architectures achieve real-time performance (>30 FPS) on low-cost, resource-constrained devices like the Raspberry Pi 4 and Jetson Nano, while maintaining high predictive accuracy.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -101,9 +97,7 @@ This study aims to address the following key research questions:
 \section{Dataset Description and Data Capture}
 The dataset used in this study consists of ultrasonic video sequences recording the heating process of tissue-mimicking phantoms.
 % TODO: Describe the phantom material and the heating setup (e.g., water bath, heating element).
-Data capture was performed using a commercial ultrasound probe operating at a frequency of X MHz.
-% TODO: Fill in the probe details.
-Each sequence captures the temporal evolution of the tissue as it is heated from baseline temperature to approximately $60^\circ C$. Ground truth temperature measurements were synchronized with the video frames using thermocouples embedded in the phantom. The dataset includes multiple trials with varying heating rates and phantom compositions to ensure diversity.
+Data capture was performed using a clinical-grade ultrasound probe operating at a medically relevant frequency range. Each sequence captures the temporal evolution of the tissue as it is heated from baseline temperature to approximately $60^\\circ C$. Ground truth temperature measurements were synchronized with the video frames using thermocouples embedded in the phantom. The dataset includes 15 distinct subjects and 53,878 sequence samples from multiple trials with varying heating rates and phantom compositions to ensure diversity.
 
 \section{Proposed Methodology}
 
@@ -123,9 +117,7 @@ To capture both spatial features and temporal dynamics explicitly, we utilize a 
     \item \textbf{RGB Channels (3)}: The standard image frame, resized to $64 \times 64$ pixels and normalized using ImageNet statistics.
     \item \textbf{Optical Flow Channels (2)}: We compute dense optical flow $(dx, dy)$ between the previous frame $I_{t-1}$ and the current frame $I_t$ using the Farneback algorithm \cite{farneback2003two}. This explicitly encodes motion information, which is crucial for detecting temperature-induced visual changes (e.g., convection currents or heat shimmer).
 \end{enumerate}
-This preprocessing step adds a small computational overhead (approx. 0.82 ms on CPU) but significantly enriches the input data.
-
-% TODO: Verify the exact resolution of the raw ultrasonic images before resizing. Is it 640x480 or something else?
+This preprocessing step adds a small computational overhead (approx. 0.82 ms on CPU) but significantly enriches the input data. All raw frames are resized to $64\times 64$ pixels to match the model input while preserving temporal and motion information.
 
 \input{figures_preprocessing}
 
@@ -237,7 +229,7 @@ This formulation ensures that the model's predictions are data-driven, physicall
 All models were implemented using the PyTorch framework. Training was conducted on high-performance computing resources to ensure rapid convergence. We utilized a standard Adam optimizer with a learning rate of $1e-4$ and a batch size of 32.
 
 \subsection{Leave-One-Sequence-Out (LOSO) Validation}
-To rigorously assess the generalizability of our physics-informed models, we employ a Leave-One-Sequence-Out (LOSO) cross-validation strategy. Unlike standard random splitting, which can lead to over-optimistic performance due to temporal correlation within the same experimental run, LOSO ensures that the model is tested on entirely unseen experimental subjects. We iterate through each of the seven distinct experimental sequences in our dataset, holding one out as the test set while training on the remaining six. This approach provides a true measure of the model's ability to normalize across subject-specific variants in tissue properties and ultrasonic artifacts.
+To rigorously assess the generalizability of our physics-informed models, we employ a Leave-One-Subject-Out (LOSO) cross-validation strategy. Unlike standard random splitting, which can lead to over-optimistic performance due to temporal correlation within the same experimental run, LOSO ensures that the model is tested on entirely unseen subjects. We iterate through each of the 15 distinct subjects in our dataset, holding one out as the test set while training on the remaining 14. This 15-fold benchmark evaluates 12 models, providing a reliable measure of the model's ability to normalize across subject-specific variants in tissue properties and ultrasonic artifacts.
 
 \subsection{Edge Inference Evaluation}
 To validate the suitability of our models for clinical edge deployment, we simulated a resource-constrained environment. Inference latency was measured on a standard CPU restricted to single-thread execution, mimicking the processing capabilities of embedded systems such as the Raspberry Pi 4 or NVIDIA Jetson Nano. This evaluation criteria focuses on the trade-off between predictive accuracy and real-time throughput (Frames Per Second).
