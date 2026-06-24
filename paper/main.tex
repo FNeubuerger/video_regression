@@ -294,7 +294,7 @@ Our custom CNNLSTM achieves exceptional throughput (>500 FPS), making it suitabl
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.9\textwidth]{paper/figures/edge_deployment_fps.png}
+\includegraphics[width=0.9\textwidth]{figures/edge_deployment_fps.png}
 \caption{Inference Latency on Edge Devices. Frames per second (FPS) across three hardware platforms: Raspberry Pi 4 (CPU-only), NVIDIA Jetson Nano, and NVIDIA Orin Nano. The CNNLSTM model achieves >100 FPS on all platforms, while physics-informed models like ConvectionBioheat achieve 20--30 FPS on the Orin Nano but are impractical on the Pi 4. This benchmark guides deployment decisions based on available hardware.}
 \label{fig:edge_deployment_fps}
 \end{figure}
@@ -307,7 +307,7 @@ Table \ref{tab:performance_comparison} compares the predictive accuracy and comp
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=1.0\textwidth]{paper/figures/accuracy_thresholds.png}
+\includegraphics[width=1.0\textwidth]{figures/accuracy_thresholds.png}
 \caption{Accuracy Thresholds Across Models. Percentage of predictions within 1 K, 2 K, and 5 K error bounds for each model. Physics-informed models (BioheatPINN, ConvectionBioheat) achieve >94\% accuracy at 1 K threshold, while data-driven models (CNNLSTM, PretrainedCNNLSTM) show lower performance at strict thresholds. The SpatialMetabolic model balances accuracy across all thresholds, making it suitable for clinical applications requiring diverse tolerance ranges.}
 \label{fig:accuracy_thresholds}
 \end{figure}
