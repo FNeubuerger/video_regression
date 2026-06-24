@@ -6,21 +6,21 @@
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{llcccccc}
 \hline
-\textbf{Tier} & \textbf{Model} & \textbf{MAE} (K) $\downarrow$ & \textbf{RMSE} (K) $\downarrow$ & \textbf{$R^2$} $\uparrow$ & \textbf{Params} (M) $\downarrow$ & \textbf{GFLOPs} $\downarrow$ & \textbf{FPS} $\uparrow$ \ \hline
+\textbf{Tier} & \textbf{Model} & \textbf{MAE} (K) $\downarrow$ & \textbf{RMSE} (K) $\downarrow$ & \textbf{$R^2$} $\uparrow$ & \textbf{Params} (M) $\downarrow$ & \textbf{GFLOPs} $\downarrow$ & \textbf{FPS} $\uparrow$ \\
 \hline 
-\multicolumn{8}{l}{\textit{Tier 1: Baselines}} \\ 
-& SimpleResNet & 1.31 & 2.97 & 0.991 & 11.45 & 0.160 & 101.1 \
-& PretrainedCNNLSTM & 19.59 & 24.82 & 0.351 & 11.52 & 0.470 & 114.1 \
-& CNNLSTM & 32.27 & 44.46 & -1.084 & 0.06 & 0.040 & 121.3 \
+\multicolumn{8}{l}{\textit{Tier 1: Baselines}} \\
+& SimpleResNet & 1.31 & 2.97 & 0.991 & 11.45 & 0.160 & 101.1 \\
+& PretrainedCNNLSTM & 19.59 & 24.82 & 0.351 & 11.52 & 0.470 & 114.1 \\
+& CNNLSTM & 32.27 & 44.46 & -1.084 & 0.06 & 0.040 & 121.3 \\
 \hline 
-\multicolumn{8}{l}{\textit{Tier 2: Physics-Informed}} \\ 
-& BioheatPINN & 0.26 & 1.15 & 0.999 & 16.49 & 0.800 & 90.6 \
-& ConvectionBioheat & 0.29 & 0.80 & 0.999 & 16.50 & 0.820 & 90.6 \
-& MetabolicBioheat & 0.72 & 1.83 & 0.996 & 16.51 & 0.830 & 90.6 \
-& SpatialMetabolic & 1.09 & 2.03 & 0.996 & 11.45 & 0.160 & 142.7 \
-& SpatialBioheat & 1.19 & 1.88 & 0.996 & 11.45 & 0.160 & 142.7 \
-& SpatialConvection & 2.20 & 3.44 & 0.988 & 11.45 & 0.160 & 142.7 \
-& PhysicsCNNLSTM & 6.65 & 14.31 & 0.784 & 0.13 & 0.080 & 113.5 \
+\multicolumn{8}{l}{\textit{Tier 2: Physics-Informed}} \\
+& BioheatPINN & 0.26 & 1.15 & 0.999 & 16.49 & 0.800 & 90.6 \\
+& ConvectionBioheat & 0.29 & 0.80 & 0.999 & 16.50 & 0.820 & 90.6 \\
+& MetabolicBioheat & 0.72 & 1.83 & 0.996 & 16.51 & 0.830 & 90.6 \\
+& SpatialMetabolic & 1.09 & 2.03 & 0.996 & 11.45 & 0.160 & 142.7 \\
+& SpatialBioheat & 1.19 & 1.88 & 0.996 & 11.45 & 0.160 & 142.7 \\
+& SpatialConvection & 2.20 & 3.44 & 0.988 & 11.45 & 0.160 & 142.7 \\
+& PhysicsCNNLSTM & 6.65 & 14.31 & 0.784 & 0.13 & 0.080 & 113.5 \\
 \hline
 \end{tabular}%
 }
