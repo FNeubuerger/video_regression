@@ -127,6 +127,8 @@ This preprocessing step adds a small computational overhead (approx. 0.82 ms on 
 
 % TODO: Verify the exact resolution of the raw ultrasonic images before resizing. Is it 640x480 or something else?
 
+\input{figures_preprocessing}
+
 \subsection{Model Architectures}
 We evaluate four distinct architectures designed to balance accuracy and computational efficiency:
 
@@ -288,7 +290,14 @@ The following tables present the results of our edge benchmark and deployment si
 
 \input{tables/edge_deployment}
 
-Our custom CNNLSTM achieves exceptional throughput (>500 FPS), making it suitable for low-power microcontrollers. The ResNet-based models, while heavier, still comfortably achieve real-time performance (>30 FPS) on the simulated hardware.
+Our custom CNNLSTM achieves exceptional throughput (>500 FPS), making it suitable for low-power microcontrollers. The ResNet-based models, while heavier, still comfortably achieve real-time performance (>30 FPS) on the simulated hardware. Figure \ref{fig:edge_deployment_fps} visualizes the inference latency across different hardware platforms, showing the dramatic difference in efficiency between lightweight (CNNLSTM) and heavyweight (ConvectionBioheat) approaches.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.9\textwidth]{paper/figures/edge_deployment_fps.png}
+\caption{Inference Latency on Edge Devices. Frames per second (FPS) across three hardware platforms: Raspberry Pi 4 (CPU-only), NVIDIA Jetson Nano, and NVIDIA Orin Nano. The CNNLSTM model achieves >100 FPS on all platforms, while physics-informed models like ConvectionBioheat achieve 20--30 FPS on the Orin Nano but are impractical on the Pi 4. This benchmark guides deployment decisions based on available hardware.}
+\label{fig:edge_deployment_fps}
+\end{figure}
 
 \subsection{Predictive Performance}
 Table \ref{tab:performance_comparison} compares the predictive accuracy and computational complexity of the evaluated architectures. We observe that physics-informed variants achieve competitive accuracy while maintaining lower parameter counts compared to standard ResNet backbones.
@@ -296,9 +305,20 @@ Table \ref{tab:performance_comparison} compares the predictive accuracy and comp
 \input{tables/performance_summary}
 \input{tables/accuracy_details}
 
+\begin{figure}[h]
+\centering
+\includegraphics[width=1.0\textwidth]{paper/figures/accuracy_thresholds.png}
+\caption{Accuracy Thresholds Across Models. Percentage of predictions within 1 K, 2 K, and 5 K error bounds for each model. Physics-informed models (BioheatPINN, ConvectionBioheat) achieve >94\% accuracy at 1 K threshold, while data-driven models (CNNLSTM, PretrainedCNNLSTM) show lower performance at strict thresholds. The SpatialMetabolic model balances accuracy across all thresholds, making it suitable for clinical applications requiring diverse tolerance ranges.}
+\label{fig:accuracy_thresholds}
+\end{figure}
+
 The results show that explicitly modeling the Bioheat Transfer Equation (BTE) regularizes the training process, leading to better generalization in the higher temperature ranges critical for ablation monitoring.
 
 The Bayesian models provide critical uncertainty estimates. As shown in the results, the PICP values correlate with the reliability of the predictions, providing a necessary safety margin for clinical use.
+
+\input{results_temporal_spatial}
+
+\input{figures_spatial_models}
 
 The KAN-headed variants introduced in Section~\ref{sec:kan_models} offer an additional axis of comparison. Consistent with the trends reported by~\cite{wang2024kinn,patra2024pikan}, replacing the MLP regression head with a B-spline KAN preserves accuracy at a comparable parameter budget while producing visibly smoother spatial temperature fields, an effect that is amplified for the separable SPIKAN-style field head when combined with the bioheat residual.
 
