@@ -3,7 +3,7 @@
 \centering
 \caption{Comparison of Model Performance and Computational Efficiency across the "Ladder of Physics". Tier 1 represents pure data-driven baselines, Tier 2 incorporates physical laws (BTE), and Tier 3 adds probabilistic uncertainty quantification.}
 \label{tab:performance_comparison}
-\resizebox{\textwidth}{!}{%
+\resizebox{\linewidth}{!}{%
 \begin{tabular}{llcccccc}
 \hline
 \textbf{Tier} & \textbf{Model} & \textbf{MAE} (K) $\downarrow$ & \textbf{RMSE} (K) $\downarrow$ & \textbf{$R^2$} $\uparrow$ & \textbf{Params} (M) $\downarrow$ & \textbf{GFLOPs} $\downarrow$ & \textbf{FPS} $\uparrow$ \\
@@ -22,6 +22,6 @@
 & SpatialConvection & 2.20 & 3.44 & 0.988 & 11.45 & 0.160 & 142.7 \\
 & PhysicsCNNLSTM & 6.65 & 14.31 & 0.784 & 0.13 & 0.080 & 113.5 \\
 \hline
-\end{tabular}%
+\end{tabular}
 }
 \end{table}

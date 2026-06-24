@@ -186,11 +186,10 @@ Beyond temperature regression, our spatial model enables \textit{Inverse Physics
 Motivated by the recent success of Kolmogorov--Arnold Networks (KANs) in scientific machine learning~\cite{liu2024kan,wang2024kinn,patra2024pikan} and by the observation that KANs benefit from a strong encoder when the input is high-dimensional~\cite{shen2025alpkan}, we introduce two architectures that retain our convolutional video encoder but replace the regression head with a KAN.
 
 A KAN linear layer maps an input vector $\mathbf{x}\in\mathbb{R}^{d_{in}}$ to $\mathbf{y}\in\mathbb{R}^{d_{out}}$ via learnable univariate activations placed on each edge:
-\begin{equation}
-    y_j \;=\; \sum_{i=1}^{d_{in}} \bigl( w^{b}_{ji}\,\sigma(x_i) \;+\; w^{s}_{ji}\, \phi_{ji}(x_i) \bigr),
-    \quad
-    \phi_{ji}(x_i) \;=\; \sum_{k=1}^{G+p} c_{jik}\, B_{k,p}(x_i),
-\end{equation}
+\begin{align}
+    y_j &= \sum_{i=1}^{d_{in}} \bigl( w^{b}_{ji}\,\sigma(x_i) + w^{s}_{ji}\, \phi_{ji}(x_i) \bigr), \\
+    \phi_{ji}(x_i) &= \sum_{k=1}^{G+p} c_{jik}\, B_{k,p}(x_i).
+\end{align}
 where $\sigma$ is a smooth base activation (SiLU), $B_{k,p}$ are B-splines of order $p$ over a uniform grid of $G$ knots, and $\{c_{jik}, w^{b}_{ji}, w^{s}_{ji}\}$ are the learnable parameters. We adopt the efficient implementation of~\cite{blealtan2024efficientkan}, which collapses the per-edge spline contraction into a single dense matrix multiply.
 
 \paragraph{KAN-ResNet.} A direct apples-to-apples ablation of the Simple ResNet baseline: the same 5-channel ResNet-18 backbone produces a 512-dimensional latent vector, which is fed to a two-layer KAN ($512 \to 64 \to 4$) that emits the four sensor temperatures. This isolates the effect of the head, holding the encoder fixed.
@@ -294,7 +293,7 @@ Our custom CNNLSTM achieves exceptional throughput (>500 FPS), making it suitabl
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.9\textwidth]{figures/edge_deployment_fps.png}
+\includegraphics[width=0.7\linewidth]{figures/edge_deployment_fps.png}
 \caption{Inference Latency on Edge Devices. Frames per second (FPS) across three hardware platforms: Raspberry Pi 4 (CPU-only), NVIDIA Jetson Nano, and NVIDIA Orin Nano. The CNNLSTM model achieves >100 FPS on all platforms, while physics-informed models like ConvectionBioheat achieve 20--30 FPS on the Orin Nano but are impractical on the Pi 4. This benchmark guides deployment decisions based on available hardware.}
 \label{fig:edge_deployment_fps}
 \end{figure}
@@ -307,7 +306,7 @@ Table \ref{tab:performance_comparison} compares the predictive accuracy and comp
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=1.0\textwidth]{figures/accuracy_thresholds.png}
+\includegraphics[width=0.7\linewidth]{figures/accuracy_thresholds.png}
 \caption{Accuracy Thresholds Across Models. Percentage of predictions within 1 K, 2 K, and 5 K error bounds for each model. Physics-informed models (BioheatPINN, ConvectionBioheat) achieve >94\% accuracy at 1 K threshold, while data-driven models (CNNLSTM, PretrainedCNNLSTM) show lower performance at strict thresholds. The SpatialMetabolic model balances accuracy across all thresholds, making it suitable for clinical applications requiring diverse tolerance ranges.}
 \label{fig:accuracy_thresholds}
 \end{figure}
