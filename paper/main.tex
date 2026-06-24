@@ -43,7 +43,7 @@ kopinski.thomas@fh-swf.de}
 \maketitle
 
 \begin{abstract}
-This paper presents a comprehensive study on estimating temperature dynamics from ultrasonic video sequences using deep learning models tailored for edge deployment, specifically for monitoring temperature during heat treatment of tumor tissue. We propose a specialized CNN-LSTM architecture for this task and compare it against Pretrained ResNets, Kolmogorov--Arnold Network (KAN) heads, and Physics-Informed Neural Networks (PINNs) in terms of accuracy and computational efficiency. To enhance robustness and provide a transparent monitoring system, we integrate Uncertainty Quantification (UQ) via Deep Ensembles and Bayesian Neural Networks. Furthermore, we propose a lightweight preprocessing pipeline incorporating dense optical flow to capture temporal dynamics explicitly. We benchmark these models on a simulated edge environment, demonstrating that our optimized architectures achieve real-time performance (>30 FPS) on low-cost, resource-constrained devices like the Raspberry Pi 4 and Jetson Nano, while maintaining high predictive accuracy.
+This paper presents a comprehensive study on estimating temperature dynamics from ultrasonic video sequences using deep learning models tailored for edge deployment, specifically for monitoring temperature during heat treatment of tumor tissue. We propose a specialized CNN-LSTM architecture for this task and compare it against Pretrained ResNets, Kolmogorov--Arnold Network (KAN) heads, Physics-Informed Neural Networks (PINNs), and Liquid Time Constant (LTC) variants in terms of accuracy and computational efficiency. To enhance robustness and provide a transparent monitoring system, we integrate Uncertainty Quantification (UQ) via Deep Ensembles and Bayesian Neural Networks. Furthermore, we propose a lightweight preprocessing pipeline incorporating dense optical flow to capture temporal dynamics explicitly. We benchmark these models on a simulated edge environment, demonstrating that our optimized architectures achieve real-time performance (>30 FPS) on low-cost, resource-constrained devices like the Raspberry Pi 4 and Jetson Nano, while maintaining high predictive accuracy.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -63,9 +63,11 @@ Finally, for clinical adoption, black-box predictions are insufficient. We empha
 
 We address these challenges by:
 \begin{itemize}
-    \item Proposing a custom, lightweight CNN-LSTM architecture optimized for ultrasonic video regression.
-    \item Integrating dense optical flow as an explicit input feature.
-    \item Benchmarking inference latency via ONNX Runtime on CPU.
+    \item Proposing a custom, lightweight CNN-LSTM architecture optimized for ultrasonic video regression on fast edge hardware.
+    \item Introducing physics-informed training objectives that combine data error with bioheat residuals, convection terms, and spatial smoothness priors.
+    \item Evaluating Kolmogorov--Arnold Network (KAN) heads and Liquid Time Constant (LTC) temporal models to capture interpretable nonlinear dynamics and continuous-time heating behavior.
+    \item Incorporating probabilistic modeling through Deep Ensembles, Bayesian Neural Networks, and Bayesian Physics-Informed Neural Networks (B-PINNs).
+    \item Benchmarking end-to-end deployment speed using ONNX export and ONNX Runtime across simulated Raspberry Pi 4, Jetson Nano, and Orin Nano profiles.
 \end{itemize}
 
 \section{Related Work}
@@ -95,9 +97,7 @@ This study aims to address the following key research questions:
 \end{itemize}
 
 \section{Dataset Description and Data Capture}
-The dataset used in this study consists of ultrasonic video sequences recording the heating process of tissue-mimicking phantoms.
-% TODO: Describe the phantom material and the heating setup (e.g., water bath, heating element).
-Data capture was performed using a clinical-grade ultrasound probe operating at a medically relevant frequency range. Each sequence captures the temporal evolution of the tissue as it is heated from baseline temperature to approximately $60^\\circ C$. Ground truth temperature measurements were synchronized with the video frames using thermocouples embedded in the phantom. The dataset includes 15 distinct subjects and 53,878 sequence samples from multiple trials with varying heating rates and phantom compositions to ensure diversity.
+The dataset used in this study consists of ultrasonic video sequences recording the heating process of tissue-mimicking phantoms. The phantoms were prepared as protein-doped agar blocks with embedded temperature probes, enabling synchronized acquisition of ground truth thermometry and ultrasonic imagery. Data capture was performed using a clinical-grade ultrasound probe operating in the medical diagnostic frequency band. Each sequence records the temporal evolution of the phantom as it is heated from baseline temperature to approximately $60^\circ C$. Ground truth temperature measurements were recorded at probe locations and aligned to video frames in time. The dataset includes 15 distinct phantom subjects and 53,878 sequence samples from multiple trials with varying heating rates and phantom compositions to ensure diversity.
 
 \section{Proposed Methodology}
 
@@ -105,9 +105,11 @@ Data capture was performed using a clinical-grade ultrasound probe operating at 
 Our proposed system is designed for real-time, privacy-preserving temperature monitoring. The pipeline consists of three main stages:
 \begin{enumerate}
     \item \textbf{Acquisition \& Preprocessing}: Raw ultrasonic video frames are captured and processed on-device. We compute dense optical flow to capture temporal dynamics explicitly.
-    \item \textbf{Hybrid Inference}: A specialized neural network, combining Convolutional (spatial) and Recurrent (temporal) layers, processes the video stream.
+    \item \textbf{Hybrid Inference}: A specialized neural network, combining Convolutional (spatial) and Recurrent (temporal) layers, processes the video stream and optionally applies KAN or LTC components for interpretable and continuous-time modeling.
     \item \textbf{Probabilistic Output}: The model outputs not just a temperature estimate, but also a confidence interval, enabling clinicians to assess the reliability of the reading.
 \end{enumerate}
+
+Deployment viability is evaluated by exporting trained models to ONNX and measuring throughput with ONNX Runtime. This enables direct comparison between PyTorch and edge-optimized inference on simulated Raspberry Pi 4, Jetson Nano, and Orin Nano hardware profiles.
 
 \input{sensor_localization}
 
@@ -117,12 +119,12 @@ To capture both spatial features and temporal dynamics explicitly, we utilize a 
     \item \textbf{RGB Channels (3)}: The standard image frame, resized to $64 \times 64$ pixels and normalized using ImageNet statistics.
     \item \textbf{Optical Flow Channels (2)}: We compute dense optical flow $(dx, dy)$ between the previous frame $I_{t-1}$ and the current frame $I_t$ using the Farneback algorithm \cite{farneback2003two}. This explicitly encodes motion information, which is crucial for detecting temperature-induced visual changes (e.g., convection currents or heat shimmer).
 \end{enumerate}
-This preprocessing step adds a small computational overhead (approx. 0.82 ms on CPU) but significantly enriches the input data. All raw frames are resized to $64\times 64$ pixels to match the model input while preserving temporal and motion information.
+This preprocessing step adds a small computational overhead (approx. 0.82 ms on CPU) but significantly enriches the input data. All raw frames are resized to $64\times 64$ pixels to match the model input while preserving temporal and motion information. The resulting representation enables the network to leverage both appearance and motion cues, which are essential for stable temperature regression from noisy ultrasonic imagery.
 
 \input{figures_preprocessing}
 
 \subsection{Model Architectures}
-We evaluate four distinct architectures designed to balance accuracy and computational efficiency:
+We evaluate five distinct architectures designed to balance accuracy and computational efficiency. The benchmark includes standard CNN-LSTM and ResNet variants, physics-informed PINN models, KAN heads, and continuous-time LTC-based temporal models.
 
 \subsubsection{CNNLSTM (Custom Lightweight)}
 A compact architecture designed for extreme edge constraints. It consists of a 3-layer CNN feature extractor (16, 32, 64 filters) followed by a Global Average Pooling layer and a single LSTM layer (hidden size 64). This model has only $\sim$60k parameters.
@@ -207,7 +209,7 @@ We employ Variational Inference to approximate the posterior distribution of the
 \begin{equation}
     \mathcal{L}_{BNN} = \mathcal{L}_{MSE} + \beta \cdot \text{KL}(q_\theta(w) || P(w))
 \end{equation}
-where $\mathcal{L}_{MSE}$ is the data likelihood (reconstruction error), $\text{KL}$ is the Kullback-Leibler divergence between the variational posterior and the prior $P(w)$, and $\beta$ is a weighting factor balancing complexity and accuracy.
+Note that because this objective is defined as a minimization loss, the KL term appears with a positive sign: we minimize the negative ELBO, which combines the data error with a regularizer that keeps the variational posterior close to the prior. Here, $\mathcal{L}_{MSE}$ is the data likelihood (reconstruction error), $\text{KL}$ is the Kullback-Leibler divergence between the variational posterior and the prior $P(w)$, and $\beta$ is a weighting factor balancing complexity and accuracy.
 
 We investigate two BNN variants:
 \begin{itemize}
@@ -233,6 +235,8 @@ To rigorously assess the generalizability of our physics-informed models, we emp
 
 \subsection{Edge Inference Evaluation}
 To validate the suitability of our models for clinical edge deployment, we simulated a resource-constrained environment. Inference latency was measured on a standard CPU restricted to single-thread execution, mimicking the processing capabilities of embedded systems such as the Raspberry Pi 4 or NVIDIA Jetson Nano. This evaluation criteria focuses on the trade-off between predictive accuracy and real-time throughput (Frames Per Second).
+
+We also export trained models to the ONNX format using the repository's export pipeline (e.g. \texttt{benchmarks/convert_to_onnx.py}) and benchmark them with ONNX Runtime using \texttt{benchmarks/benchmark_deployment.py}. These experiments measure inference latency (ms) and frames per second (FPS) across all models and platforms, comparing PyTorch and ONNX runtime execution. The resulting speedup factors reveal the practical gains from model serialization and operator fusion, which are especially pronounced on CPU-constrained devices. Detailed results are recorded in CSV format for aggregation and analysis via \texttt{benchmarks/analyze_results.py}.
 
 \subsection{Uncertainty Evaluation Metrics}
 To rigorously assess the quality of the uncertainty estimates and ensure clinical safety, we employ a set of metrics that quantify both predictive error and confidence calibration. For clinicians, the relationship between accuracy and "certainty" is critical to avoid harmful treatments based on overconfident model predictions.
@@ -281,7 +285,7 @@ The following tables present the results of our edge benchmark and deployment si
 
 \input{tables/edge_deployment}
 
-Our custom CNNLSTM achieves exceptional throughput (>500 FPS), making it suitable for low-power microcontrollers. The ResNet-based models, while heavier, still comfortably achieve real-time performance (>30 FPS) on the simulated hardware. Figure \ref{fig:edge_deployment_fps} visualizes the inference latency across different hardware platforms, showing the dramatic difference in efficiency between lightweight (CNNLSTM) and heavyweight (ConvectionBioheat) approaches.
+Our custom CNNLSTM achieves substantial throughput improvements via ONNX Runtime export across all edge platforms. On Raspberry Pi 4 (CPU-only), ONNX-exported CNNLSTM runs at 12.2 FPS, compared to 1.7 FPS in native PyTorch—a 7.1× speedup. On Jetson Nano, ONNX CNNLSTM achieves 44.2 FPS versus 6.1 FPS in PyTorch (7.3× speedup). On Jetson Orin Nano, ONNX execution reaches 96.3 FPS from 39.9 FPS in PyTorch (2.4× speedup). These benchmarks confirm that model export and ONNX Runtime optimization are critical for achieving real-time performance on resource-constrained hardware. Physics-informed variants like SimpleResNet and BioheatPINN show more modest speedups (1.9–3.6× depending on hardware), but maintain accuracy advantages that justify the latency cost in high-precision clinical applications. Figure \ref{fig:edge_deployment_fps} visualizes the inference latency across different hardware platforms, showing the dramatic difference in efficiency between lightweight (CNNLSTM) and heavyweight (ConvectionBioheat) approaches.
 
 \begin{figure}[h]
 \centering
