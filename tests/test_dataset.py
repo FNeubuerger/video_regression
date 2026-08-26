@@ -46,7 +46,7 @@ def test_dataset_loading():
     
     # Get a sample
     sample = ds[0]
-    frame, target, mask, temp_vec, prior = sample
+    frame, target, mask, temp_vec, prior, artifact_mask = sample
     
     # Check shapes
     assert frame.shape == (3, 64, 64)
@@ -54,6 +54,7 @@ def test_dataset_loading():
     assert mask.shape == (1, 64, 64)
     assert temp_vec.shape == (4,)
     assert prior.shape == (1, 64, 64)
+    assert artifact_mask.shape == (1, 64, 64)
 
 @pytest.mark.skipif(not DATA_EXISTS, reason="Real data not found")
 def test_dataset_prior_generation():

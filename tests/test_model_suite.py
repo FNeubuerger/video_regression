@@ -27,15 +27,16 @@ def test_simple_resnet_structure():
     model = SimpleResNet(frame_shape=(64, 64, 3))
     x = torch.randn(2, 3, 64, 64)
     out = model(x)
-    # Model outputs a single scalar (regression), shape (Batch,)
-    assert out.shape == (2,)
+    # Model regresses the 4 sensor temperatures per sample, shape (Batch, 4)
+    assert out.shape == (2, 4)
 
 def test_bayesian_resnet_structure():
     model = BayesianResNet(frame_shape=(64, 64, 3))
     x = torch.randn(2, 3, 64, 64)
-    # bnn models forward returns only prediction. KL is computed separately.
-    out = model(x)
-    assert out.shape == (2,)
+    # bnn forward returns (prediction, kl_divergence)
+    out, kl = model(x)
+    assert out.shape == (2, 4)
+    assert kl.numel() == 1
 
 def test_cnnlstm_structure():
     # CNNLSTM expects (Batch, Time, Channels, H, W)
@@ -43,9 +44,8 @@ def test_cnnlstm_structure():
     model = CNNLSTM(frame_shape=(64, 64, 3), time_steps=time_steps)
     x = torch.randn(2, time_steps, 3, 64, 64)
     out = model(x)
-    # Output: (Batch, 1) or (Batch,) - Implementation dependent
-    # Based on failure: torch.Size([2])
-    assert out.shape == (2,) or out.shape == (2, 1)
+    # Model regresses the 4 sensor temperatures per sample, shape (Batch, 4)
+    assert out.shape == (2, 4)
 
 def test_latent_ltc_unet_structure():
     # Latent LTC Expects (Batch, Time, Channels, H, W)

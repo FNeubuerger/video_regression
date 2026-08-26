@@ -87,6 +87,19 @@ We provide a streamlined workflow using `make` and `tmux` for parallel fold trai
 
 The monitoring script `scripts/monitor_loso.sh` provides a live dashboard of all active training folds and their current epoch/loss.
 
+**Regularized LOSO (anti-overfitting).** LOSO folds previously trained with an unregularized AdamW optimizer, no augmentation, and non-deterministic seeding, which produced a large mixed-split vs. LOSO generalization gap (see `paper/main.tex`, Section "Cross-Subject Generalization"). `evaluation/loso_cross_validation.py` now supports:
+
+```bash
+python evaluation/loso_cross_validation.py --model SimpleResNet \
+  --weight_decay 1e-4 --augment --seed 42 --masked --epochs 10
+```
+
+- `--weight_decay`: L2 regularization on AdamW (default `1e-4`, previously unset).
+- `--augment`: random horizontal flip (flow-dx negated, heatmap/mask mirrored) + brightness jitter on the training split only, via `utils/augmentation.py`.
+- `--seed`: seeds `utils/seed_utils.set_global_seed` and the train/val split for reproducible reruns; each fold checkpoint gets a companion `*_config.json` with seed/git-sha/hardware provenance.
+
+`scripts/run_loso_benchmarks_regularized.sh` launches the regularized retraining for the two most overfitting-prone models (`SimpleResNet`, `CNNLSTM`) across 2 GPUs via `tmux`.
+
 ## 📉 Evaluation & Uncertainty Quantification
 
 We provide comprehensive evaluation scripts to assess model accuracy and calibration. The easiest way to run the full evaluation suite is:

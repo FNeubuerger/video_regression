@@ -22,6 +22,8 @@
     *   Quantify performance gap between "Random Split" (baseline) and "LOSO" (true generalization).
     *   Store both results set in `results/` for the final paper.
 - [x] **Automated Reporting:** All evaluation steps now integrated into `make evaluation`.
+- [x] **Generalization Gap Quantified:** LOSO vs. standard-split comparison documented in `paper/main.tex` ("Cross-Subject Generalization"); root cause traced to unregularized LOSO training.
+- [ ] **Overfitting Mitigation (2026-08-26):** `evaluation/loso_cross_validation.py` now supports `--weight_decay`, `--augment`, `--seed`. Regularized retraining of `SimpleResNet`/`CNNLSTM` is running (`scripts/run_loso_benchmarks_regularized.sh`, tmux sessions `loso_reg_simpleresnet`/`loso_reg_cnnlstm`). Next: fill `paper/tables/loso_regularized.tex` with real results and extend to remaining overfitting-prone models (`ConvectionBioheat`, `BayesianResNet`, `KANResNet`).
 
 ## Documentation
 - [x] **Update Papers:** Added LTC justification to `ltc_section.tex`.

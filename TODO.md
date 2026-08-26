@@ -53,9 +53,16 @@
 
 ## LOSO Cross-Validation (#47)
 - [x] **Implementation:** `evaluation/loso_cross_validation.py` created with fold-based logic.
-- [ ] **Rerun Benchmarks:** Execute full training/evaluation pipeline for all models using LOSO to prove setup generalization.
-    - [ ] Compare LOSO results (Generalization) vs. Random Split results (Memorization).
-    - [ ] Maintain legacy benchmark results for internal comparison.
+- [x] **Rerun Benchmarks:** Execute full training/evaluation pipeline for all models using LOSO to prove setup generalization.
+    - [x] Compare LOSO results (Generalization) vs. Random Split results (Memorization). See `paper/tables/loso_summary.tex` and `paper/main.tex` ("Cross-Subject Generalization").
+    - [x] Maintain legacy benchmark results for internal comparison.
+
+## LOSO Overfitting Mitigation (#48)
+- **Issue:** LOSO folds trained with unregularized AdamW (no weight decay), no augmentation, and non-deterministic seeding, producing a large mixed-split vs. LOSO generalization gap (e.g. SimpleResNet 1.31 K -> 26.67 K MAE).
+- [x] Added `--weight_decay` (default `1e-4`), `--augment` (flip + brightness jitter via `utils/augmentation.py`), and `--seed` (via `utils/seed_utils.py`) to `evaluation/loso_cross_validation.py`.
+- [x] Per-fold provenance export: `checkpoints/loso/<model>/fold_<id>_config.json` (seed, weight decay, git sha, hardware, timestamp).
+- [x] `scripts/run_loso_benchmarks_regularized.sh` launches regularized retraining for `SimpleResNet` and `CNNLSTM` (the two worst-affected models) across 2 GPUs via tmux.
+- [ ] **In progress:** retraining running in tmux sessions `loso_reg_simpleresnet` / `loso_reg_cnnlstm` (15 folds x 10 epochs each). Once complete, fill in `paper/tables/loso_regularized.tex` and extend the regularized run to remaining overfitting-prone models (`ConvectionBioheat`, `BayesianResNet`, `KANResNet`).
 
 ## Part 2/3 (Dense & LTC) Analysis
 - [x] **Evaluation:** Physics-Informed models (`BioheatPINN`) significantly outperform baselines.

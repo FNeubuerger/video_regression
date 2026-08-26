@@ -6,6 +6,18 @@
 
 ---
 
+## Status Update (2026-08-26)
+
+Several items from the critical path below are now resolved:
+- **Reproducibility scaffolding** (item 4): `utils/seed_utils.py` (global seeding), `.pre-commit-config.yaml`, `.github/workflows/ci.yml`, and `pytest.ini` all exist and are wired into `training/train_all_models.py` and `evaluation/loso_cross_validation.py`. Per-fold run-config JSON (seed, weight decay, git sha, hardware) is exported alongside each LOSO checkpoint.
+- **LOSO completion & generalization analysis** (item 1): full 15-fold LOSO results are aggregated in `paper/tables/loso_summary.tex` and compared against the standard-split table in `paper/main.tex` ("Cross-Subject Generalization"), which quantifies the mixed-split vs. LOSO gap directly (e.g. SimpleResNet 1.31 K -> 26.67 K MAE) rather than leaving it undiscussed.
+- **Bibliography / Related Work** (item 6): `references.bib` expanded with clinical MWA literature (Vogl2017, Lubner2010, Ahmed2014, Zhang2020, Geoghegan2022, Seip2002, Shibata2000) and integrated into the Introduction/Related Work sections.
+- **Overfitting root cause found and being fixed:** the LOSO driver had no weight decay, no augmentation, and non-deterministic seeding. `evaluation/loso_cross_validation.py` now supports `--weight_decay`, `--augment`, `--seed`; regularized retraining of the two worst-affected models is in progress (`scripts/run_loso_benchmarks_regularized.sh`), with results to land in `paper/tables/loso_regularized.tex`.
+
+Still open: shape-mismatch bugs in `evaluate_models.py`/`comprehensive_uncertainty_eval.py` (item 2, legacy evaluators — the LOSO pipeline does not depend on them), and the validation-pipeline rigor items (Section 6 below).
+
+---
+
 ## Executive Summary
 
 The project has substantial breadth (20+ models, physics-informed variants, UQ, edge deployment, phantom validation) but suffers from **fragmented execution**: incomplete LOSO results, broken evaluation aggregators, reproducibility gaps, and a paper draft that is ~40% incomplete. None of the gaps are conceptual — they are integration, rigor, and finishing work.

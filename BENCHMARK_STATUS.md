@@ -1,5 +1,7 @@
 # Benchmark Status Report
 
+**Update (2026-08-26):** LOSO cross-validation completed for all core models (see `paper/tables/loso_summary.tex`); comparison against the standard-split table revealed a large generalization gap (e.g. SimpleResNet 1.31 K standard-split MAE vs. 26.67 K LOSO MAE), traced to an unregularized optimizer, no train-time augmentation, and non-deterministic seeding in `evaluation/loso_cross_validation.py`. Fixes (`--weight_decay`, `--augment`, `--seed`, per-fold provenance JSON) landed; regularized retraining of the two worst-affected models (`SimpleResNet`, `CNNLSTM`) is running now in tmux sessions `loso_reg_simpleresnet` / `loso_reg_cnnlstm` (`scripts/run_loso_benchmarks_regularized.sh`). Results will populate `paper/tables/loso_regularized.tex`.
+
 **Date:** January 19, 2026
 **Overall Status:** **ACTIVE.**
 1.  **Retraining Failed Streams:** Bayesian and Physics models crashed due to dataset issues are retraining.

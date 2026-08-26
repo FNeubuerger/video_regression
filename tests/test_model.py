@@ -25,14 +25,14 @@ def test_simple_resnet_structure():
     model = SimpleResNet(frame_shape=(64, 64, 3))
     x = torch.randn(2, 3, 64, 64)
     out = model(x)
-    # Model outputs a single scalar (regression), shape (Batch,)
-    assert out.shape == (2,)
+    # Model regresses the 4 sensor temperatures per sample, shape (Batch, 4)
+    assert out.shape == (2, 4)
 
 def test_bayesian_resnet_structure():
     model = BayesianResNet(frame_shape=(64, 64, 3))
     x = torch.randn(2, 3, 64, 64)
-    # bnn models forward returns only prediction. KL is computed separately.
-    out = model(x)
-    assert out.shape == (2,)
-    # KL check skipped as it requires loss function access or iteration over modules
+    # bnn forward returns (prediction, kl_divergence)
+    out, kl = model(x)
+    assert out.shape == (2, 4)
+    assert kl.numel() == 1
 
