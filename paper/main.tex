@@ -50,12 +50,11 @@ This paper presents a comprehensive study on estimating temperature dynamics fro
 Video Regression, Physics-Informed Machine Learning, Edge Computing, Bayesian Neural Networks, Optical Flow, Thermal Ablation, Medical Imaging
 \end{IEEEkeywords}
 
- %\input{INTRODUCTION_DRAFT.tex}
 \section{Introduction and Motivation}
-Estimating physical parameters, such as temperature, from medical imaging data is a critical challenge in non- and minimally-invasive thermal ablation therapies.
-In procedures like High-Intensity Focused Ultrasound (HIFU), radiofrequency (RFA) and microwave ablation (MWA), precise temperature monitoring is essential to ensure tumor destruction while preserving healthy surrounding tissue. However, direct temperature measurement is often impossible or requires invasive probes. In this work, we explore the feasibility of using ultrasonic video sequences to regress temperature values, leveraging temporal coherence and visual cues present in the footage.
+Thermal ablation has become a widely adopted minimally invasive treatment for solid tumors in the liver, lung, kidney, and other organs~\cite{Vogl2017,Ahmed2014}. Among ablation modalities, microwave ablation (MWA) is increasingly favored over radiofrequency ablation (RFA) because it achieves faster heating, higher intratumoral temperatures, and larger, more predictable ablation zones with reduced sensitivity to heat-sink effects from nearby vasculature~\cite{Lubner2010,Shibata2000}. Technically successful ablation requires complete coverage of the tumor plus a circumferential safety margin of 5--10\,mm~\cite{Ahmed2014}, and tissue coagulation reliably occurs only when temperature is sustained in the 50--60$^\circ$C range for several minutes, while temperatures above 100$^\circ$C cause vaporization and carbonization~\cite{Vogl2017}. This narrow therapeutic window makes precise, continuous temperature monitoring essential to avoid both incomplete treatment and collateral damage to healthy tissue.
 
-% TODO: Maybe we should just focus on minimally-invasive ablation methonds and ignore HIFU
+Estimating physical parameters, such as temperature, from medical imaging data is a critical challenge in non- and minimally-invasive thermal ablation therapies.
+In procedures like High-Intensity Focused Ultrasound (HIFU), RFA and MWA, precise temperature monitoring is essential to ensure tumor destruction while preserving healthy surrounding tissue. However, direct temperature measurement is often impossible or requires invasive probes such as thermocouples or fiber-optic sensors, which are accurate but sample only discrete spatial locations and add procedural complexity~\cite{Geoghegan2022}. In this work, we explore the feasibility of using ultrasonic video sequences to regress temperature values, leveraging temporal coherence and visual cues present in the footage.
 
 A major constraint in clinical deployment is data privacy. Transmitting sensitive patient data to cloud servers for processing poses significant security risks and regulatory hurdles. Therefore, inference must be performed locally on edge devices. Furthermore, to ensure widespread accessibility, these devices must be cost-effective and easily retrofittable to existing ultrasonic machines. This necessitates models that are not only accurate but also lightweight enough to run on low-cost hardware like the Raspberry Pi or Jetson Nano.
 
@@ -72,7 +71,9 @@ We address these challenges by:
 
 \section{Related Work}
 \subsection{Non-Invasive Temperature Monitoring}
-The gold standard for non-invasive temperature monitoring is Magnetic Resonance Thermometry (MRT), which offers high spatial resolution and accuracy. However, MRT is expensive, immobile, and requires complex infrastructure, limiting its availability. Ultrasound-based thermometry is a cost-effective alternative but suffers from lower signal-to-noise ratios and artifacts. Traditional signal processing methods for ultrasonic thermometry often rely on tracking echo shifts due to the change in speed of sound with temperature, but these methods are sensitive to motion and tissue heterogeneity.
+The gold standard for non-invasive temperature monitoring is Magnetic Resonance Thermometry (MRT), which offers high spatial resolution and accuracy. However, MRT is expensive, immobile, and requires complex infrastructure, limiting its availability~\cite{Geoghegan2022}. Computed tomography can delineate the ablation zone post-procedure but provides no real-time feedback and delivers ionizing radiation. Ultrasound-based thermometry is a cost-effective, portable, real-time alternative but suffers from lower signal-to-noise ratios and poor intrinsic lesion contrast. Traditional signal processing methods for ultrasonic thermometry often rely on tracking echo shifts or speckle decorrelation due to the change in speed of sound with temperature, but these indirect markers do not correlate reliably with absolute tissue temperature and are sensitive to motion and tissue heterogeneity~\cite{Seip2002}. Comparative clinical studies confirm that MWA produces more consistent, larger ablation zones than RFA~\cite{Shibata2000}, further motivating the need for monitoring techniques that keep pace with faster MWA heating dynamics.
+
+Zhang et al.~\cite{Zhang2020} demonstrated that a CNN applied directly to ultrasound RF data can detect thermally-induced lesions with substantially higher accuracy (AUC 0.89) than conventional B-mode image analysis (AUC 0.69), showing that learned features can extract more information from ultrasound signals than manual inspection. However, this and related work targets binary lesion classification rather than continuous temperature regression, leaving a gap for real-time, quantitative video regression models suitable for edge deployment.
 
 \subsection{Deep Learning in Medical Imaging}
 Convolutional Neural Networks (CNNs) have revolutionized medical image analysis. Architectures like ResNet \cite{he2016deep} are widely used for classification and segmentation tasks. Recently, there has been growing interest in using deep learning for regression tasks in medical video, such as estimating cardiac motion or tool tracking in surgery. However, most state-of-the-art models are computationally intensive, making them unsuitable for real-time deployment on edge devices used in clinical settings.
@@ -225,13 +226,16 @@ We propose a hybrid architecture that synergizes the strengths of Bayesian Deep 
 \end{equation}
 This formulation ensures that the model's predictions are data-driven, physically consistent, and probabilistically calibrated. The physics loss acts as a regularizer that constrains the search space of the Bayesian posterior, potentially leading to better generalization in low-data regimes.
 
-\section{Experimental Setup}
+\section{Experimental Setup}\label{sec:experiments}
 
 \subsection{Training Configuration}
 All models were implemented using the PyTorch framework. Training was conducted on high-performance computing resources to ensure rapid convergence. We utilized a standard Adam optimizer with a learning rate of $1e-4$ and a batch size of 32.
 
 \subsection{Leave-One-Sequence-Out (LOSO) Validation}
 To rigorously assess the generalizability of our physics-informed models, we employ a Leave-One-Subject-Out (LOSO) cross-validation strategy. Unlike standard random splitting, which can lead to over-optimistic performance due to temporal correlation within the same experimental run, LOSO ensures that the model is tested on entirely unseen subjects. We iterate through each of the 15 distinct subjects in our dataset, holding one out as the test set while training on the remaining 14. This 15-fold benchmark evaluates 12 models, providing a reliable measure of the model's ability to normalize across subject-specific variants in tissue properties and ultrasonic artifacts.
+
+\subsubsection{Mitigating Subject-Level Overfitting}
+As discussed in Section~\ref{sec:results}, the mixed-subject and LOSO evaluations of the same checkpoints revealed a substantial generalization gap, indicating that models were partly memorizing subject-specific phantom texture rather than learning transferable temperature cues. To address this, we hardened the LOSO training pipeline with three changes: (i) explicit $L_2$ weight decay ($\lambda=10^{-4}$) on the AdamW optimizer, which was previously unregularized during LOSO folds; (ii) train-time data augmentation consisting of random horizontal flips (with the optical-flow $x$-component and all spatial targets mirrored consistently) and random brightness jitter, applied only to the training split; and (iii) fully deterministic seeding of model initialization, data shuffling, and the train/validation split via a global seed utility, so that regularization ablations are directly comparable across reruns. Each retrained fold also exports a JSON provenance record (seed, weight decay, git commit, hardware, timestamp) alongside its checkpoint to support exact reproducibility. We retrained the two most overfitting-prone architectures, SimpleResNet and CNNLSTM, under this regularized regime and report the resulting LOSO metrics in Section~\ref{sec:results}.
 
 \subsection{Edge Inference Evaluation}
 To validate the suitability of our models for clinical edge deployment, we simulated a resource-constrained environment. Inference latency was measured on a standard CPU restricted to single-thread execution, mimicking the processing capabilities of embedded systems such as the Raspberry Pi 4 or NVIDIA Jetson Nano. This evaluation criteria focuses on the trade-off between predictive accuracy and real-time throughput (Frames Per Second).
@@ -278,9 +282,9 @@ For medical practitioners, the interpretation of these statistical metrics can b
 
 We evaluate these metrics using Monte Carlo sampling ($N=50$ samples) for Bayesian models and ensemble averaging for Deep Ensembles.
 
-\section{Results}
+\section{Results}\label{sec:results}
 
-\subsection{Computational Efficiency}
+\subsection{Computational Efficiency}\label{sec:computational_efficiency}
 The following tables present the results of our edge benchmark and deployment simulations across various hardware platforms.
 
 \input{tables/edge_deployment}
@@ -295,7 +299,7 @@ Our custom CNNLSTM achieves substantial throughput improvements via ONNX Runtime
 \end{figure}
 
 \subsection{Predictive Performance}
-Table \ref{tab:performance_comparison} compares the predictive accuracy and computational complexity of the evaluated architectures. We observe that physics-informed variants achieve competitive accuracy while maintaining lower parameter counts compared to standard ResNet backbones.
+Table \ref{tab:performance_comparison} compares the predictive accuracy and computational complexity of the evaluated architectures under a standard, subject-mixed train/test split. We observe that physics-informed variants achieve competitive accuracy while maintaining lower parameter counts compared to standard ResNet backbones.
 
 \input{tables/performance_summary}
 \input{tables/accuracy_details}
@@ -308,6 +312,18 @@ Table \ref{tab:performance_comparison} compares the predictive accuracy and comp
 \end{figure}
 
 The results show that explicitly modeling the Bioheat Transfer Equation (BTE) regularizes the training process, leading to better generalization in the higher temperature ranges critical for ablation monitoring.
+
+\subsection{Cross-Subject Generalization (LOSO)}
+Standard train/test splits can substantially overestimate real-world performance when sequences from the same phantom subject appear in both partitions, since the network can memorize subject-specific tissue texture rather than learning generalizable temperature cues. To quantify this effect, Table~\ref{tab:loso_results} reports Leave-One-Subject-Out (LOSO) cross-validation results, in which each of the 15 phantom subjects is held out as an independent test set in turn.
+
+\input{tables/loso_summary}
+
+The comparison between Table~\ref{tab:performance_comparison} and Table~\ref{tab:loso_results} reveals a substantial generalization gap. For example, SimpleResNet drops from 1.31\,K MAE under the mixed-subject split to 26.67\,K $\pm$ 5.14\,K under LOSO, and BioheatPINN-family models similarly degrade from sub-Kelvin errors to the 40--55\,K range once evaluated on entirely unseen subjects. This gap indicates that much of the apparent accuracy in the mixed-subject setting is attributable to subject-specific overfitting rather than genuine physical generalization, and it underscores the importance of subject-independent validation protocols for any claims of clinical applicability. Notably, the KANResNet head fails catastrophically under LOSO (3358.7\,K $\pm$ 3504.0\,K MAE, driven by extreme divergence on held-out subject US\_015), while models constrained by the Advanced Bioheat Loss (SpatialKANBioheat, ConvectionBioheat) maintain low field-level MAE despite scalar-level degradation, consistent with the discussion of KAN interpretability in Section~\ref{sec:kan_models}. We therefore treat the LOSO numbers, not the mixed-subject numbers, as the primary evidence for clinical generalizability throughout the remainder of this paper.
+
+As described in Section~\ref{sec:experiments}, we re-ran the LOSO benchmark for the two most overfitting-prone architectures, SimpleResNet and CNNLSTM, with explicit weight decay, train-time flip/brightness augmentation, and deterministic seeding, to test whether standard regularization can close part of this gap without sacrificing the physics-informed models' already-strong LOSO performance. Table~\ref{tab:loso_regularized} reports the resulting MAE, RMSE, and the delta against the unregularized baseline from Table~\ref{tab:loso_results}.
+
+\input{tables/loso_regularized}
+
 
 The Bayesian models provide critical uncertainty estimates. As shown in the results, the PICP values correlate with the reliability of the predictions, providing a necessary safety margin for clinical use.
 
@@ -324,6 +340,9 @@ The results indicate that while heavier models like the Pretrained ResNet offer 
 While KANs are theoretically attractive for their interpretability (each learned univariate function can be directly visualized as a weighted sum of B-spline basis functions), our LOSO experiments reveal a critical gap between theory and practice. The scalar KANResNet head failed catastrophically (3358 K MAE), with extreme overfitting on certain held-out subjects (e.g., 23,091 K MAE on US\_015). Basis function visualization (Fig.~\ref{fig:kan_basis_kanresnet}) revealed that without regularization, the spline coefficients grow unconstrained, producing highly oscillatory learned functions with no physical structure. In contrast, SpatialKANBioheat (47.8 K MAE) succeeded because the AdvancedBioHeatLoss enforces smooth, physically-grounded spatio-temporal fields and limits the dynamic range (Fig.~\ref{fig:kan_basis_spatialkanbio}). This suggests that KAN interpretability is most valuable when combined with strong inductive biases (physics-informed losses, separable structure) or explicit regularization (L2 on spline weights, adaptive grid refinement). Future work should apply insights from the recent PIKAN literature~\cite{guo2025chebpikan, jacob2025spikan} to stabilize data-driven KAN training on lower-dimensional targets.
 
 \input{figures_kan_basis}
+
+\subsection{Limitations}
+Several limitations qualify the conclusions of this study. First, all data were collected from protein-doped agar phantoms rather than in-vivo or ex-vivo tissue; phantom acoustic and thermal properties only approximate the heterogeneity, perfusion, and motion artifacts of real patients, so clinical validation on animal or human tissue remains a necessary next step. Second, our edge-deployment numbers (Section~\ref{sec:computational_efficiency}, Computational Efficiency) are obtained via CPU-restricted simulation and ONNX Runtime benchmarking rather than measurements on physical Raspberry Pi or Jetson hardware; simulated timings can differ from real devices due to thermal throttling, memory bandwidth, and OS scheduling effects. Third, the dataset spans 15 phantom subjects, which, while sufficient for LOSO cross-validation, is small relative to typical clinical imaging datasets and limits statistical power; we did not perform paired significance testing (e.g., Wilcoxon signed-rank across folds) between models, and the reported confidence intervals should be interpreted as descriptive rather than confirmatory. Fourth, as discussed above, the scalar KAN-ResNet head is numerically unstable without strong physical regularization, indicating that KAN-based heads are not yet a drop-in replacement for MLP heads in this domain. Fifth, the original LOSO numbers reported in Section~\ref{sec:results} were obtained without weight decay or data augmentation; Section~\ref{sec:experiments} and Table~\ref{tab:loso_regularized} report the effect of adding these regularizers for the two architectures most affected, and the remaining models still stand to benefit from the same treatment. Finally, our uncertainty quantification methods (Deep Ensembles, BNNs, B-PINN) are evaluated only in terms of calibration metrics (NLL, PICP, MPIW) on phantom data; their reliability under distribution shift (e.g., novel tissue types or ablation devices) has not been assessed.
 
 \section{Conclusion}
 We demonstrated that physics-informed video regression is feasible on edge devices. By integrating optical flow and optimizing model architectures, we achieve robust temperature estimation with minimal latency. Future work will focus on deploying these models on physical hardware and validating the uncertainty estimates in real-world scenarios.
