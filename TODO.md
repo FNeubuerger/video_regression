@@ -1,85 +1,116 @@
-# TODO: Project Status & Issues
+# TODO
 
-## Evaluation Pipeline Repairs (Critical)
-- [ ] **Fix Shape Mismatches in `evaluate_models.py`**
-    - **Error**: `ValueError: operands could not be broadcast together with shapes (10776,) (43104,)`.
-    - **Analysis**: Mismatch between prediction count (43104) and ground truth count (10776). Ratio is ~4. Likely related to sequence length (5) minus 1, or some frame-level vs sequence-level output discrepancy in legacy models (`PretrainedCNNLSTM`, `SimpleResNet`).
-    - **Action**: Debug `evaluate_model` method to correctly reduce frame-level predictions to sequence-level (e.g., mean, or taking the last frame), or filter out legacy models.
-- [ ] **Fix Shape Mismatches in `comprehensive_uncertainty_eval.py`**
-    - **Error**: `ValueError: operands could not be broadcast together with shapes (10776,) (21552,)`.
-    - **Analysis**: Ratio is exactly 2. Likely related to `BayesianResNet` or `BayesianCNNLSTM` returning duplicate predictions per sample, or an accumulation error in the evaluation loop (appending twice?).
-    - **Action**: Inspect the `evaluate_model` loop in `comprehensive_uncertainty_eval.py` for double appending or incorrect concatenation of means/stds.
-- [ ] **Restore `metrics_comparison.csv` generation**
-    - **Issue**: File is not created because `evaluate_models.py` crashes before the saving step.
-    - **Impact**: `paper/viz_performance.py` and `generate_tables.py` fail.
-- [ ] **Cleanup Legacy Models**: User indicated legacy models don't need to work. Consider removing them from the automated evaluation queue to stabilize the pipeline for NEW models.
+Single source of truth for open work (see [docs/decisions/0001](docs/decisions/0001-documentation-layout.md)).
+Current numbers: [docs/RESULTS.md](docs/RESULTS.md). Last reviewed: 2026-11-02.
 
+## 1. Results & science (highest priority)
 
-## Critical Issues
-- [x] **Data Migration**: Models were training on legacy `data/` instead of `data/level1_cropped`.
-    - **Fix**: Updated `SequenceHeatmapDataset` and all training scripts to point to `level1_cropped`.
-    - **Status**: Verified dataset logic and visual alignment.
-- [ ] **Benchmark Integrity**: Re-run all benchmarks on the new dataset.
-    - **Status**: Old results archived. Full retraining initiated (Unmasked & Masked).
-    - **Action**: Monitor training sessions.
+The regularized LOSO runs (committed 2026-11-02) show that weight decay +
+augmentation do **not** close the mixed-split vs. LOSO gap (best LOSO MAE still
+~23 K). The paper narrative has been corrected accordingly.
 
-## Upcoming Tasks
-- [ ] **Transfer Learning Investigation**: Investigate using archived legacy models as seed weights for the new dataset.
-- [ ] **Scientific Plots**: Re-generate advection and uncertainty plots once new checkpoints are available.
+- [ ] **Disentangle the regularization ablation.** Weight decay and augmentation
+  were changed together with a single seed. Run SimpleResNet + CNNLSTM with
+  (a) WD only, (b) aug only, (c) both, each with ≥3 seeds (42/123/7).
+- [ ] **Investigate why CNNLSTM gets worse with augmentation** (+7.4 K, p=0.026).
+  Suspect: horizontal flip + negated flow-dx is inconsistent with the temporal
+  model, or brightness jitter destroys the intensity cue the LSTM relies on.
+- [ ] **Root-cause the generalization gap** beyond regularization: per-sequence
+  normalization / intensity calibration, domain shift between 10 min @ 30 W and
+  5 min @ 25–50 W sequences (`US_010`–`US_015`), predicting ΔT instead of absolute T.
+- [ ] **Stabilize or drop KANResNet** (MAE ~3400 K in both configs; diverges on
+  `US_008`, `US_015`). Options: clip/normalize KAN inputs, spline-grid
+  regularization, lower LR. Otherwise report only SpatialKANBioheat.
+- [ ] **BayesianResNet fold blow-ups** (US_005: 237 K baseline; US_006: 395 K
+  regularized). Check KL weighting / MC sample count; report median alongside mean.
+- [ ] **Sanity-check ConvectionBioheat field MAE of 0.05 K** — implausibly low
+  vs. 49.9 K scalar MAE; likely the field target equals the physics prior.
+- [ ] Extend regularized LOSO to the spatial/physics models (SpatialResNet,
+  ConvectionBioheat, SpatialKANBioheat) once the ablation above is settled.
+- [ ] Re-run `make stat_tests loso_plots` and update `paper/tables/loso_summary.tex`
+  and figures (now that run variants are labeled separately, see
+  [decision 0002](docs/decisions/0002-loso-run-variant-labels.md)).
+- [ ] Delete or finish `results/loso_SimpleResNet_seed123_aug_unmasked.csv`
+  (aborted run, 1 fold only).
 
-## Resolved
-### Fix Spatial Model Crashes
-- **Issue**: `RuntimeError` due to dimension mismatch in `AdvancedBioHeatLoss`.
-- **Fix**: Added dummy temporal dimension in validation loops.
+## 2. Reproducibility & infrastructure
 
-- [x] Fix validation loop in `training/train_spatial_bioheat.py`
-- [x] Fix validation loop in `training/train_spatial_convection_bioheat.py`
-- [x] Fix validation loop in `training/train_spatial_metabolic_bioheat.py`
-- [ ] Rerun the benchmarks to verify the fix.
+- [ ] **Do not overwrite checkpoints between LOSO configurations.** Regularized
+  runs overwrote `checkpoints/loso/<Model>/fold_*.pth` for SimpleResNet, CNNLSTM,
+  BayesianResNet, KANResNet; include the run tag in the checkpoint directory.
+- [ ] **Fix the local `.venv` on `aconcagua`**: it was copied from the training
+  host and `import torch` fails, so `make test` cannot run here. Recreate with
+  `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`.
+- [ ] Pin `captum`, `quantus` (unpinned since the XAI merge) and add `pytest` to
+  `requirements.txt`.
+- [ ] Clean up `results/MASTER_RESULTS.csv` (mixes legacy `comprehensive_results`
+  rows, NLL of 1e14 for `best`, and LOSO columns).
+- [ ] Data manifest: `data/DATA_MANIFEST.json` (power, duration, frame count,
+  sensor positions per sequence) + checksums for `level1_cropped`.
+- [ ] ONNX numerical-equivalence test (PyTorch vs. ONNX within 1 %).
 
-## Priority Actions (Jan 9)
-- [x] **Core Evaluation:** Run GPU-accelerated evaluation for all deterministic models.
-    - Achieved MAE 0.26K with `BioheatPINN`.
-    - Integrated LaTeX table generation.
-- [x] **Thermometer Masking (#41):** Implement spatial artifact masking in `heatmap_dataset.py`.
-    - Avoid models "cheating" by looking at bright sensor spots.
-    - Added `use_artifact_masking` to `TemperatureSequenceDataset`.
-- [x] **Bayesian Evaluation:** Run `evaluation/comprehensive_uncertainty_eval.py` for all Tier 3 models.
-    - `BayesianCNNLSTM` summary done. (MAE ~30)
-    - `BayesianResNet` done. (MAE ~29.6)
-    - Created `evaluation/run_unified_evaluation.py` and `make evaluation` target.
-- [x] **XAI Comparative Analysis:** Created Issue #46 to track cheating vs. learning analysis.
-- [ ] **Retraining:** Launch masked training benchmark via `training/train_all_models.py --masked`.
+## 3. Evaluation pipeline bugs (legacy evaluators; LOSO does not depend on them)
 
-## LOSO Cross-Validation (#47)
-- [x] **Implementation:** `evaluation/loso_cross_validation.py` created with fold-based logic.
-- [x] **Rerun Benchmarks:** Execute full training/evaluation pipeline for all models using LOSO to prove setup generalization.
-    - [x] Compare LOSO results (Generalization) vs. Random Split results (Memorization). See `paper/tables/loso_summary.tex` and `paper/main.tex` ("Cross-Subject Generalization").
-    - [x] Maintain legacy benchmark results for internal comparison.
+- [ ] `evaluation/evaluate_models.py`: shape mismatch (10776,) vs (43104,) —
+  frame-level vs sequence-level predictions (×4). Reduce to sequence level or drop
+  legacy models from the queue. Blocks `metrics_comparison.csv`,
+  `paper/viz_performance.py`, `evaluation/generate_tables.py`.
+- [ ] `evaluation/comprehensive_uncertainty_eval.py`: shape mismatch (10776,) vs
+  (21552,) — predictions appended twice for Bayesian models.
+- [ ] Re-generate advection and uncertainty plots with current checkpoints.
 
-## LOSO Overfitting Mitigation (#48)
-- **Issue:** LOSO folds trained with unregularized AdamW (no weight decay), no augmentation, and non-deterministic seeding, producing a large mixed-split vs. LOSO generalization gap (e.g. SimpleResNet 1.31 K -> 26.67 K MAE).
-- [x] Added `--weight_decay` (default `1e-4`), `--augment` (flip + brightness jitter via `utils/augmentation.py`), and `--seed` (via `utils/seed_utils.py`) to `evaluation/loso_cross_validation.py`.
-- [x] Per-fold provenance export: `checkpoints/loso/<model>/fold_<id>_config.json` (seed, weight decay, git sha, hardware, timestamp).
-- [x] `scripts/run_loso_benchmarks_regularized.sh` launches regularized retraining for `SimpleResNet` and `CNNLSTM` (the two worst-affected models) across 2 GPUs via tmux.
-- [ ] **In progress:** retraining running in tmux sessions `loso_reg_simpleresnet` / `loso_reg_cnnlstm` (15 folds x 10 epochs each). Once complete, fill in `paper/tables/loso_regularized.tex` and extend the regularized run to remaining overfitting-prone models (`ConvectionBioheat`, `BayesianResNet`, `KANResNet`).
+## 4. Validation (ablation zone, CEM43)
 
-## Part 2/3 (Dense & LTC) Analysis
-- [x] **Evaluation:** Physics-Informed models (`BioheatPINN`) significantly outperform baselines.
-- [x] **Cleanup:** Organized project structure (moved scripts to `scripts/`, `utils/`).
-- [ ] **Implementation:** Finalize `evaluation/evaluate_dense.py` for dense map metrics.
-- [ ] **Bayesian U-Net:** Implement "Probabilistic Bottleneck" (Variational Layer) in `models/dense_heads.py`.
-- [ ] **Bayesian LTC:** Implement Variational Encoder for `LatentLTC_UNet`.
+- [ ] Run `make validation MODEL=<name> CKPT=<path>` with a trained dense model
+  (registry loading + MC sampling exist; only the grayscale `stub` baseline is
+  the default) and commit the resulting IoU/Dice.
+- [ ] CEM43 threshold sweep (30–240 min) with IoU/Dice curves.
+- [ ] Document GT capture protocol; replace intensity thresholding segmentation.
+- [ ] Probabilistic ablation zone from UQ models.
 
-## XAI & Interpretability (Bonus / Deprioritized)
-- [x] **Justification:** Created `research/XAI_PAPER_CONTRIBUTION.md` (on `feature/xai-integration`).
-- [x] **Metric Implementation:** `evaluation/evaluate_xai.py` implemented (on `feature/xai-integration`).
-- [ ] **Fix Memory Error:** `FaithfulnessCorrelation` causing OOM. (Low Priority)
-- [ ] **Dashboard Fix:** `demo/xai_dashboard.py` flickers. (Low Priority)
+## 5. Dense maps & LTC (Part 2/3)
 
+- [ ] Finalize `evaluation/evaluate_dense.py` for dense-map metrics.
+- [ ] Bayesian U-Net: variational bottleneck in `models/dense_heads.py`.
+- [ ] Bayesian LTC: variational encoder for `LatentLTC_UNet`.
+- [ ] ConvLTC LOSO MAE is 97 K — check before reporting.
 
-## XAI & Interpretability (Bonus / Deprioritized)
-- [x] **Justification:** Created research/XAI_PAPER_CONTRIBUTION.md (on xai branch).
-- [x] **Metric Implementation:** evaluation/evaluate_xai.py implemented (on xai branch).
-- [ ] **Fix Memory Error:** FaithfulnessCorrelation causing OOM. (Low Priority)
-- [ ] **Dashboard Fix:** demo/xai_dashboard.py flickers. (Low Priority)
+## 6. Paper
+
+- [ ] Rebuild `paper/main.pdf` after the LOSO text/table changes (`make docs_pdf`).
+- [ ] Measure edge latency on real hardware or label all FPS numbers as simulated.
+- [ ] Add pairwise Wilcoxon results across all models (limitations paragraph
+  still says no paired testing was done).
+
+## 7. XAI (merged from `feature/xai-integration`, low priority)
+
+- [ ] `RegressionWrapper` only reduces dense outputs; scalar sequence models
+  (e.g. SimpleResNet, output `(B, T)`) need a Captum `target` index.
+- [ ] `FaithfulnessCorrelation` OOM in `evaluation/evaluate_xai.py`.
+- [ ] `demo/xai_dashboard.py` flickers.
+- [ ] Compare attributions of masked vs. unmasked models ("cheating" on the
+  thermometer artifact, issue #46).
+
+## Branches
+
+All remote branches except the two below are fully merged into `main` and can
+be deleted: `dev`, `feature/advanced-physics`, `feature/dense-map-estimation`,
+`feature/edge-benchmarks-ltc`, `feature/edge-simulation`, `feature/live-demo`,
+`feature/validation-ablationzone`.
+
+- `feature/xai-integration` — merged into `main` on 2026-11-02; can be deleted.
+- `writing/intro-and-setup` — its only unmerged commit (`39d591c`, LaTeX `\\`
+  fixes in `paper/tables/*.tex`) is already superseded on `main`; can be deleted.
+
+## Done (recent)
+
+- [x] LOSO for 12 models × 15 folds (masked), aggregated in `results/loso_summary.csv`.
+- [x] `--weight_decay`, `--augment`, `--seed` + per-fold provenance JSON in the LOSO driver.
+- [x] Regularized LOSO for SimpleResNet, CNNLSTM, BayesianResNet, KANResNet;
+  `paper/tables/loso_regularized.tex` filled with real numbers and Wilcoxon p-values.
+- [x] `aggregate_loso.py` no longer pools run variants of the same architecture.
+- [x] Thermometer artifact masking; data migration to `data/level1_cropped`.
+- [x] Pre-commit, CI workflow, `pytest.ini`, global seeding.
+- [x] Repository cleanup (2026-11-02): stale docs → `docs/archive/`, one-off
+  scripts → `scripts/archive/`, `Makefile.loso` folded into `Makefile`, hardcoded
+  `/mnt/data2/...` paths replaced, XAI branch merged.

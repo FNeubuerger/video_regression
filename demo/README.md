@@ -1,45 +1,47 @@
-# Clinical Inference Demo
+# Demos
 
-This directory contains scripts to demonstrate the deployment of the trained video regression models in a simulated clinical environment.
+All demos take a model name from `utils/model_registry.py` and a checkpoint
+(`.pth`, or `.onnx` where noted). Checkpoints are not tracked in git.
 
-## Contents
-
-- `export_models.py`: Exports trained PyTorch models to ONNX format for efficient inference.
-- `run_clinical_demo.py`: Simulates a clinical session by processing a video sequence frame-by-frame, performing preprocessing (including optical flow), and running inference using ONNX Runtime.
-
-## Usage
-
-### 1. Export Models to ONNX
-
-First, export the trained models. If checkpoints are not available, it will export untrained models with random weights for testing purposes.
+## Export to ONNX
 
 ```bash
-python demo/export_models.py
+python utils/export_to_onnx.py --model CNNLSTM --checkpoint models/cnnlstm_model.pth
+# -> models/cnnlstm_model.onnx (override with --output)
 ```
 
-This will create `.onnx` files in the `demo/` directory.
+## Live inference (`live_inference.py`)
 
-### 2. Run the Clinical Demo
-
-Run the demo with a specific model:
+Overlays predicted temperature, optional ground truth, error and FPS on a video
+or an image-sequence directory. Accepts `.pth` or `.onnx` checkpoints.
 
 ```bash
-python demo/run_clinical_demo.py --model demo/cnnlstm.onnx
+python demo/live_inference.py --video data/sequence_1 \
+    --checkpoint models/cnnlstm_model.onnx --output demo_output.mp4 [--quick_test]
 ```
 
-You can also try other models:
-- `demo/pretrained_cnnlstm.onnx`
-- `demo/simple_resnet.onnx`
-- `demo/physics_cnnlstm.onnx`
+## Clinical session simulation (`run_clinical_demo.py`)
 
-## Performance
+Frame-by-frame preprocessing (resize, normalization, Farneback flow) plus
+inference; reports per-frame latency and FPS.
 
-The demo measures the end-to-end latency per frame, including:
-1.  **Preprocessing**: Resizing, Normalization, Optical Flow calculation (Farneback).
-2.  **Inference**: ONNX Runtime execution (CPU).
+```bash
+python demo/run_clinical_demo.py --model CNNLSTM \
+    --checkpoint models/cnnlstm_model.pth --sequence data/sequence_1
+```
 
-The script outputs the latency (ms) and FPS for each frame, and the average at the end.
+## XAI dashboard (`xai_dashboard.py`)
 
-## Simulating Limited Resources
+Side-by-side prediction and attribution video for dense models (default `ResNetUNet`).
+Requires `captum`.
 
-The demo uses `CPUExecutionProvider` by default, which gives a good baseline for performance on devices without dedicated GPUs (like Raspberry Pi, though a Pi is slower than a server CPU).
+```bash
+python demo/xai_dashboard.py --video data/sequence_1 --model ResNetUNet \
+    --checkpoint checkpoints/unet_sparse/best_model.pth
+```
+
+## Other
+
+- `visualize_results.py` — dashboard video for dense/LTC models
+  (default `LatentLTC_UNet`, `checkpoints/ltc_unet/best_model.pth`).
+- `visualize_roi_context.py` — ROI context visualization.
