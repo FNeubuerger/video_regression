@@ -52,3 +52,10 @@ line-length = 88
 [tool.isort]
 profile = "black"
 line_length = 88
+
+[tool.pytest.ini_options]
+# Scripts import top-level packages (physics, models, ...) from the repo root.
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q --tb=short"
+filterwarnings = ["ignore::DeprecationWarning", "ignore::UserWarning"]
