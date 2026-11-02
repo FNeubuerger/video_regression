@@ -24,9 +24,10 @@ def pairwise_wilcoxon(
     df: pd.DataFrame, metric: str, group_col: str = "model"
 ) -> pd.DataFrame:
     models = sorted(df[group_col].unique())
+    # Pair folds per model pair: one incomplete run must not drop folds globally.
     pivot = df.pivot_table(
         index="fold", columns=group_col, values=metric, aggfunc="mean"
-    ).dropna(how="any")
+    )
     n = len(models)
     pvals = np.full((n, n), np.nan)
     for i, m1 in enumerate(models):
@@ -36,8 +37,9 @@ def pairwise_wilcoxon(
                 continue
             if m1 not in pivot.columns or m2 not in pivot.columns:
                 continue
+            paired = pivot[[m1, m2]].dropna()
             try:
-                stat = wilcoxon(pivot[m1], pivot[m2])
+                stat = wilcoxon(paired[m1], paired[m2])
                 pvals[i, j] = stat.pvalue
             except ValueError:
                 pvals[i, j] = np.nan

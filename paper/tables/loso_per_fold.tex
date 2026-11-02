@@ -1,0 +1,30 @@
+\begin{table*}[t]
+\centering
+\caption{Per-fold LOSO MAE (K) for every model (baseline configuration). Each row is one held-out sequence (index, ablation power, duration); the best model per fold is shown in bold.}
+\label{tab:loso_per_fold}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrrrrrrrrrr}
+\toprule
+\textbf{Held-out} & \rotatebox{70}{CNNLSTM} & \rotatebox{70}{BayesianCNNLSTM} & \rotatebox{70}{SpatialResNet} & \rotatebox{70}{SimpleResNet} & \rotatebox{70}{BayesianResNet} & \rotatebox{70}{FullBayesianResNet} & \rotatebox{70}{PretrainedCNNLSTM} & \rotatebox{70}{PhysicsCNNLSTM} & \rotatebox{70}{ConvectionBioheat} & \rotatebox{70}{SpatialKANBioheat} & \rotatebox{70}{ConvLTC} & \rotatebox{70}{KANResNet} \\
+\midrule
+001 (30W/10m) & 33.1 & 48.1 & 45.2 & 39.9 & 83.0 & 42.2 & 53.9 & 52.1 & \textbf{0.0} & 0.0 & 15.2 & 65.3 \\
+002 (30W/10m) & \textbf{13.6} & 18.7 & 15.6 & 26.0 & 102.2 & 32.3 & 39.9 & 43.2 & 54.1 & 54.1 & 76.6 & 1{,}321 \\
+003 (30W/10m) & 20.5 & 18.0 & 23.9 & 17.9 & 18.0 & 34.2 & 44.9 & 46.0 & 26.5 & \textbf{7.6} & 40.7 & 36.3 \\
+004 (30W/10m) & \textbf{14.8} & 34.3 & 28.4 & 22.1 & 26.6 & 29.1 & 46.1 & 50.8 & 25.9 & 15.8 & 79.4 & 37.1 \\
+005 (30W/10m) & 28.0 & 30.7 & 33.6 & \textbf{18.3} & 237.0 & 25.0 & 24.2 & 48.8 & 25.4 & 25.5 & 88.1 & 648.6 \\
+006 (30W/10m) & 20.3 & 23.6 & \textbf{12.8} & 13.8 & 18.3 & 21.2 & 19.2 & 33.5 & 59.2 & 59.2 & 122.8 & 6{,}812 \\
+007 (30W/10m) & 28.9 & 21.5 & 32.1 & 29.7 & 91.1 & 17.8 & 34.1 & 20.7 & 65.0 & 65.0 & 137.1 & \textbf{16.4} \\
+008 (30W/10m) & 40.2 & 19.5 & 21.5 & 41.3 & 80.7 & 14.8 & \textbf{11.6} & 12.8 & 59.7 & 59.7 & 128.5 & 630.0 \\
+009 (30W/10m) & 33.4 & 21.1 & \textbf{12.9} & 34.5 & 21.5 & 15.3 & 40.9 & 15.1 & 65.9 & 65.9 & 66.9 & 837.4 \\
+010 (25W/5m) & \textbf{14.6} & 30.3 & 35.8 & 15.0 & 35.0 & 18.6 & 35.9 & 41.4 & 56.1 & 56.1 & 147.6 & 39.9 \\
+011 (30W/5m) & 25.1 & 17.5 & \textbf{16.3} & 17.3 & 23.3 & 121.9 & 26.4 & 39.0 & 52.6 & 52.6 & 91.8 & 33.6 \\
+012 (35W/5m) & \textbf{15.0} & 33.7 & 21.7 & 25.3 & 23.9 & 40.0 & 33.0 & 51.7 & 62.7 & 61.7 & 138.1 & 173.2 \\
+013 (40W/5m) & 19.8 & 20.7 & 15.6 & 21.9 & \textbf{13.7} & 27.0 & 21.4 & 23.9 & 54.8 & 54.9 & 90.0 & 16{,}034 \\
+014 (45W/5m) & 21.2 & 21.1 & 19.3 & 46.4 & 23.4 & \textbf{13.5} & 22.0 & 14.8 & 67.9 & 67.0 & 122.6 & 603.9 \\
+015 (50W/5m) & 27.1 & 26.5 & \textbf{11.5} & 30.6 & 39.7 & 28.6 & 28.0 & 26.6 & 71.9 & 71.7 & 111.7 & 23{,}092 \\
+\midrule
+Median & 21.2 & 21.5 & 21.5 & 25.3 & 26.6 & 27.0 & 33.0 & 39.0 & 56.1 & 56.1 & 91.8 & 603.9 \\
+\bottomrule
+\end{tabular}
+\end{table*}

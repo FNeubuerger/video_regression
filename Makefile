@@ -186,7 +186,7 @@ DATA_DIR := data/level1_cropped
 .PHONY: missing list_missing loso_aggregate master_table validation \
         calibration stat_tests physics_losses_ablation \
         lint format test ci_local docs_pdf consolidate_paper \
-        eval_all eval_uq help_audit setup lock
+        eval_all eval_uq help_audit setup lock paper_figures
 
 ## list_missing : Print which model checkpoints are not on disk.
 list_missing:
@@ -245,6 +245,15 @@ loso_plots: loso_aggregate
 	    --summary $(RESULTS_DIR)/loso_summary.csv \
 	    --figdir paper/figures \
 	    --tabledir paper/tables
+
+## paper_figures: Fold-level paper figures + tables (distribution, regularization,
+##                Holm-adjusted Wilcoxon, fold difficulty, robust stats, per-fold).
+paper_figures: loso_aggregate
+	$(PYTHON) evaluation/make_paper_figures.py \
+	    --per-fold $(RESULTS_DIR)/loso_per_fold.csv \
+	    --figdir paper/figures \
+	    --tabledir paper/tables \
+	    --pairwise-csv $(RESULTS_DIR)/pairwise_wilcoxon_holm.csv
 
 ## stat_tests  : Pairwise Wilcoxon p-value matrix across LOSO folds.
 stat_tests: loso_aggregate

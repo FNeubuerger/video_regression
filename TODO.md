@@ -24,12 +24,18 @@ augmentation do **not** close the mixed-split vs. LOSO gap (best LOSO MAE still
 - [ ] **BayesianResNet fold blow-ups** (US_005: 237 K baseline; US_006: 395 K
   regularized). Check KL weighting / MC sample count; report median alongside mean.
 - [ ] **Sanity-check ConvectionBioheat field MAE of 0.05 K** — implausibly low
-  vs. 49.9 K scalar MAE; likely the field target equals the physics prior.
+  vs. 49.9 K scalar MAE; likely the field target equals the physics prior. Also
+  ConvectionBioheat/SpatialKANBioheat score 0.009/0.043 K *scalar* MAE on fold
+  `US_001` (all other models 15–45 K) — flagged as suspected artifact in the paper.
+- [ ] Physics models degrade on the 5 min power sweep (ConvectionBioheat 42→61 K,
+  SpatialKANBioheat 39→61 K); check whether the bioheat parameters are fixed to
+  the 30 W protocol (see `tab:loso_robust`).
 - [ ] Extend regularized LOSO to the spatial/physics models (SpatialResNet,
   ConvectionBioheat, SpatialKANBioheat) once the ablation above is settled.
-- [ ] Re-run `make stat_tests loso_plots` and update `paper/tables/loso_summary.tex`
-  and figures (now that run variants are labeled separately, see
-  [decision 0002](docs/decisions/0002-loso-run-variant-labels.md)).
+- [ ] Re-run `make loso_plots` and update `paper/tables/loso_summary.tex` and the
+  bar/heatmap figures (now that run variants are labeled separately, see
+  [decision 0002](docs/decisions/0002-loso-run-variant-labels.md)); filter out
+  incomplete runs first (the seed123 run would appear as a 1-fold row).
 - [ ] Delete or finish `results/loso_SimpleResNet_seed123_aug_unmasked.csv`
   (aborted run, 1 fold only).
 
@@ -71,10 +77,7 @@ augmentation do **not** close the mixed-split vs. LOSO gap (best LOSO MAE still
 
 ## 6. Paper
 
-- [ ] Rebuild `paper/main.pdf` after the LOSO text/table changes (`make docs_pdf`).
 - [ ] Measure edge latency on real hardware or label all FPS numbers as simulated.
-- [ ] Add pairwise Wilcoxon results across all models (limitations paragraph
-  still says no paired testing was done).
 
 ## 7. XAI (merged from `feature/xai-integration`, low priority)
 
@@ -92,6 +95,13 @@ deleted, `feature/xai-integration` was merged, and `writing/intro-and-setup` was
 dropped because its only commit was already superseded on `main`.
 
 ## Done (recent)
+
+- [x] Fold-level paper figures/tables (`make paper_figures`): per-fold MAE
+  distribution, paired regularization plot, Holm-adjusted pairwise Wilcoxon
+  heatmap + vs-best table, fold difficulty, robust stats, per-fold table; paper
+  text + limitations updated and `paper/main.pdf` rebuilt.
+- [x] `pairwise_stat_tests.py` pairs folds per model pair (an incomplete run no
+  longer drops folds for every model); `results/pairwise_wilcoxon.csv` regenerated.
 
 - [x] LOSO for 12 models × 15 folds (masked), aggregated in `results/loso_summary.csv`.
 - [x] `--weight_decay`, `--augment`, `--seed` + per-fold provenance JSON in the LOSO driver.

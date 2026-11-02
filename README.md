@@ -133,6 +133,7 @@ and a provenance JSON (seed, git sha, hardware) next to every fold checkpoint.
 | Regularized rerun | `make loso_regularized [MODEL_NAME=SimpleResNet]` |
 | Monitor | `make monitor` or `bash scripts/monitor_loso.sh` |
 | Aggregate + stats + plots | `make loso_aggregate stat_tests loso_plots` |
+| Fold-level paper figures + tables | `make paper_figures` |
 
 ### Evaluation
 

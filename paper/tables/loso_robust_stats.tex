@@ -1,0 +1,25 @@
+\begin{table}[t]
+\centering
+\caption{Robust LOSO statistics on per-fold MAE (K), ordered by median. IQR = interquartile range; worst = largest single-fold MAE; rank = mean rank across the 15 folds (1 = best; Friedman test $p=1.8\times10^{-9}$). The last two columns split the folds by acquisition protocol: 9 sequences at 30 W, 10 min and 6 sequences at 25--50 W, 5 min.}
+\label{tab:loso_robust}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Model} & \textbf{Median} [IQR] & \textbf{Mean} $\pm$ SD & \textbf{Worst} & \textbf{Rank} & \textbf{30 W, 10 min} & \textbf{25--50 W, 5 min} \\
+\midrule
+CNNLSTM & 21.2 [17.4--28.4] & 23.7 $\pm$ 8.0 & 40.2 & \textbf{3.9} & 25.9 & 20.5 \\
+BayesianCNNLSTM & 21.5 [20.1--30.5] & 25.7 $\pm$ 8.4 & 48.1 & 4.8 & 26.2 & 25.0 \\
+SpatialResNet & 21.5 [15.6--30.3] & 23.1 $\pm$ 10.0 & 45.2 & \textbf{3.9} & 25.1 & 20.0 \\
+SimpleResNet & 25.3 [18.1--32.6] & 26.7 $\pm$ 10.2 & 46.4 & 4.4 & 27.0 & 26.1 \\
+BayesianResNet & 26.6 [22.4--81.9] & 55.8 $\pm$ 58.6 & 237.0 & 6.6 & 75.4 & 26.5 \\
+FullBayesianResNet & 27.0 [18.2--33.3] & 32.1 $\pm$ 26.4 & 121.9 & 5.3 & 25.8 & 41.6 \\
+PretrainedCNNLSTM & 33.0 [23.1--40.4] & 32.1 $\pm$ 11.7 & 53.9 & 6.3 & 35.0 & 27.8 \\
+PhysicsCNNLSTM & 39.0 [22.3--47.4] & 34.7 $\pm$ 14.5 & 52.1 & 6.7 & 35.9 & 32.9 \\
+ConvectionBioheat & 56.1 [39.6--63.9] & 49.9 $\pm$ 20.6 & 71.9 & 7.9 & 42.4 & 61.0 \\
+SpatialKANBioheat & 56.1 [39.0--63.3] & 47.8 $\pm$ 23.3 & 71.7 & 7.6 & 39.2 & 60.7 \\
+ConvLTC & 91.8 [78.0--125.7] & 97.1 $\pm$ 37.8 & 147.6 & 10.5 & 83.9 & 117.0 \\
+KANResNet & 603.9 [38.5--1{,}079] & 3{,}359 $\pm$ 6{,}924 & 23{,}092 & 10.2 & 1{,}156 & 6{,}663 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
