@@ -7,8 +7,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_PATH="${VENV_PATH:-$REPO_ROOT/.venv/bin/python}"
 
 # Standard set of models to benchmark
-# Options: CNNLSTM, PretrainedCNNLSTM, SimpleResNet, PhysicsCNNLSTM, 
-#          ConvectionBioheat, SpatialResNet, BayesianResNet, 
+# Options: CNNLSTM, PretrainedCNNLSTM, SimpleResNet, PhysicsCNNLSTM,
+#          ConvectionBioheat, SpatialResNet, BayesianResNet,
 #          FullBayesianResNet, BayesianCNNLSTM, ConvLTC
 
 MODELS=("CNNLSTM" "PretrainedCNNLSTM" "PhysicsCNNLSTM" "ConvectionBioheat" "SimpleResNet" "SpatialResNet" "BayesianResNet" "FullBayesianResNet" "BayesianCNNLSTM" "ConvLTC" "KANResNet" "SpatialKANBioheat")

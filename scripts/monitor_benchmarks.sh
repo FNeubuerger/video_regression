@@ -24,19 +24,19 @@ while true; do
         local name="$1"
         local logfile="$2"
         local type="$3" # "BG" or "TMUX"
-        
+
         printf "%-25s | " "$name"
-        
+
         if [ ! -f "$logfile" ]; then
              printf "Waiting for log...\n"
              return
         fi
-        
+
         # Get last meaningful line (stripping tqdm /r)
         # Use python buffering workaround if needed, but usually tail works
         # Grep -v empty lines, wandb lines
         local status=$(tail -c 2000 "$logfile" | tr '\r' '\n' | sed 's/\x1b\[[0-9;]*m//g' | grep -v "^$" | grep -v "wandb" | tail -n 1 | cut -c 1-80)
-        
+
         if [ -z "$status" ]; then
             printf "Log found, waiting for output...\n"
         else
@@ -46,7 +46,7 @@ while true; do
 
     echo "--- 1. Standard Stream ---"
     print_job "Standard (CNNLSTM)" "logs/retrain/restart_main.log" "BG"
-    
+
     echo -e "\n--- 2. Uncertainty Stream ---"
     print_job "Ensemble (Uncertainty)" "logs/retrain/restart_uncertainty.log" "BG"
 
@@ -61,7 +61,7 @@ while true; do
     print_job "Spatial Bioheat" "logs/physics/spatial_bioheat.log" "TMUX"
     print_job "Spatial Convection" "logs/physics/spatial_convection.log" "TMUX"
     print_job "Spatial Metabolic" "logs/physics/spatial_metabolic.log" "TMUX"
-    
+
     echo -e "\n--- 5. Bayesian Physics Stream ---"
     print_job "Bayesian PINN" "logs/part3/bayesian_pinn.log" "TMUX"
     print_job "Bayesian Convection" "logs/part3/bayesian_convection_pinn.log" "TMUX"

@@ -26,15 +26,15 @@ for JOB in "${JOBS[@]}"; do
     read -r SCRIPT_PATH LOG_FILE SESSION_NAME <<< "$JOB"
 
     echo "Launching $SESSION_NAME ($SCRIPT_PATH)..."
-    
+
     # Kill existing session if it exists to ensure fresh start
     tmux kill-session -t "$SESSION_NAME" 2>/dev/null
-    
+
     # Launch new session
     # Using CUDA_VISIBLE_DEVICES=1 as in the original physics script
     tmux new-session -d -s "$SESSION_NAME" \
         "CUDA_VISIBLE_DEVICES=1 $VENV_PATH $SCRIPT_PATH --epochs $EPOCHS > $LOG_DIR/$LOG_FILE 2>&1"
-        
+
 done
 
 echo "All crashed jobs restarted."

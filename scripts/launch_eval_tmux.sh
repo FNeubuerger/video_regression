@@ -16,7 +16,7 @@ fi
 launch_eval_group() {
     WINDOW_NAME=$1
     COMMANDS=$2
-    
+
     # Check if window exists
     if tmux list-windows -t $SESSION | grep -q "$WINDOW_NAME"; then
         echo "Window $WINDOW_NAME already exists. Skipping..."

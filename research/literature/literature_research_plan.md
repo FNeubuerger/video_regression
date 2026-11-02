@@ -102,4 +102,3 @@ Writing schedule (example, adjust to your pace)
 Notes & placeholders
 - Where numbers, brands, or settings are missing in your Methods, place a clear TODO like: `TODO: confirm antenna active tip length (mm) and model`.
 - Keep a short changelog at top of the file when you revise (date, what you changed).
-

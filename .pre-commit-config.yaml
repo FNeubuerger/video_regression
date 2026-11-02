@@ -19,6 +19,7 @@ repos:
     rev: v4.6.0
     hooks:
       - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]  # keep Markdown hard line breaks
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files

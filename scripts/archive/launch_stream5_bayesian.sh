@@ -26,7 +26,7 @@ launch_window() {
     local name=$1
     local cmd=$2
     local logfile=$3
-    
+
     tmux new-window -t $SESSION_NAME -n "$name"
     tmux send-keys -t $SESSION_NAME:"$name" "cd $WORKSPACE_DIR" C-m
     tmux send-keys -t $SESSION_NAME:"$name" "source $VENV_PATH/bin/activate" C-m

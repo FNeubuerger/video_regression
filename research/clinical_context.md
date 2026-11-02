@@ -6,80 +6,80 @@
 1. [1] Vogl, T. J., Nour-Eldin, N. A., Hammerstingl, R. M., Panahi, B., & Naguib, N. N. N. (2017). Microwave Ablation (MWA): Basics, Technique and Results in Primary and Metastatic Liver Neoplasms - Review Article. Mikrowellenablation (MWA): Grundlagen, Technik und Ergebnisse in primären und sekundären Lebertumoren – Übersichtsarbeit. RoFo : Fortschritte auf dem Gebiete der Rontgenstrahlen und der Nuklearmedizin, 189(11), 1055–1066. https://doi.org/10.1055/s-0043-117410
 
 2. [2]P. Seda, R. Abbey, L. Peng, I. Ezeaku, S.T. Laroia, H. Aziz (2026). A review of established and new developments in local therapies for liver cancer. ESMO Gastrointestinal Oncology, Volume 11,100283, ISSN 2949-8198,https://doi.org/10.1016/j.esmogo.2025.100283.
- 
+
 3. [3] (scihub) Lubner, Meghan G.; Brace, Christopher L.; Hinshaw, J. Louis; Lee, Fred T.. (2010). Microwave Tumor Ablation: Mechanism of Action, Clinical Results, and Devices. , 21(8), –. doi:10.1016/j.jvir.2010.04.007  
- 
+
 4. [4] Ahmed, Muneeb et al. “Image-guided tumor ablation: standardization of terminology and reporting criteria--a 10-year update.” Journal of vascular and interventional radiology : JVIR vol. 25,11 (2014): 1691-705.e4. doi:10.1016/j.jvir.2014.08.027
 
- ## 1. Principle of MWA 
+ ## 1. Principle of MWA
 (3) - usage of dielectric hysteresis to produce heating
-(3) - generator frequencies 915MHz or 2.45MHz 
+(3) - generator frequencies 915MHz or 2.45MHz
 
-### Aim 
-(1) - eradicate all malignant cells through thermal meachanisms 
-(1) - minimally invasive technique under imaging guidance 
+### Aim
+(1) - eradicate all malignant cells through thermal meachanisms
+(1) - minimally invasive technique under imaging guidance
 (1) - preserving the healthy tissue with a sufficient safety margin (at least 5 mm) surrounding the ablated lesion
 
-### Medical indication 
-(1) - in more than 75 % of cases surgical resection & chemotherapy is not possible 
+### Medical indication
+(1) - in more than 75 % of cases surgical resection & chemotherapy is not possible
 (1,2) - curative or palliative
 (1) - contraindication: tumor size >5cm or more than 5 liver lesions or considerable ascites
 (2) - contraindication: lesions in high risk areas and impaired visualization of ablation field
 
-### Advantages to other (thermal ablation) techniques (RFA) 
-(1) - large tumors (up to 5cm) 
-(1) - locations around large vessels and highly perfused areas 
-(1,3) - faster heating & higher temperatures resulting in larger areas of necrosis 
-(1) - better demarcated ablation zone 
+### Advantages to other (thermal ablation) techniques (RFA)
+(1) - large tumors (up to 5cm)
+(1) - locations around large vessels and highly perfused areas
+(1,3) - faster heating & higher temperatures resulting in larger areas of necrosis
+(1) - better demarcated ablation zone
 (1) - heat is dissipated centrifugally around the probe tip
 (1) - more predictable ablation zone on CT scans during ablation procedure
 (2) - local therapies may enhance systemic immune responses by promoting tumor antigen release and modulating the tumor microenvironment, thereby improving the efficacy of immunotherapy
 (3) - less susceptibility to heat-sink effects than RFA
 
- ## 2. Ablation zone 
+ ## 2. Ablation zone
 (1) - definition: radiologic region or zone of induced treatment effect in the area of gross tumor destruction, which is visualized by imaging [17]
 (1) - technically successful: ablation zone completely overlaps or encompasses the target tumor plus an ablative safety margin [4]
 (4) - circumenfical ablative margin at least 5mm, ideally 10mm around tumor during curative ablation
 (4) - 'ablative margin': region that should ideally be ablated
-(4) - 'technical success': tumor treated according to protocol, covered completely by ablation zone 
+(4) - 'technical success': tumor treated according to protocol, covered completely by ablation zone
 
-### Tissue properties affection ablation zone 
-(1)- thermal conductivity 
-(1,2)- electrical conductivity (RFA, MWA minimally dependent) 
-(1)- tissue elasticity 
-(1)- fibrosis 
-(1,3)- high water content (solig organs, tumors) most conductiv to heating 
+### Tissue properties affection ablation zone
+(1)- thermal conductivity
+(1,2)- electrical conductivity (RFA, MWA minimally dependent)
+(1)- tissue elasticity
+(1)- fibrosis
+(1,3)- high water content (solig organs, tumors) most conductiv to heating
 (1,3)- relative permittivity is a measure of how well a material or tissue will accept an electric field
 (3) - MW propagating through and effectively heating many types of tissue, even those with low electrical conductivity, high impedance, or low thermal conductivity (bone, lung)
 
 
-### Tumor destruction 
+### Tumor destruction
 (1) - denaturation of intracellular proteins & cell membranes through dissolution and melting of lipid bilayers
 (1) - 60°C - 100°C: coagulation
 (1) - >110°C: vaporization & carbonisation
 (1) - successfull ablation: temperature homogeneously increased to 50°C-60°C for >= 5min
 
-## 3. Monitoring 
+## 3. Monitoring
 
-### Temperature monitoring 
+### Temperature monitoring
 (1) - intratumoral through separately placed thermocouple probes or antenna itself
 
 
 
-### Imaging modalities 
+### Imaging modalities
 (4) - 'image guidance': imaging used during procedures
-(4, 5) - planning, targeting, monitoring, intraprocedural modification, assessing treatment response 
+(4, 5) - planning, targeting, monitoring, intraprocedural modification, assessing treatment response
 (4) - monitoring: process by which therapy effects are viewed during a procedure
 (4)    - occuring changes in images can and should be used to determine treatment effects
 (4)    - how well is tumor/target covered by the ablation zone and are adjacent normal structures affected at the same time?
         - not all image-guidance techniques provide same degree and types of monitoring
             - MR only modality for near real-time temperature monitoring
     - intraprocedural modification: repositioning and this stuff during procedure based on image-based information or by thermal feedback (e.g. automated system automatically termination the ablation at a critical point)
-            
-(1)- near real-time imaging asscessment during ablation essential to determine adequacy of treatment preventing under- or overtreatment 
+
+(1)- near real-time imaging asscessment during ablation essential to determine adequacy of treatment preventing under- or overtreatment
 (1)- pre-ablation
 (1)    - CT or preferably MRI
-(1)    - positioning MWA antenna 
+(1)    - positioning MWA antenna
 (1)
 (1)- during ablation
 (1,3)    - periprocedural US: often a hyperechogenic focus can be seen caused by mircobubbles; does not correlate with tissue coagualtion & leads to overestimating the ablation zone
@@ -91,7 +91,7 @@
 
 
 
-## 4. Further paper to look into 
+## 4. Further paper to look into
 [6] Goldberg SN, Gazelle GS, Compton CC, Mueller PR, Tanabe KK. Treatment of intrahepatic
 malignancy with radiofrequency ablation: radiologic-pathologic correlation. Cancer 2000;
 88:2452–2463. [PubMed: 10861420]
@@ -148,4 +148,3 @@ TISSUE PROPERTIES AFFECTING ABLATION
 [ ]O’Rourke AP, Lazebnik M, Bertram JM, et al. Dielectric properties of human normal, malignant and cirrhotic liver tissue: in vivo and ex vivo measurements from 0.5 to 20 GHz using a precision open-ended coaxial probe. Phys Med Biol 2007; 52:4707–4719. - PubMed
 
 [ ]  Brace CL. Temperature-dependent dielectric properties of liver tissue measured during thermal ablation: toward an improved numerical model. Conf Proc IEEE Eng Med Biol Soc 2008; 2008:230–233. - PubMed
-

@@ -12,13 +12,13 @@ fi
 launch_benchmark() {
     local name=$1
     local cmd=$2
-    
+
     # Create new window
     tmux new-window -t $SESSION_NAME -n "$name"
-    
+
     # Activate virtual environment
     tmux send-keys -t $SESSION_NAME:"$name" "source .venv/bin/activate" C-m
-    
+
     # Run command
     echo "Launching $name: $cmd"
     tmux send-keys -t $SESSION_NAME:"$name" "$cmd" C-m

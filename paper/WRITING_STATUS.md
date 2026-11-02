@@ -100,8 +100,8 @@ The draft introduction seamlessly integrates:
 
 ### Citation Keys Used (from PDFs):
 ```
-vogl2017, lubner2010, shibata2000, ahmed2014, 
-geoghegan2022, zhang2020, seip2002, 
+vogl2017, lubner2010, shibata2000, ahmed2014,
+geoghegan2022, zhang2020, seip2002,
 raissi2019physics
 ```
 
@@ -132,4 +132,3 @@ Map these to your BibTeX entries in `paper/references.bib`
 ---
 
 **Ready to integrate into main.tex!**
-

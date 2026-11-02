@@ -262,12 +262,12 @@ To rigorously assess the quality of the uncertainty estimates and ensure clinica
     \begin{equation}
         \text{NLL} = \frac{1}{N} \sum_{i=1}^{N} \left( \frac{\log(2\pi\sigma_i^2)}{2} + \frac{(y_i - \mu_i)^2}{2\sigma_i^2} \right)
     \end{equation}
-    
+
     \item \textbf{Prediction Interval Coverage Probability (PICP)}: The empirical percentage of ground truth temperatures that fall within the predicted 95\% safety range ($\mu \pm 1.96\sigma$). If a model claims 95\% confidence, the PICP should be exactly 0.95. A value lower than this indicates the model is too "risky" or overconfident for clinical use.
     \begin{equation}
         \text{PICP} = \frac{1}{N} \sum_{i=1}^{N} \mathbb{I}(y_i \in [\mu_i - 1.96\sigma_i, \mu_i + 1.96\sigma_i])
     \end{equation}
-    
+
     \item \textbf{Mean Prediction Interval Width (MPIW)}: The average span of the predicted 95\% confidence interval. Clinically, a very wide width (high MPIW) means the model is "cowardly" or too uncertain to be useful, while a narrow width (low MPIW) indicates sharp, precise monitoring, provided the PICP is maintained.
     \begin{equation}
         \text{MPIW} = \frac{1}{N} \sum_{i=1}^{N} 2 \times 1.96\sigma_i

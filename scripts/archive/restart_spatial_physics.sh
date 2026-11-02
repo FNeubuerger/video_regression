@@ -22,15 +22,15 @@ for JOB in "${JOBS[@]}"; do
     IFS="|" read -r ARGS LOG_FILE SESSION_NAME <<< "$JOB"
 
     echo "Launching $SESSION_NAME..."
-    
+
     # Kill existing session
     tmux kill-session -t "$SESSION_NAME" 2>/dev/null
-    
+
     # Launch new session
     # Note: Using GPU 1
     tmux new-session -d -s "$SESSION_NAME" \
         "CUDA_VISIBLE_DEVICES=1 $VENV_PATH $ARGS > $LOG_DIR/$LOG_FILE 2>&1"
-        
+
 done
 
 echo "Spatial Physics jobs restarted."

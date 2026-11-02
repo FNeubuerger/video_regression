@@ -16,7 +16,7 @@ echo "Starting Part 3 Benchmarks: Bayesian Uncertainty"
 # Assuming we modify train_unet_sparse.py to accept --variational argument
 # For now, let's create a placeholder script based on train_unet_sparse.py if it exists, or just plan it.
 # We will use the existing train_unet_hybrid.py but add a variational flag if needed.
-# Since we haven't updated the valid training scripts to handle the tuple return (pred, kl), 
+# Since we haven't updated the valid training scripts to handle the tuple return (pred, kl),
 # we need to do that first.
 
 echo "Scripts need update for tuple return values. Please run 'python training/update_train_scripts.py' if it exists."

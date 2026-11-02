@@ -34,34 +34,34 @@
     - Advantages over RFA (with specs)
     - Temperature standards
     - Why monitoring matters
-  
+
   \subsection{Monitoring Modalities} ← NEW: Comprehensive comparison
     - MRT pros/cons
     - CT pros/cons
     - Ultrasound pros/cons ← YOUR FOCUS
     - Invasive sensors pros/cons
     - Gap identified
-  
+
   \subsection{Deep Learning for US} ← NEW: Recent advances
     - Zhang et al. CNN work
     - Current limitations
     - Research gap
-  
+
   \subsection{Physics-Informed ML} ← EXPANDED: More technical depth
     - PINNs intro
     - Bioheat equation (with math)
     - Medical application
-  
+
   \subsection{Edge Computing} ← NEW: Systematic requirements
     - Data privacy
     - Real-time (>30 FPS threshold)
     - Hardware constraints (Raspberry Pi, Jetson Nano)
     - Interpretability
     - Tension: accuracy vs efficiency
-  
+
   \subsection{Research Gaps} ← NEW: Explicit gap analysis
     - 5 specific research gaps
-  
+
   \subsection{Contributions} ← EXPANDED: Detailed list
     - 6 contributions with technical detail
 
@@ -88,7 +88,7 @@ Estimating physical parameters, such as temperature, from medical imaging data..
 %        End at: (just before \section{Related Work})
 ```
 
-**Pros:** 
+**Pros:**
 - Clean integration
 - Preserves all your existing structure elsewhere
 - Easy to revert
@@ -229,4 +229,3 @@ pdflatex main.tex  # Check for citation errors
 ---
 
 **Ready to proceed?** Start with Approach 2 (selective enrichment) for best balance of quality and speed.
-

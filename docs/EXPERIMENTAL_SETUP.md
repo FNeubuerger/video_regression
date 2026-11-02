@@ -1,11 +1,11 @@
 **Phantom composition**
 
 - **Bulk composition:** 600 mL deionized water, 30 g agar (~5% w/v).
-  
+
 - **Protein additive:** egg white added at 30 wt% (percentage relative to total phantom mass).
 
 - **Changes in recipe over time:** Limitation of the amount of agar to 20g/25g; Series of measurements with different phantom compositions still pending
-  
+
 **Phantom preparation (proposed protocol)**
 
 - **Hydration:** Mix agar powder with 100 mL cold water and allow to hydrate for 10 min.
@@ -68,4 +68,3 @@ Last edited: 9 January 2026
 - Phantom composition & preparation: see Iizuka 1999; Menikou & Damianou 2017; egg‑white PDF for recipe justification and concentration ranges.
 - Measurement of acoustic/thermal properties: see Menikou & Damianou 2017 and Dabbagh et al. 2014.
 - Antenna/generator specifications: attempt to obtain the official SABERWAVE ECO‑200G datasheet from the vendor or distributor (none found yet).
-

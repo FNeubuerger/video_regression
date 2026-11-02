@@ -102,7 +102,7 @@ raissi2019     → PINNs definition
 - Bayesian uncertainty quantification for clinician-friendly confidence intervals
 - Real-time deployment on Raspberry Pi 4 / Jetson Nano (>30 FPS)
 
-**Key Innovation:** 
+**Key Innovation:**
 First comprehensive study combining physics-informed learning + uncertainty quantification + edge deployment for thermal ablation video regression
 
 ---
@@ -147,7 +147,7 @@ your_project/
 ## Contact Info for Questions
 
 All reference material is embedded in the generated files:
-- **Citations**: See `reading_notes_UPDATED.csv` 
+- **Citations**: See `reading_notes_UPDATED.csv`
 - **Integration steps**: See `INTEGRATION_GUIDE.md`
 - **Background research**: See `PDF_EXTRACTION_SUMMARY.md`
 - **Project status**: See `WRITING_STATUS.md`
@@ -157,4 +157,3 @@ Estimated total time: **2-3 hours** for complete integration with citations and 
 ---
 
 **Ready to write?** Start with your favorite approach above! 🎯
-

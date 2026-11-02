@@ -70,7 +70,7 @@
   - Better performance in high-perfusion areas
   - Less heat-sink effect
   - More predictable ablation zone
-  
+
 - Clinical applications: Liver, lung, kidney, bone, breast, uterine fibroids
 - Standard temperature thresholds:
   - 50-60°C for coagulation (target for ablation)
@@ -226,4 +226,3 @@ research/
 ```
 
 ---
-

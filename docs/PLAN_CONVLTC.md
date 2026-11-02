@@ -44,4 +44,3 @@ where:
     *   *Mitigation:* Use smaller `sequence_length` (e.g., 8 or 16), small state channels (e.g., 32), or gradient checkpointing.
 *   **Stability:** ODEs can be unstable.
     *   *Mitigation:* Bounded activations (Sigmoid/Tanh) and small $\Delta t$.
-
