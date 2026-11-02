@@ -73,7 +73,6 @@ def main():
 
     # Input Tensor Conceptualization
     # We will simulate the 5-channel stack by showing the channels
-    stack_viz = np.zeros((128, 128, 3), dtype=np.uint8)  # Placeholder
 
     # Better: Show the decomposition
     # R G B Fx Fy

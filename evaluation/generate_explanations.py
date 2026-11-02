@@ -2,11 +2,9 @@ import argparse
 import os
 import sys
 
-import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.nn as nn
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -16,8 +14,7 @@ from utils.model_registry import MODEL_REGISTRY
 from utils.xai_wrappers import RegressionWrapper
 
 try:
-    from captum.attr import IntegratedGradients, LayerGradCam, NoiseTunnel
-    from captum.attr import visualization as viz
+    from captum.attr import IntegratedGradients, LayerGradCam
 except ImportError:
     print("Captum not installed. Please run 'pip install captum'")
     sys.exit(1)

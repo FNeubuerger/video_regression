@@ -1,6 +1,5 @@
 import pytest
 import torch
-import torch.nn as nn
 
 from models.dense_heads import ResNetUNet
 from models.latent_ltc import LatentLTC_UNet

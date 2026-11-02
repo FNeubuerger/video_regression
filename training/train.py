@@ -9,11 +9,11 @@ import argparse
 import torch
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
+from torchvision import transforms
 from torchvision.models import resnet18
 from tqdm import tqdm
 
-from models.backbones import CNNLSTM, PretrainedCNNLSTM
+from models.backbones import CNNLSTM, PretrainedCNN, PretrainedCNNLSTM
 from utils.dataset import TemperatureSequenceDataset
 
 
@@ -222,10 +222,10 @@ if __name__ == "__main__":
 
     # Modify the final layer to fit the medical imaging task (e.g., regression)
     pretrained_cnn2.fc = torch.nn.Linear(
-        pretrained_cnn.fc.in_features, 1
+        pretrained_cnn2.fc.in_features, 1
     )  # Assuming single output for regression
     # Initialize the PretrainedCNNLSTM model using the pretrained ResNet
-    pretrained_model2 = PretrainedCNN(pretrained_cnn, frame_shape=frame_shape)
+    pretrained_model2 = PretrainedCNN(pretrained_cnn2, frame_shape=frame_shape)
 
     # Define a new criterion and optimizer for the pretrained model
     pretrained_criterion2 = torch.nn.MSELoss()

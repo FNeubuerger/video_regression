@@ -1,0 +1,4 @@
+# Bulk formatting commits; use with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# Format the codebase with Black and isort
+4a87e42758a1ffa15645a5c442fb5484ebb3fa4a

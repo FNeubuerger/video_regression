@@ -3,7 +3,7 @@ Comprehensive training script for all temperature regression models.
 
 This script trains and compares:
 1. CNNLSTM - Custom CNN-LSTM model
-2. PretrainedCNNLSTM - ResNet18 + LSTM model  
+2. PretrainedCNNLSTM - ResNet18 + LSTM model
 3. SimpleResNet - Simple ResNet18 for single frame regression
 4. PhysicsCNNLSTM - Physics-Informed CNN-LSTM model
 

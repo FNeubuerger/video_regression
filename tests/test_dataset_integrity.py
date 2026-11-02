@@ -2,7 +2,6 @@ import os
 import sys
 import unittest
 
-import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -23,7 +22,7 @@ class TestDatasetIntegrity(unittest.TestCase):
 
         # Ensure data directories exist
         if not os.path.exists(data_dir) or not os.path.exists(raw_dir):
-            print(f"Data directories not found. Skipping test.")
+            print("Data directories not found. Skipping test.")
             return
 
         # Initialize dataset with optical flow enabled, as that's the suspect

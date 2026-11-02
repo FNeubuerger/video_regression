@@ -8,13 +8,11 @@ import os
 import sys
 
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
 
 # Add parent directory to path to allow imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import torchbnn as bnn
 from tqdm import tqdm
 
 import wandb
@@ -75,8 +73,6 @@ def train_bayesian_spatial_convection(
         learnable_params=True,
         dx=1.0,
     ).to(device)
-
-    kl_loss_fn = bnn.BKLLoss(reduction="mean", last_layer_only=False)
 
     # Optimizer
     optimizer = torch.optim.Adam(

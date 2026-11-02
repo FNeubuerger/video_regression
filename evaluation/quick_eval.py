@@ -189,7 +189,7 @@ def quick_evaluate():
         os.makedirs("results", exist_ok=True)
         plt.savefig("results/quick_comparison.png", dpi=150, bbox_inches="tight")
         plt.show()
-        print(f"\nQuick comparison plot saved to results/quick_comparison.png")
+        print("\nQuick comparison plot saved to results/quick_comparison.png")
 
         # Print summary
         print("\n" + "=" * 50)

@@ -5,7 +5,7 @@ import os
 
 import cv2
 import numpy as np
-from preprocess_dataset import detect_sensors_in_frame, get_crop_bounds
+from preprocess_dataset import detect_sensors_in_frame
 from tqdm import tqdm
 
 
@@ -31,7 +31,7 @@ def main():
 
     video_files = sorted(glob.glob(os.path.join(args.raw_dir, "*.mp4")))
 
-    print(f"Generating ROI Comparison visualizations...")
+    print("Generating ROI Comparison visualizations...")
 
     for v_path in tqdm(video_files):
         filename = os.path.basename(v_path)

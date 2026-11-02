@@ -12,7 +12,6 @@ from tqdm import tqdm
 # Add parent directory to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from torchvision import transforms
 
 from utils.model_registry import MODEL_REGISTRY
 

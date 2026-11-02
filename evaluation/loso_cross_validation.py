@@ -1,8 +1,8 @@
 """
 Leave-One-Sequence-Out (LOSO) Cross-Validation Script.
 
-This script performs rigorous validation by training on (N-1) sequences 
-and testing on the held-out sequence. This proves the spatial and 
+This script performs rigorous validation by training on (N-1) sequences
+and testing on the held-out sequence. This proves the spatial and
 setup generalization of our temperature regression models.
 """
 
@@ -23,19 +23,13 @@ try:
 except ImportError:  # wandb is optional for the LOSO driver
     wandb = None
 from torch.utils.data import DataLoader, Subset
-from torchvision import transforms
 from tqdm import tqdm
 
 # Add parent directory
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from models.backbones import CNNLSTM, PretrainedCNNLSTM, SimpleResNet, SpatialResNet
-from models.bayesian import (
-    BayesianCNNLSTM,
-    BayesianResNet,
-    BayesianSpatialResNet,
-    FullBayesianResNet,
-)
+from models.bayesian import BayesianCNNLSTM, BayesianResNet, FullBayesianResNet
 from models.conv_ltc import ConvLTC
 from models.kan import KANResNet, SpatialKANBioheat
 from physics.bioheat_loss import AdvancedBioHeatLoss
@@ -89,14 +83,6 @@ def run_loso_fold(holdout_seq, model_type, args):
     print(f"{'='*60}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    transform = transforms.Compose(
-        [
-            transforms.Resize((64, 64)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ]
-    )
 
     # Load full dataset
     full_dataset = SequenceHeatmapDataset(
@@ -248,7 +234,7 @@ def run_loso_fold(holdout_seq, model_type, args):
     _write_run_config(save_path, holdout_seq, model_type, args, args.seed)
 
     # Train
-    history = train_model_with_validation(
+    train_model_with_validation(
         model_instance=model,
         model_name=f"{model_type}_fold_{holdout_seq}",
         criterion_instance=criterion,

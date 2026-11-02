@@ -7,7 +7,6 @@ and extracting temperature labels from filenames for training CNN-LSTM models.
 
 import json
 import os
-import random
 import re
 from typing import List, Optional, Tuple
 
@@ -425,7 +424,7 @@ if __name__ == "__main__":
     if len(dataset) > 0:
         # Test a sample
         images, temperature = dataset[0]
-        print(f"Sample 0:")
+        print("Sample 0:")
         print(f"  Images shape: {images.shape}")
         print(f"  Target temperature: {temperature.item():.2f}")
 

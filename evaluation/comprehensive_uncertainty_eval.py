@@ -5,8 +5,6 @@ import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import seaborn as sns
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -16,7 +14,6 @@ from tqdm import tqdm
 # Add parent directory to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from utils.dataset import TemperatureRegressionDataset
 from utils.heatmap_dataset import TemperatureHeatmapDataset
 from utils.model_registry import MODEL_REGISTRY
 from utils.sequence_dataset import SequenceHeatmapDataset
@@ -163,7 +160,7 @@ def evaluate_model(
                 "BayesianCNNLSTM",
             ]:
                 print(
-                    f"Warning: Size mismatch detected. Attempting legacy load (out_features=1)..."
+                    "Warning: Size mismatch detected. Attempting legacy load (out_features=1)..."
                 )
                 # Hack: modify the last layer in place if possible, or re-init?
                 # Re-init is cleaner if we can change args.
@@ -509,7 +506,7 @@ def plot_results(targets, means, stds, model_name, output_dir):
     errors = np.abs(targets - means)
     plt.figure(figsize=(10, 6))
     plt.scatter(stds, errors, alpha=0.3)
-    plt.xlabel("Predicted Uncertainty $\sigma/K$")
+    plt.xlabel(r"Predicted Uncertainty $\sigma/K$")
     plt.ylabel("Absolute Error $|T_{pred} - T_{gt}|/K$")
     plt.title(f"{model_name}: Uncertainty vs Error")
 

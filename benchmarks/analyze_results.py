@@ -18,7 +18,7 @@ def plot_fps_comparison(df, output_dir):
         # Pivot for plotting: Index=Model, Columns=Format, Values=FPS
         pivot = subset.pivot(index="model", columns="format", values="simulated_fps")
 
-        ax = pivot.plot(kind="bar", figsize=(12, 6), width=0.8)
+        pivot.plot(kind="bar", figsize=(12, 6), width=0.8)
         plt.title(f"Inference Speed (FPS) on {device}")
         plt.ylabel("Frames Per Second (FPS)")
         plt.xlabel("Model")
@@ -44,9 +44,7 @@ def plot_energy_efficiency(df, output_dir):
             index="model", columns="format", values="energy_per_frame_joules"
         )
 
-        ax = pivot.plot(
-            kind="bar", figsize=(12, 6), width=0.8, color=["#ff9999", "#66b3ff"]
-        )
+        pivot.plot(kind="bar", figsize=(12, 6), width=0.8, color=["#ff9999", "#66b3ff"])
         plt.title(f"Energy Efficiency on {device}")
         plt.ylabel("Energy per Frame (Joules)")
         plt.xlabel("Model")
@@ -151,7 +149,7 @@ def plot_architecture_comparison(df, output_dir):
         pivot = subset.pivot(index="device", columns="model", values="simulated_fps")
 
         # Plot
-        ax = pivot.plot(kind="bar", figsize=(14, 8), width=0.8)
+        pivot.plot(kind="bar", figsize=(14, 8), width=0.8)
         plt.title(f"Inference Speed by Device ({fmt})")
         plt.ylabel("Frames Per Second (FPS) - Log Scale")
         plt.xlabel("Edge Device")

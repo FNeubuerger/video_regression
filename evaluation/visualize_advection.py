@@ -1,6 +1,6 @@
 """
 Visualization of Advection: Temperature Gradients and Optical Flow.
-This script demonstrates how physical motion (Optical Flow) interacts 
+This script demonstrates how physical motion (Optical Flow) interacts
 with the temperature field (Advection term v . grad T).
 """
 
@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.ndimage as ndimage
 import torch
-from torchvision import transforms
 
 # Add parent directory
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -139,18 +138,6 @@ def plot_advection(
         return
 
     # 2. Load Dataset (NEW DATA)
-    transform = transforms.Compose(
-        [
-            # transforms.Resize((64, 64)), # Dataset does resize internally based on target_size
-            transforms.ToTensor(),
-            # Internal normalization happens in dataset? No, it divides by 255.
-            # But old dataset used normalization. New dataset returns 0-1 tensors?
-            # Let's check SequenceHeatmapDataset.__getitem__. It does / 255.0.
-            # It does NOT apply Normalize((0.485...), (0.229...)) unless passed in transform.
-            # But if we pass ToTensor, it expects PIL or numpy.
-            # SequenceHeatmapDataset does manual tensor conversion.
-        ]
-    )
 
     # Wait, SequenceHeatmapDataset.__getitem__ does manual tensor conversion:
     # frame_tensor = torch.from_numpy(frame).permute(2, 0, 1)

@@ -11,11 +11,9 @@ import os
 import sys
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import seaborn as sns
 import torch
-from PIL import Image
 from torchvision import transforms
 from tqdm import tqdm
 
@@ -35,8 +33,8 @@ plt.rcParams.update(
 # Add parent directory
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from models.backbones import CNNLSTM, PretrainedCNNLSTM, SimpleResNet, SpatialResNet
-from physics.models import PhysicsCNNLSTM, SpatialPhysicsCNNLSTM
+from models.backbones import CNNLSTM, SimpleResNet, SpatialResNet
+from physics.models import SpatialPhysicsCNNLSTM
 from utils.dataset import TemperatureSequenceDataset
 
 

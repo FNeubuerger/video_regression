@@ -7,12 +7,10 @@ import numpy as np
 import pandas as pd
 import torch
 from torchvision import transforms
-from tqdm import tqdm
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from utils.heatmap_dataset import TemperatureHeatmapDataset
 from utils.model_registry import MODEL_REGISTRY
 from utils.xai_wrappers import RegressionWrapper
 

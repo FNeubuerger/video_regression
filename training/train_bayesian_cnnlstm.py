@@ -8,8 +8,6 @@ import os
 import sys
 
 import torch
-import torch.nn as nn
-import torchbnn as bnn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -18,7 +16,7 @@ import wandb
 # Add parent directory to path to allow imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from models.bayesian import BayesianCNNLSTM, BayesianResNet
+from models.bayesian import BayesianCNNLSTM
 from physics.bioheat_loss import AdvancedBioHeatLoss
 from utils.sequence_dataset import SequenceHeatmapDataset
 
@@ -91,7 +89,7 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
             scalars = scalars.to(device).float()  # (B, T, 4)
 
             # Flow extraction (channels 3, 4)
-            flow = frames[:, :, 3:, :, :]  # (B, T, 2, H, W)
+            frames[:, :, 3:, :, :]  # (B, T, 2, H, W)
 
             optimizer.zero_grad()
 

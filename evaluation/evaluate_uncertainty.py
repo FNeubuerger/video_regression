@@ -1,4 +1,3 @@
-import argparse
 import os
 import sys
 
@@ -6,7 +5,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-from torchvision import transforms
 from tqdm import tqdm
 
 # Add parent directory to path to allow imports
@@ -26,10 +24,10 @@ def evaluate_ensemble(data_loader, num_models=5, device="cuda"):
     try:
         model = SimpleResNet(frame_shape=(64, 64, 5)).to(device)
         model.load_state_dict(
-            torch.load(f"checkpoints/ensemble/model_0.pth", map_location=device)
+            torch.load("checkpoints/ensemble/model_0.pth", map_location=device)
         )
         input_channels = 5
-    except:
+    except Exception:
         input_channels = 3
 
     for i in range(num_models):
@@ -201,7 +199,7 @@ def plot_uncertainty(targets, means, stds, title, save_path):
                 yerr=s_plot,
                 fmt="o",
                 alpha=0.5,
-                label="Pred $\pm$ Std",
+                label=r"Pred $\pm$ Std",
             )
             ax.set_title(f"Sensor {i}")
             ax.set_ylabel("Temp (K)")
@@ -249,7 +247,7 @@ def plot_uncertainty(targets, means, stds, title, save_path):
             yerr=stds,
             fmt="o",
             alpha=0.5,
-            label="Prediction $\pm$ Std Dev",
+            label=r"Prediction $\pm$ Std Dev",
         )
 
         plt.title(title)
@@ -270,14 +268,6 @@ def plot_uncertainty(targets, means, stds, title, save_path):
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    transform = transforms.Compose(
-        [
-            transforms.Resize((64, 64)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485], std=[0.229]),
-        ]
-    )
 
     # Use SequenceHeatmapDataset for new data (level1_cropped)
     dataset = SequenceHeatmapDataset(

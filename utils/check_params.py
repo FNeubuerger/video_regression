@@ -1,5 +1,3 @@
-import torch
-
 from physics.models import SpatialPhysicsCNNLSTM
 
 

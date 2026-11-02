@@ -17,11 +17,11 @@ jobs:
       - name: Install lint tools (dev group only)
         run: uv sync --locked --only-group dev
       - name: Black
-        run: uv run --no-sync black --check --line-length=88 .
+        run: uv run --no-sync black --check .
       - name: isort
-        run: uv run --no-sync isort --check-only --profile=black --line-length=88 .
+        run: uv run --no-sync isort --check-only .
       - name: Flake8
-        run: uv run --no-sync flake8 --max-line-length=88 --extend-ignore=E203,W503,E501 .
+        run: uv run --no-sync flake8 .
 
   test:
     runs-on: ubuntu-latest

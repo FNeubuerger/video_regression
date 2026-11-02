@@ -8,19 +8,16 @@ import os
 import sys
 
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
 
 # Add parent directory to path to allow imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import torchbnn as bnn
 from tqdm import tqdm
 
 import wandb
 from models.bayesian import BayesianResNet
 from physics.bioheat_loss import AdvancedBioHeatLoss
-from utils.dataset import TemperatureSequenceDataset
 from utils.sequence_dataset import SequenceHeatmapDataset
 
 
@@ -80,9 +77,6 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
         dt=1.0,
     ).to(device)
 
-    mse_criterion = nn.MSELoss()
-    kl_loss_fn = bnn.BKLLoss(reduction="mean", last_layer_only=False)
-
     # Optimizer
     optimizer = torch.optim.Adam(
         list(model.parameters()) + list(criterion.parameters()), lr=learning_rate
@@ -124,7 +118,7 @@ def train_bayesian_pinn(epochs=50, batch_size=32, learning_rate=1e-4, kl_weight=
             predictions = preds_flat.view(B, T, 4)
 
             # Extract flow for convection
-            raw_flow = images[:, :, 3:5, :, :]  # (B, T, 2, H, W)
+            images[:, :, 3:5, :, :]  # (B, T, 2, H, W)
             # Downsample flow to match prediction size (4x4) if needed, but BayesianResNet outputs scalar (1x1)
             # Wait, BayesianResNet outputs scalar. So we can't do spatial convection on the output map.
             # But AdvancedBioHeatLoss handles scalar predictions by assuming lumped parameter model (no spatial gradients).

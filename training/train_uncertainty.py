@@ -1,18 +1,15 @@
 import argparse
-import json
 import os
 import sys
 
 import torch
 import torch.nn as nn
-import torchbnn as bnn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 # Add parent directory to path to allow imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from torchvision import transforms
 
 import wandb
 from models.backbones import SimpleResNet
@@ -29,13 +26,6 @@ def train_ensemble(num_models=5, epochs=20, batch_size=128):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Dataset setup
-    transform = transforms.Compose(
-        [
-            transforms.Resize((64, 64)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ]
-    )
 
     dataset = SequenceHeatmapDataset(
         data_dir="data/level1_cropped",
@@ -84,7 +74,6 @@ def train_ensemble(num_models=5, epochs=20, batch_size=128):
                     scalars = None
                 else:
                     images, labels_raw = batch
-                    mask = None
                     scalars = None
 
                 images = images.to(device)
@@ -126,19 +115,12 @@ def train_ensemble(num_models=5, epochs=20, batch_size=128):
 def train_bayesian(epochs=30, batch_size=128, kl_weight=0.1):
     wandb.init(project="video-temperature-regression", name="bayesian-head-training")
     print(f"\n{'='*50}")
-    print(f"Training Bayesian ResNet")
+    print("Training Bayesian ResNet")
     print(f"{'='*50}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Dataset setup
-    transform = transforms.Compose(
-        [
-            transforms.Resize((64, 64)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ]
-    )
 
     dataset = SequenceHeatmapDataset(
         data_dir="data/level1_cropped",
@@ -213,19 +195,12 @@ def train_bayesian(epochs=30, batch_size=128, kl_weight=0.1):
 def train_full_bayesian(epochs=30, batch_size=128, kl_weight=0.1):
     wandb.init(project="video-temperature-regression", name="full-bayesian-training")
     print(f"\n{'='*50}")
-    print(f"Training FULL Bayesian ResNet")
+    print("Training FULL Bayesian ResNet")
     print(f"{'='*50}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Dataset setup
-    transform = transforms.Compose(
-        [
-            transforms.Resize((64, 64)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ]
-    )
 
     dataset = SequenceHeatmapDataset(
         data_dir="data/level1_cropped",

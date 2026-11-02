@@ -3,16 +3,14 @@ import sys
 import unittest
 
 import torch
-import torch.nn as nn
 from torchvision import transforms
 
 # Add parent directory to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Import Models
-from models.backbones import CNNLSTM, PretrainedCNNLSTM, SimpleResNet
-from models.bayesian import BayesianResNet, FullBayesianResNet
-from models.conv_ltc import ConvLTC
+from models.backbones import CNNLSTM, SimpleResNet
+from models.bayesian import BayesianResNet
 from models.dense_heads import ResNetUNet
 from models.latent_ltc import LatentLTC_UNet
 from physics.models import PhysicsCNNLSTM, SpatialPhysicsCNNLSTM

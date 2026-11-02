@@ -10,7 +10,6 @@ Celsius and, for uncertainty-aware models, an optional matching
 
 from __future__ import annotations
 
-import os
 from typing import Optional, Tuple
 
 import cv2

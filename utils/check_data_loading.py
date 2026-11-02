@@ -35,9 +35,11 @@ def main():
 
     # Visualize
     # Unnormalize frame
-    inv_norm = lambda t: t * torch.tensor([0.229, 0.224, 0.225]).view(
-        3, 1, 1
-    ) + torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+    def inv_norm(t):
+        std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+        return t * std + mean
+
     vis_frame = inv_norm(frame).permute(1, 2, 0).numpy()
     # Clip to valid range before casting
     vis_frame = vis_frame.clip(0, 1)

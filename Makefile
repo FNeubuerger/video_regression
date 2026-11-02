@@ -297,14 +297,14 @@ consolidate_paper:
 
 ## lint        : Run Black + isort + Flake8 in check mode.
 lint:
-	$(PYTHON) -m black --check --line-length=88 .
-	$(PYTHON) -m isort --check-only --profile=black --line-length=88 .
-	$(PYTHON) -m flake8 --max-line-length=88 --extend-ignore=E203,W503,E501 .
+	$(PYTHON) -m black --check .
+	$(PYTHON) -m isort --check-only .
+	$(PYTHON) -m flake8 .
 
 ## format      : Apply Black + isort.
 format:
-	$(PYTHON) -m black --line-length=88 .
-	$(PYTHON) -m isort --profile=black --line-length=88 .
+	$(PYTHON) -m black .
+	$(PYTHON) -m isort .
 
 ## test        : Run unit tests.
 test:

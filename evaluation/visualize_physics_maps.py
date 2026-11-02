@@ -1,5 +1,5 @@
 """
-Script to visualize the learned spatial physics maps (alpha, beta) from the 
+Script to visualize the learned spatial physics maps (alpha, beta) from the
 SpatialPhysicsCNNLSTM model. This provides interpretability by showing
 what physical properties the model has inferred for different regions.
 """
@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.ndimage as ndimage
 import torch
-from torchvision import transforms
 
 # Ensure we can import from the root
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -170,7 +169,7 @@ def visualize_maps(
 
         # 2. ROI Zoom
         axes[1].imshow(img_roi)
-        axes[1].set_title(f"Sensor ROI\n(Zoomed)")
+        axes[1].set_title("Sensor ROI\n(Zoomed)")
         axes[1].axis("off")
 
         # 3. Pred Map

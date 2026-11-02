@@ -38,9 +38,6 @@ augmentation do **not** close the mixed-split vs. LOSO gap (best LOSO MAE still
 - [ ] **Do not overwrite checkpoints between LOSO configurations.** Regularized
   runs overwrote `checkpoints/loso/<Model>/fold_*.pth` for SimpleResNet, CNNLSTM,
   BayesianResNet, KANResNet; include the run tag in the checkpoint directory.
-- [ ] **Format the codebase with Black/isort** (`make format`) in one dedicated
-  commit: 100 files fail `black --check`, so the CI `lint` job has been red since
-  it was added. The CI `test` job is separate and runs on the locked environment.
 - [ ] Clean up `results/MASTER_RESULTS.csv` (mixes legacy `comprehensive_results`
   rows, NLL of 1e14 for `best`, and LOSO columns).
 - [ ] Data manifest: `data/DATA_MANIFEST.json` (power, duration, frame count,
@@ -55,6 +52,12 @@ augmentation do **not** close the mixed-split vs. LOSO gap (best LOSO MAE still
 - [ ] `evaluation/comprehensive_uncertainty_eval.py`: shape mismatch (10776,) vs
   (21552,) — predictions appended twice for Bayesian models.
 - [ ] Re-generate advection and uncertainty plots with current checkpoints.
+- [ ] `evaluation/evaluate_uncertainty.py` (no CLI; runs on import) loads
+  `checkpoints/ensemble/model_0.pth` into a 3-channel, 4-output SimpleResNet,
+  but the checkpoint is 5-channel, 1-output: size mismatch.
+- [ ] `evaluation/visualize_spatial_fields.py::visualize_spatial_predictions`
+  never plots the ground truth its panel title promises (the computed field was
+  unused and removed in the lint cleanup).
 
 ## 4. Validation (ablation zone, CEM43)
 
@@ -103,6 +106,9 @@ dropped because its only commit was already superseded on `main`.
 - [x] `aggregate_loso.py` no longer pools run variants of the same architecture.
 - [x] Thermometer artifact masking; data migration to `data/level1_cropped`.
 - [x] Pre-commit, CI workflow, `pytest.ini`, global seeding.
+- [x] Lint (2026-11-02): codebase formatted with Black/isort (commit listed in
+  `.git-blame-ignore-revs`), flake8 findings fixed, lint settings in
+  `pyproject.toml` + `.flake8` only; CI `lint` job green.
 - [x] ONNX export (2026-11-02): `utils/export_to_onnx.py` unwraps
   `{"model_state_dict": ...}` checkpoints and infers input channels (ResNetUNet is
   RGB); `tests/test_export_to_onnx.py` checks PyTorch vs. onnxruntime outputs.

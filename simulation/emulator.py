@@ -1,11 +1,11 @@
 import time
-from typing import Optional, Union
+from typing import Union
 
 import numpy as np
 import torch
 import torch.nn as nn
 
-from .profiles import PROFILES, DeviceProfile, DeviceType
+from .profiles import PROFILES, DeviceType
 
 # Try importing onnxruntime
 try:

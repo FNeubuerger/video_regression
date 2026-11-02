@@ -4,7 +4,6 @@ import os
 
 import cv2
 import numpy as np
-from skimage.metrics import adapted_rand_error
 from tqdm import tqdm
 
 

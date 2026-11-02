@@ -7,12 +7,9 @@ and generates consolidated results for the paper.
 
 import argparse
 import concurrent.futures
-import json
 import os
 import subprocess
 import sys
-
-import pandas as pd
 
 
 def run_command(command, description):
@@ -95,7 +92,7 @@ def main():
         try:
             gpu_info = subprocess.check_output("nvidia-smi -L", shell=True).decode()
             num_gpus = len(gpu_info.strip().split("\n"))
-        except:
+        except Exception:
             num_gpus = 1
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as executor:

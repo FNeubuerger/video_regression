@@ -9,15 +9,12 @@ import sys
 # Add parent directory to path to allow imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import argparse
-import json
 import time
 
 import torch
 import torch.nn as nn
 from torch.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
-from torchvision import transforms
 from torchvision.models import resnet18
 from tqdm import tqdm
 

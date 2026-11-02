@@ -7,7 +7,6 @@ import os
 import sys
 
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
 
 # Add parent directory to path to allow imports

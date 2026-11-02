@@ -8,7 +8,6 @@ import pandas as pd
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
-from torchvision import transforms
 
 from utils.flow_utils import preprocess_frame_with_flow
 
@@ -68,7 +67,7 @@ class SequenceHeatmapDataset(Dataset):
             for p in parts:
                 if p.endswith("W"):
                     return float(p[:-1])
-        except:
+        except Exception:
             pass
         return 30.0
 
@@ -120,7 +119,7 @@ class SequenceHeatmapDataset(Dataset):
                 # Expected format: US_001_30W_10min.mp4
                 identifier = parts[1]
                 power = self._parse_power(fname)
-            except:
+            except Exception:
                 print(f"Skipping {fname}: filename format error")
                 continue
 

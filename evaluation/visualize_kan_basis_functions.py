@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from models.kan import KAN, KANLinear
+from models.kan import KANLinear
 
 
 def extract_kan_linear_functions(

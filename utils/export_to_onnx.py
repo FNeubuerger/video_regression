@@ -8,8 +8,6 @@ import torch.nn as nn
 # Add parent directory to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from models.backbones import CNNLSTM, PretrainedCNNLSTM, SimpleResNet, SpatialResNet
-from physics.models import PhysicsCNNLSTM, SpatialPhysicsCNNLSTM
 from utils.model_registry import MODEL_REGISTRY
 
 

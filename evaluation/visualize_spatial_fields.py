@@ -5,9 +5,7 @@ Loads checkpoints and generates example predictions for paper.
 
 import os
 import sys
-from pathlib import Path
 
-import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -115,11 +113,6 @@ def visualize_spatial_predictions():
                 pred_field = pred_fields.squeeze().cpu().numpy()
 
         # Ground truth
-        gt_field = (
-            heatmaps.cpu().numpy()[:, -1, :, :]
-            if heatmaps.dim() == 4
-            else heatmaps.cpu().numpy()
-        )
 
         # Plot predictions vs ground truth
         for col_idx in range(2):
@@ -186,7 +179,6 @@ def visualize_model_ensemble():
     plt.colorbar(im, ax=ax, label="Temp. (K)")
 
     # Model predictions
-    idx = 1
     for (model_name, checkpoint_path), ax in zip(models_config.items(), axes.flat[1:]):
         model, _ = load_spatial_model(model_name, checkpoint_path)
 

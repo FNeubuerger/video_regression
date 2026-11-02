@@ -1,7 +1,6 @@
 import os
 import sys
 
-import pytest
 import torch
 
 # Add parent to path

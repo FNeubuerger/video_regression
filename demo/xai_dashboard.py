@@ -1,7 +1,6 @@
 import argparse
 import os
 import sys
-import time
 
 import cv2
 import matplotlib.cm as cm

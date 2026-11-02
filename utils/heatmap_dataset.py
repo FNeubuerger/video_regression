@@ -84,7 +84,7 @@ class TemperatureHeatmapDataset(Dataset):
             for p in parts:
                 if p.endswith("W"):
                     return float(p[:-1])
-        except:
+        except Exception:
             pass
         return 30.0  # Default fallback
 
@@ -116,7 +116,7 @@ class TemperatureHeatmapDataset(Dataset):
         # Scale by power
         # 50W -> stronger peak. 30W -> weaker.
         # Normalize: 30W maps to value 1.0 (arbitrary)
-        scale = power_watts / 30.0
+        power_watts / 30.0
 
         # Baseline body temp offset (approx 37C)
         # But we work in raw values or normalized?

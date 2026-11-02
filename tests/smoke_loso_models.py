@@ -16,10 +16,6 @@ import os
 import sys
 import traceback
 
-import torch
-from torch.utils.data import DataLoader, Subset
-from torchvision import transforms
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from torch.utils.data import Subset as _Subset  # noqa: E402

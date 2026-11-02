@@ -193,9 +193,7 @@ def process_video_pipeline(input_path, output_dir, vis_dir, crop_radius=180):
     cropped_avg = avg_frame[y_start:y_end, :]
     detected_sensors = detect_sensors_in_frame(cropped_avg)
 
-    sensors_found = False
     if detected_sensors:
-        sensors_found = True
         # Save visualization of detection (first frame)
         vis_path = os.path.join(vis_dir, f"{os.path.splitext(filename)[0]}.jpg")
 
@@ -268,7 +266,7 @@ def main():
 
     results_json = {}
 
-    print(f"Starting Preprocessing Pipeline: Level 0 -> Level 1 (Crop)")
+    print("Starting Preprocessing Pipeline: Level 0 -> Level 1 (Crop)")
     print(f"Crop Radius: +/- {args.crop_radius} pixels")
     print(f"Found {len(video_files)} videos.")
 

@@ -77,6 +77,7 @@ uv sync --locked            # or: make setup
 # 3. Check the install
 uv run python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 uv run pre-commit install   # Black / isort / flake8 git hooks
+git config blame.ignoreRevsFile .git-blame-ignore-revs  # skip bulk-format commits
 make test                   # pytest
 ```
 
@@ -92,6 +93,9 @@ launchers with `VENV_PATH=/path/to/python`). Don't activate the venv and
 | Re-sync after `git pull` | `uv sync --locked` |
 | Skip the XAI extras (captum, quantus) | `uv sync --locked --no-group xai` |
 | Broken / copied `.venv` | `rm -rf .venv && uv sync --locked` |
+
+Lint settings live in `pyproject.toml` (Black, isort) and `.flake8`; `make format`
+applies them and `make lint` runs the same checks as CI and pre-commit.
 
 `requirements.txt` is generated from `uv.lock` (`make lock`) for pip-only
 environments (`pip install -r requirements.txt`); never edit it by hand. CI

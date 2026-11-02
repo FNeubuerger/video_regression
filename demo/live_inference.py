@@ -6,8 +6,6 @@ import time
 import cv2
 import numpy as np
 import torch
-from PIL import Image
-from torchvision import transforms
 from tqdm import tqdm
 
 # Try importing onnxruntime
@@ -21,8 +19,6 @@ except ImportError:
 # Add parent directory to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from models.backbones import CNNLSTM, PretrainedCNNLSTM, SimpleResNet
-from physics.models import PhysicsCNNLSTM, SpatialPhysicsCNNLSTM
 from utils.model_registry import MODEL_REGISTRY
 
 
@@ -52,7 +48,7 @@ def load_model(model_name, checkpoint_path, device):
 
         try:
             session = ort.InferenceSession(checkpoint_path, providers=providers)
-        except Exception as e:
+        except Exception:
             print(
                 f"Warning: Failed to create InferenceSession with providers {providers}. Falling back to CPU."
             )
@@ -330,7 +326,6 @@ def run_live_demo(
                 input_tensor = torch.from_numpy(input_seq).float().to(device)
 
                 # Handle Spatial Models (Single Frame) vs Temporal Models (Sequence)
-                is_spatial = "ResNet" in model_name and "CNNLSTM" not in model_name
 
                 with torch.no_grad():
                     output = model(input_tensor)

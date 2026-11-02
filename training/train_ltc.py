@@ -3,9 +3,7 @@ import os
 import sys
 
 import torch
-import torch.nn as nn
 import torch.optim as optim
-from torch import autograd
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 

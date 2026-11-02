@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 
@@ -104,7 +103,7 @@ def verify_all_models():
 
             output = model(images)
 
-            print(f"Forward Pass: SUCCESS")
+            print("Forward Pass: SUCCESS")
             if isinstance(output, tuple):
                 print(f"Output Shape: Tuple of length {len(output)}")
                 print(f"Main Output: {output[0].shape}")

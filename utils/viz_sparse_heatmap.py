@@ -79,7 +79,7 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    print(f"Initializing Dataset...")
+    print("Initializing Dataset...")
     ds = TemperatureHeatmapDataset(
         data_dir="data/level1_cropped",
         raw_dir="data/level0_raw",

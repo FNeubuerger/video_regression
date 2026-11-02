@@ -12,7 +12,6 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 import torch
 from scipy import stats
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -88,7 +87,7 @@ class ModelEvaluator:
             pin_memory=True,
         )
 
-        print(f"Evaluation setup complete:")
+        print("Evaluation setup complete:")
         print(f"- Device: {self.device}")
         print(f"- Test dataset size: {len(self.test_dataset)}")
         print(f"- Test batches: {len(self.test_loader)}")
@@ -426,7 +425,7 @@ class ModelEvaluator:
 
         # Set up the plotting style
         plt.style.use("default")
-        fig = plt.figure(figsize=(20, 12))
+        plt.figure(figsize=(20, 12))
 
         # Number of models
         n_models = len(results)
@@ -964,7 +963,7 @@ def main():
             combined_df.to_csv(metrics_path, index=False)
             print(f"Updated {metrics_path} with new results.")
 
-        print(f"\nEvaluation complete! Results saved in 'results/' directory.")
+        print("\nEvaluation complete! Results saved in 'results/' directory.")
 
     return results
 
