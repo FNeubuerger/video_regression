@@ -41,14 +41,10 @@ augmentation do **not** close the mixed-split vs. LOSO gap (best LOSO MAE still
 - [ ] **Format the codebase with Black/isort** (`make format`) in one dedicated
   commit: 100 files fail `black --check`, so the CI `lint` job has been red since
   it was added. The CI `test` job is separate and runs on the locked environment.
-- [ ] `utils/export_to_onnx.py` loads the raw checkpoint dict, so checkpoints
-  saved as `{"model_state_dict": ...}` (e.g. `checkpoints/unet_sparse/best_model.pth`)
-  fail with missing keys; unwrap `ckpt.get("model_state_dict", ckpt)` first.
 - [ ] Clean up `results/MASTER_RESULTS.csv` (mixes legacy `comprehensive_results`
   rows, NLL of 1e14 for `best`, and LOSO columns).
 - [ ] Data manifest: `data/DATA_MANIFEST.json` (power, duration, frame count,
   sensor positions per sequence) + checksums for `level1_cropped`.
-- [ ] ONNX numerical-equivalence test (PyTorch vs. ONNX within 1 %).
 
 ## 3. Evaluation pipeline bugs (legacy evaluators; LOSO does not depend on them)
 
@@ -107,6 +103,9 @@ dropped because its only commit was already superseded on `main`.
 - [x] `aggregate_loso.py` no longer pools run variants of the same architecture.
 - [x] Thermometer artifact masking; data migration to `data/level1_cropped`.
 - [x] Pre-commit, CI workflow, `pytest.ini`, global seeding.
+- [x] ONNX export (2026-11-02): `utils/export_to_onnx.py` unwraps
+  `{"model_state_dict": ...}` checkpoints and infers input channels (ResNetUNet is
+  RGB); `tests/test_export_to_onnx.py` checks PyTorch vs. onnxruntime outputs.
 - [x] uv environment (2026-11-02): `pyproject.toml` + committed `uv.lock`,
   `.venv` rebuilt with `uv sync --locked`, `requirements.txt` generated from the
   lock, CI on uv (see [decision 0003](docs/decisions/0003-uv-environment.md)).

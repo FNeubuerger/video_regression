@@ -24,7 +24,12 @@ def export_to_onnx(model_name, checkpoint_path, output_path, device='cpu'):
     if not os.path.exists(checkpoint_path):
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
         
-    state_dict = torch.load(checkpoint_path, map_location=device)
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    # Training scripts save either a bare state dict or {"model_state_dict": ...}.
+    if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+        state_dict = checkpoint["model_state_dict"]
+    else:
+        state_dict = checkpoint
     model.load_state_dict(state_dict)
     model.to(device)
     model.eval()
@@ -33,7 +38,12 @@ def export_to_onnx(model_name, checkpoint_path, output_path, device='cpu'):
     # Shape: (Batch, Time, Channels, Height, Width)
     # Standard shape for our models is (1, 5, 5, 64, 64)
     # 5 frames, 5 channels (3 RGB + 2 Flow)
-    dummy_input = torch.randn(1, 5, 5, 64, 64).to(device)
+    # Channel count is taken from the first conv layer (e.g. ResNetUNet is RGB-only).
+    first_conv = next(
+        (m for m in model.modules() if isinstance(m, (nn.Conv2d, nn.Conv3d))), None
+    )
+    in_channels = first_conv.in_channels if first_conv is not None else 5
+    dummy_input = torch.randn(1, 5, in_channels, 64, 64).to(device)
     
     # Handle Spatial Models (might expect 4D input if not wrapped)
     # But our training loop passes 5D input to all models, and they handle it internally.
