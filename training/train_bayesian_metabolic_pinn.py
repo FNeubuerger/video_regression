@@ -13,9 +13,9 @@ from torch.utils.data import DataLoader
 # Add parent directory to path to allow imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+import wandb
 from tqdm import tqdm
 
-import wandb
 from models.bayesian import BayesianCNNLSTM
 from physics.bioheat_loss import AdvancedBioHeatLoss
 from utils.sequence_dataset import SequenceHeatmapDataset

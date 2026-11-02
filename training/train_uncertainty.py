@@ -12,6 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 import wandb
+
 from models.backbones import SimpleResNet
 from models.bayesian import BayesianResNet, FullBayesianResNet
 from utils.sequence_dataset import SequenceHeatmapDataset

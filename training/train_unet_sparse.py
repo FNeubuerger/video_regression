@@ -4,10 +4,9 @@ import sys
 
 import torch
 import torch.optim as optim
+import wandb
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
-
-import wandb
 
 # Add parent directory
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))

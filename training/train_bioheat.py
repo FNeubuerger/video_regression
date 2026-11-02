@@ -8,10 +8,9 @@ import os
 import sys
 
 import torch
+import wandb
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
-import wandb
 
 # Add parent directory to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))

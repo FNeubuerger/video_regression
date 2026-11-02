@@ -52,6 +52,10 @@ line-length = 88
 [tool.isort]
 profile = "black"
 line_length = 88
+# Explicit so local untracked dirs (e.g. wandb/ run logs) don't change the result.
+known_first_party = ["benchmarks", "demo", "evaluation", "models", "physics",
+  "simulation", "training", "utils", "validation"]
+known_third_party = ["wandb"]
 
 [tool.pytest.ini_options]
 # Scripts import top-level packages (physics, models, ...) from the repo root.

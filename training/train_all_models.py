@@ -22,13 +22,13 @@ import time
 
 import torch
 import torch.nn as nn
+import wandb
 from torch.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.models import resnet18
 from tqdm import tqdm
 
-import wandb
 from models.backbones import CNNLSTM, PretrainedCNNLSTM, SimpleResNet
 from physics import PhysicsCNNLSTM, PhysicsInformedLoss
 from physics.bioheat_loss import AdvancedBioHeatLoss
