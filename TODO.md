@@ -38,11 +38,12 @@ augmentation do **not** close the mixed-split vs. LOSO gap (best LOSO MAE still
 - [ ] **Do not overwrite checkpoints between LOSO configurations.** Regularized
   runs overwrote `checkpoints/loso/<Model>/fold_*.pth` for SimpleResNet, CNNLSTM,
   BayesianResNet, KANResNet; include the run tag in the checkpoint directory.
-- [ ] **Fix the local `.venv` on `aconcagua`**: it was copied from the training
-  host and `import torch` fails, so `make test` cannot run here. Recreate with
-  `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`.
-- [ ] Pin `captum`, `quantus` (unpinned since the XAI merge) and add `pytest` to
-  `requirements.txt`.
+- [ ] **Format the codebase with Black/isort** (`make format`) in one dedicated
+  commit: 100 files fail `black --check`, so the CI `lint` job has been red since
+  it was added. The CI `test` job is separate and runs on the locked environment.
+- [ ] `utils/export_to_onnx.py` loads the raw checkpoint dict, so checkpoints
+  saved as `{"model_state_dict": ...}` (e.g. `checkpoints/unet_sparse/best_model.pth`)
+  fail with missing keys; unwrap `ckpt.get("model_state_dict", ckpt)` first.
 - [ ] Clean up `results/MASTER_RESULTS.csv` (mixes legacy `comprehensive_results`
   rows, NLL of 1e14 for `best`, and LOSO columns).
 - [ ] Data manifest: `data/DATA_MANIFEST.json` (power, duration, frame count,
@@ -106,6 +107,9 @@ dropped because its only commit was already superseded on `main`.
 - [x] `aggregate_loso.py` no longer pools run variants of the same architecture.
 - [x] Thermometer artifact masking; data migration to `data/level1_cropped`.
 - [x] Pre-commit, CI workflow, `pytest.ini`, global seeding.
+- [x] uv environment (2026-11-02): `pyproject.toml` + committed `uv.lock`,
+  `.venv` rebuilt with `uv sync --locked`, `requirements.txt` generated from the
+  lock, CI on uv (see [decision 0003](docs/decisions/0003-uv-environment.md)).
 - [x] Repository cleanup (2026-11-02): stale docs → `docs/archive/`, one-off
   scripts → `scripts/archive/`, `Makefile.loso` folded into `Makefile`, hardcoded
   `/mnt/data2/...` paths replaced, XAI branch merged.

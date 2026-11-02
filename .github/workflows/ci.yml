@@ -2,40 +2,40 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
   pull_request:
 
 jobs:
-  lint-and-test:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Install lint deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install black==24.8.0 isort==5.13.2 flake8==7.1.1 pytest
-
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install lint tools (dev group only)
+        run: uv sync --locked --only-group dev
       - name: Black
-        run: black --check --line-length=88 .
-
+        run: uv run --no-sync black --check --line-length=88 .
       - name: isort
-        run: isort --check-only --profile=black --line-length=88 .
-
+        run: uv run --no-sync isort --check-only --profile=black --line-length=88 .
       - name: Flake8
-        run: flake8 --max-line-length=88 --extend-ignore=E203,W503,E501 .
+        run: uv run --no-sync flake8 --max-line-length=88 --extend-ignore=E203,W503,E501 .
 
-      - name: Install minimal runtime deps for tests
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install locked environment
+        run: uv sync --locked
+      - name: Lockfile and requirements.txt are in sync
         run: |
-          pip install -r requirements.txt || true
-          pip install pytest numpy
-
+          uv export --locked --no-hashes --no-dev --group xai --format requirements-txt -o /tmp/req.txt
+          diff <(grep -v '^#' requirements.txt) <(grep -v '^#' /tmp/req.txt)
       - name: Run unit tests
-        run: |
-          if [ -d tests ]; then pytest -q tests || true; fi
+        run: uv run --no-sync pytest -q tests

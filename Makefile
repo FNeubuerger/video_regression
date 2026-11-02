@@ -186,7 +186,7 @@ DATA_DIR := data/level1_cropped
 .PHONY: missing list_missing loso_aggregate master_table validation \
         calibration stat_tests physics_losses_ablation \
         lint format test ci_local docs_pdf consolidate_paper \
-        eval_all eval_uq help_audit
+        eval_all eval_uq help_audit setup lock
 
 ## list_missing : Print which model checkpoints are not on disk.
 list_missing:
@@ -297,14 +297,14 @@ consolidate_paper:
 
 ## lint        : Run Black + isort + Flake8 in check mode.
 lint:
-	black --check --line-length=88 .
-	isort --check-only --profile=black --line-length=88 .
-	flake8 --max-line-length=88 --extend-ignore=E203,W503,E501 .
+	$(PYTHON) -m black --check --line-length=88 .
+	$(PYTHON) -m isort --check-only --profile=black --line-length=88 .
+	$(PYTHON) -m flake8 --max-line-length=88 --extend-ignore=E203,W503,E501 .
 
 ## format      : Apply Black + isort.
 format:
-	black --line-length=88 .
-	isort --profile=black --line-length=88 .
+	$(PYTHON) -m black --line-length=88 .
+	$(PYTHON) -m isort --profile=black --line-length=88 .
 
 ## test        : Run unit tests.
 test:
@@ -316,6 +316,15 @@ ci_local: lint test
 ## docs_pdf    : Build the paper PDF.
 docs_pdf:
 	$(MAKE) -C paper
+
+## setup       : Create/refresh .venv from uv.lock (exact, reproducible versions).
+setup:
+	uv sync --locked
+
+## lock        : Re-resolve after editing pyproject.toml; refreshes uv.lock + requirements.txt.
+lock:
+	uv lock
+	uv export --locked --no-hashes --no-dev --group xai --format requirements-txt -o requirements.txt
 
 ## help_audit  : List the academic-audit targets with their docstrings.
 help_audit:
