@@ -52,12 +52,6 @@ augmentation do **not** close the mixed-split vs. LOSO gap (best LOSO MAE still
 - [ ] `evaluation/comprehensive_uncertainty_eval.py`: shape mismatch (10776,) vs
   (21552,) — predictions appended twice for Bayesian models.
 - [ ] Re-generate advection and uncertainty plots with current checkpoints.
-- [ ] `evaluation/evaluate_uncertainty.py` (no CLI; runs on import) loads
-  `checkpoints/ensemble/model_0.pth` into a 3-channel, 4-output SimpleResNet,
-  but the checkpoint is 5-channel, 1-output: size mismatch.
-- [ ] `evaluation/visualize_spatial_fields.py::visualize_spatial_predictions`
-  never plots the ground truth its panel title promises (the computed field was
-  unused and removed in the lint cleanup).
 
 ## 4. Validation (ablation zone, CEM43)
 
@@ -109,6 +103,12 @@ dropped because its only commit was already superseded on `main`.
 - [x] Lint (2026-11-02): codebase formatted with Black/isort (commit listed in
   `.git-blame-ignore-revs`), flake8 findings fixed, lint settings in
   `pyproject.toml` + `.flake8` only; CI `lint` job green.
+- [x] Fixed legacy uncertainty evaluation (2026-11-02): infer ensemble input and
+  output dimensions from each checkpoint; scalar-head checkpoints compare to
+  the mean sensor target, and incompatible ensemble members fail explicitly.
+- [x] Spatial field visualization now pairs predictions with sparse sensor
+  ground truth; `training/train.py` uses regression models with output shapes
+  matching the final sequence labels.
 - [x] ONNX export (2026-11-02): `utils/export_to_onnx.py` unwraps
   `{"model_state_dict": ...}` checkpoints and infers input channels (ResNetUNet is
   RGB); `tests/test_export_to_onnx.py` checks PyTorch vs. onnxruntime outputs.

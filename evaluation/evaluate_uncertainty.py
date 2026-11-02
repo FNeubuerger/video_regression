@@ -15,30 +15,72 @@ from models.bayesian import BayesianResNet
 from utils.sequence_dataset import SequenceHeatmapDataset
 
 
-def evaluate_ensemble(data_loader, num_models=5, device="cuda"):
+def _load_ensemble_checkpoint(path, device):
+    checkpoint = torch.load(path, map_location=device, weights_only=True)
+    if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+        checkpoint = checkpoint["model_state_dict"]
+    if not isinstance(checkpoint, dict):
+        raise ValueError(f"Checkpoint {path} does not contain a state dict.")
+
+    conv_weight = checkpoint.get("backbone.conv1.weight")
+    regressor_weight = checkpoint.get("regressor.weight")
+    if (
+        not isinstance(conv_weight, torch.Tensor)
+        or conv_weight.ndim != 4
+        or not isinstance(regressor_weight, torch.Tensor)
+        or regressor_weight.ndim != 2
+    ):
+        raise ValueError(
+            f"Checkpoint {path} is missing the expected ResNet input or output weights."
+        )
+    return checkpoint, conv_weight.shape[1], regressor_weight.shape[0]
+
+
+def _ensemble_targets(scalars, output_dim):
+    if scalars.ndim != 2 or scalars.shape[1] != 4:
+        raise ValueError(f"Expected four sensor targets, got shape {scalars.shape}.")
+    if output_dim == 1:
+        # Older ensemble checkpoints have a scalar head trained against four
+        # labels, which PyTorch broadcast; the equivalent scalar target is
+        # the mean of those four sensor readings.
+        return scalars.mean(dim=1)
+    if output_dim == 4:
+        return scalars
+    raise ValueError(f"Unsupported ensemble output dimension: {output_dim}.")
+
+
+def evaluate_ensemble(
+    data_loader, num_models=5, device="cuda", checkpoint_dir="checkpoints/ensemble"
+):
     print("Evaluating Ensemble...")
     models = []
-    # frame_shape needs to be compatible with what was trained
-    # Assuming (64, 64, 5) if using optical flow, or (64, 64, 3)
-    # We will try to determine from checkpoint or trycatch
-    try:
-        model = SimpleResNet(frame_shape=(64, 64, 5)).to(device)
-        model.load_state_dict(
-            torch.load("checkpoints/ensemble/model_0.pth", map_location=device)
-        )
-        input_channels = 5
-    except Exception:
-        input_channels = 3
-
+    input_channels = None
+    output_dim = None
     for i in range(num_models):
-        path = f"checkpoints/ensemble/model_{i}.pth"
-        if os.path.exists(path):
-            model = SimpleResNet(frame_shape=(64, 64, input_channels)).to(device)
-            model.load_state_dict(torch.load(path, map_location=device))
-            model.eval()
-            models.append(model)
-        else:
+        path = os.path.join(checkpoint_dir, f"model_{i}.pth")
+        if not os.path.exists(path):
             print(f"Warning: {path} not found.")
+            continue
+
+        state_dict, checkpoint_channels, checkpoint_outputs = _load_ensemble_checkpoint(
+            path, device
+        )
+        if input_channels is None:
+            input_channels = checkpoint_channels
+            output_dim = checkpoint_outputs
+        elif (checkpoint_channels, checkpoint_outputs) != (input_channels, output_dim):
+            raise ValueError(
+                f"Ensemble checkpoint {path} has incompatible dimensions: "
+                f"{checkpoint_channels} input channels and {checkpoint_outputs} "
+                f"outputs; expected {input_channels} and {output_dim}."
+            )
+
+        model = SimpleResNet(
+            frame_shape=(64, 64, input_channels), output_dim=output_dim
+        ).to(device)
+        model.load_state_dict(state_dict)
+        model.eval()
+        models.append(model)
 
     if not models:
         return np.array([]), np.array([]), np.array([])
@@ -56,31 +98,36 @@ def evaluate_ensemble(data_loader, num_models=5, device="cuda"):
             else:
                 images, _ = batch
 
-            if input_channels == 3 and images.shape[2] == 5:
-                # If model expects 3 channels but we have 5
-                images = images[:, :, :3]  # (B, T, 3, H, W)
+            if images.dim() != 5:
+                raise ValueError(
+                    f"Expected sequence input (B,T,C,H,W), got {images.shape}."
+                )
+            if images.shape[2] != input_channels:
+                if input_channels == 3 and images.shape[2] == 5:
+                    images = images[:, :, :3]
+                else:
+                    raise ValueError(
+                        f"Input has {images.shape[2]} channels; ensemble expects "
+                        f"{input_channels}."
+                    )
 
-            # SequenceHeatmapDataset returns (B, T, C, H, W)
-            # SimpleResNet might expect (B, C, H, W) or (B, T, C, H, W)
-            # If standard SimpleResNet, likely (B, C, H, W)
-            # We take last frame? Or reshape (B*T)?
-            # Usually we evaluate last frame.
-            if images.dim() == 5:
-                images = images[:, -1]  # (B, C, H, W)
+            images = images[:, -1]
 
             images = images.to(device)
 
-            # Targets
             if scalars is not None:
-                # scalars is (B, T, 4)
-                targets = scalars[:, -1, :]  # (B, 4)
+                targets = _ensemble_targets(scalars[:, -1, :], output_dim)
             else:
-                # Fallback?
-                targets = torch.zeros(images.shape[0], 4)
+                targets = _ensemble_targets(torch.zeros(images.shape[0], 4), output_dim)
 
             batch_preds = []
             for model in models:
                 out = model(images)
+                if out.shape != targets.shape:
+                    raise ValueError(
+                        f"Ensemble prediction shape {out.shape} does not match "
+                        f"target shape {targets.shape}."
+                    )
                 batch_preds.append(out.cpu().numpy())  # (B, 4)
 
             all_preds.append(np.stack(batch_preds, axis=0))  # Shape: (num_models, B, 4)
@@ -89,10 +136,6 @@ def evaluate_ensemble(data_loader, num_models=5, device="cuda"):
     # Concatenate batches
     # shapes: list of (num_models, B, 4) -> (num_models, Total, 4)
     all_preds = np.concatenate(all_preds, axis=1)
-    all_targets = np.concatenate(all_targets, axis=0)  # (Total, 4)
-
-    # Flatten for plotting: (Total*4)
-    all_preds = np.concatenate(all_preds, axis=1)  # (num_models, Total, 4)
     all_targets = np.concatenate(all_targets, axis=0)  # (Total, 4)
 
     # Calculate per-sensor statistics
@@ -222,7 +265,9 @@ def plot_uncertainty(targets, means, stds, title, save_path):
             )
 
     else:
-        # Fallback to flattened plot
+        targets = np.asarray(targets).reshape(-1)
+        means = np.asarray(means).reshape(-1)
+        stds = np.asarray(stds).reshape(-1)
         plt.figure(figsize=(12, 6))
         indices = np.arange(len(targets))
 
@@ -257,12 +302,6 @@ def plot_uncertainty(targets, means, stds, title, save_path):
         plt.grid(True, alpha=0.3)
         plt.savefig(save_path, dpi=300)
         plt.close()
-    print(f"Plot saved to {save_path}")
-    plt.ylabel("Temperature $T/K$")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.savefig(save_path, dpi=300)
-    plt.close()
     print(f"Plot saved to {save_path}")
 
 

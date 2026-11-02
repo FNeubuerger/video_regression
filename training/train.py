@@ -13,8 +13,20 @@ from torchvision import transforms
 from torchvision.models import resnet18
 from tqdm import tqdm
 
-from models.backbones import CNNLSTM, PretrainedCNN, PretrainedCNNLSTM
+from models.backbones import CNNLSTM, PretrainedCNNLSTM, SimpleResNet
 from utils.dataset import TemperatureSequenceDataset
+
+
+def _align_regression_target(outputs, labels):
+    labels = labels.float()
+    if labels.ndim > outputs.ndim:
+        labels = labels[:, -1]
+    if labels.shape != outputs.shape:
+        raise ValueError(
+            f"Model output shape {outputs.shape} does not match target shape "
+            f"{labels.shape}."
+        )
+    return labels
 
 
 def train_model(
@@ -47,7 +59,11 @@ def train_model(
 
     # Create dataset with sequences for CNNLSTM
     dataset = TemperatureSequenceDataset(
-        data_dir, sequence_length=3, transform=transform, image_size=(64, 64)
+        data_dir,
+        sequence_length=3,
+        transform=transform,
+        image_size=(64, 64),
+        use_optical_flow=False,
     )  # Reduced sequence_length from 5 to 3
 
     # Split dataset
@@ -106,7 +122,7 @@ def train_model(
             if scaler is not None:
                 with autocast():
                     outputs = model_instance(images)
-                    labels = labels.float()  # Ensure labels are float for regression
+                    labels = _align_regression_target(outputs, labels)
                     loss = criterion_instance(outputs, labels) / accumulation_steps
 
                 # Backward pass with gradient scaling
@@ -120,7 +136,7 @@ def train_model(
             else:
                 # CPU training (no mixed precision)
                 outputs = model_instance(images)
-                labels = labels.float()
+                labels = _align_regression_target(outputs, labels)
                 loss = criterion_instance(outputs, labels) / accumulation_steps
 
                 loss.backward()
@@ -179,7 +195,7 @@ if __name__ == "__main__":
     batch_size = 128  # Increased from default 32
 
     # Initialize the model, loss function, and optimizer
-    model = CNNLSTM(frame_shape=frame_shape, time_steps=time_steps)
+    model = CNNLSTM(frame_shape=frame_shape, time_steps=time_steps, output_dim=1)
     criterion = torch.nn.MSELoss()  # Mean Squared Error Loss for regression
     # Use AdamW with higher learning rate for larger batches
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.003, weight_decay=1e-4)
@@ -194,12 +210,10 @@ if __name__ == "__main__":
     pretrained_cnn = resnet18(weights="IMAGENET1K_V1")
 
     # Modify the final layer to fit the medical imaging task (e.g., regression)
-    pretrained_cnn.fc = torch.nn.Linear(
-        pretrained_cnn.fc.in_features, 1
-    )  # Assuming single output for regression
+    pretrained_cnn.fc = torch.nn.Linear(pretrained_cnn.fc.in_features, 1)
     # Initialize the PretrainedCNNLSTM model using the pretrained ResNet
     pretrained_model = PretrainedCNNLSTM(
-        pretrained_cnn, frame_shape=frame_shape, time_steps=time_steps
+        pretrained_cnn, frame_shape=frame_shape, time_steps=time_steps, output_dim=1
     )
 
     # Define a new criterion and optimizer for the pretrained model
@@ -218,14 +232,7 @@ if __name__ == "__main__":
         model_save_path="models/pretrained_cnn_lstm_model.pth",
     )
 
-    pretrained_cnn2 = resnet18(weights="IMAGENET1K_V1")
-
-    # Modify the final layer to fit the medical imaging task (e.g., regression)
-    pretrained_cnn2.fc = torch.nn.Linear(
-        pretrained_cnn2.fc.in_features, 1
-    )  # Assuming single output for regression
-    # Initialize the PretrainedCNNLSTM model using the pretrained ResNet
-    pretrained_model2 = PretrainedCNN(pretrained_cnn2, frame_shape=frame_shape)
+    pretrained_model2 = SimpleResNet(frame_shape=frame_shape, output_dim=1)
 
     # Define a new criterion and optimizer for the pretrained model
     pretrained_criterion2 = torch.nn.MSELoss()

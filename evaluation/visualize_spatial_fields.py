@@ -20,6 +20,21 @@ from physics.models import SpatialPhysicsCNNLSTM
 from utils.sequence_dataset import SequenceHeatmapDataset
 
 
+def _last_field_batch(fields, sequence_length):
+    if fields.ndim == 5:
+        fields = fields[:, -1]
+        if fields.shape[1] == 1:
+            fields = fields[:, 0]
+    elif fields.ndim == 4:
+        if fields.shape[1] == sequence_length:
+            fields = fields[:, -1]
+        elif fields.shape[1] == 1:
+            fields = fields[:, 0]
+    if fields.ndim != 3:
+        raise ValueError(f"Expected a batch of 2D fields, got shape {fields.shape}.")
+    return fields
+
+
 def load_spatial_model(model_type, checkpoint_path, frame_shape=(64, 64, 5)):
     """Load a spatial model from checkpoint."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -82,8 +97,8 @@ def visualize_spatial_predictions():
         ("SpatialKANBioheat", "checkpoints/loso/SpatialKANBioheat/fold_US_001.pth"),
     ]
 
-    # Create figure with 3 rows (one per model) and 2 columns (two samples)
-    fig, axes = plt.subplots(3, 2, figsize=(10, 12))
+    # Each sample gets a prediction and its sparse sensor-measurement target.
+    fig, axes = plt.subplots(3, 4, figsize=(14, 12))
     fig.suptitle(
         "Spatial Temperature Field Predictions (Example)",
         fontsize=14,
@@ -104,37 +119,41 @@ def visualize_spatial_predictions():
             else:
                 pred_fields = output
 
-            # Extract last timestep if 4D, otherwise use as-is
-            if pred_fields.dim() == 4:  # (B, T, H, W)
-                pred_field = pred_fields[:, -1, :, :].cpu().numpy()
-            elif pred_fields.dim() == 3:  # (B, H, W)
-                pred_field = pred_fields.cpu().numpy()
-            else:
-                pred_field = pred_fields.squeeze().cpu().numpy()
+            pred_field = _last_field_batch(pred_fields, frames.shape[1])
+            gt_field = _last_field_batch(heatmaps, frames.shape[1])
 
-        # Ground truth
+            if pred_field.shape[-2:] != gt_field.shape[-2:]:
+                pred_field = torch.nn.functional.interpolate(
+                    pred_field.unsqueeze(1),
+                    size=gt_field.shape[-2:],
+                    mode="bilinear",
+                    align_corners=False,
+                ).squeeze(1)
 
-        # Plot predictions vs ground truth
-        for col_idx in range(2):
-            ax = axes[row_idx, col_idx]
+            pred_field = pred_field.cpu().numpy()
+            gt_field = gt_field.cpu().numpy()
 
-            # Show prediction
-            pred = pred_field[col_idx] if pred_field.ndim == 3 else pred_field
+        for sample_idx in range(min(2, pred_field.shape[0])):
+            pred = pred_field[sample_idx]
+            gt = gt_field[sample_idx]
+            gt = np.ma.masked_where(gt == 0, gt)
+            valid_gt = gt.compressed()
+            color_values = [pred.ravel()]
+            if valid_gt.size:
+                color_values.append(valid_gt)
+            vmin = min(values.min() for values in color_values)
+            vmax = max(values.max() for values in color_values)
+            if vmin == vmax:
+                vmax = vmin + 1
 
-            # Normalize to [0, 1] for visualization
-            pred_min, pred_max = pred.min(), pred.max()
-            if pred_max > pred_min:
-                pred_norm = (pred - pred_min) / (pred_max - pred_min)
-            else:
-                pred_norm = np.zeros_like(pred)
-
-            im = ax.imshow(pred_norm, cmap="hot", vmin=0, vmax=1)
-            ax.set_title(f"{model_type} - Sample {col_idx+1}", fontsize=10)
-            ax.axis("off")
-
-            # Add colorbar
-            cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-            cbar.set_label("Norm. Temp.", fontsize=8)
+            for offset, (field, title) in enumerate(
+                ((pred, "Prediction"), (gt, "Sensor ground truth"))
+            ):
+                ax = axes[row_idx, sample_idx * 2 + offset]
+                im = ax.imshow(field, cmap="hot", vmin=vmin, vmax=vmax)
+                ax.set_title(f"{model_type} - {title} {sample_idx + 1}", fontsize=9)
+                ax.axis("off")
+                plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
     plt.tight_layout()
     output_path = "paper/figures/spatial_field_predictions.png"
