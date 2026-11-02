@@ -19,11 +19,20 @@ from models.conv_ltc import ConvLTC
 # Import Dataset
 from utils.sequence_dataset import SequenceHeatmapDataset
 
+DATA_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "data", "level1_cropped")
+)
+
+
+@unittest.skipUnless(
+    os.path.isfile(os.path.join(DATA_DIR, "sensor_coordinates.json")),
+    "requires the (non-public) dataset in data/level1_cropped",
+)
 class TestArchitectureOnRealData(unittest.TestCase):
     
     def setUp(self):
         print("\n[SetUp] Loading one sample from SequenceHeatmapDataset...")
-        self.data_dir = os.path.abspath("data/level1_cropped")
+        self.data_dir = DATA_DIR
         
         # Prepare Transform
         transform = transforms.Compose([
