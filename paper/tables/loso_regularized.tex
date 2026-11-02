@@ -1,14 +1,16 @@
 \begin{table}[t]
 \centering
-\caption{Effect of weight decay, augmentation, and deterministic seeding on LOSO generalization for the two most overfitting-prone architectures. Values are mean $\pm$ 95\% confidence interval across the 15 folds. \emph{Placeholder --- to be filled in once the regularized retraining run completes.}}
+\caption{Effect of weight decay ($10^{-4}$), train-time augmentation (horizontal flip + brightness jitter), and deterministic seeding (seed 42) on LOSO generalization. Both configurations use 10 epochs, batch size 32, and artifact masking. Values are mean $\pm$ 95\% confidence interval across the 15 held-out sequences; $p$ is a two-sided paired Wilcoxon signed-rank test on per-fold MAE. KANResNet diverges in both configurations.}
 \label{tab:loso_regularized}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{lcccc}
+\begin{tabular}{lccccc}
 \hline
-\textbf{Model} & \textbf{MAE} (K) $\downarrow$ & \textbf{RMSE} (K) $\downarrow$ & \textbf{Baseline MAE} (K) & \textbf{$\Delta$ MAE} \\
+\textbf{Model} & \textbf{MAE} (K) $\downarrow$ & \textbf{RMSE} (K) $\downarrow$ & \textbf{Baseline MAE} (K) & \textbf{$\Delta$ MAE} (K) & $p$ \\
 \hline
-SimpleResNet (regularized) & TBD & TBD & 26.67 $\pm$ 5.14 & TBD \\
-CNNLSTM (regularized)      & TBD & TBD & 23.71 $\pm$ 4.05 & TBD \\
+SimpleResNet    & 22.88 $\pm$ 4.59 & 26.66 $\pm$ 4.73 & 26.67 $\pm$ 5.14 & -3.79 & 0.135 \\
+CNNLSTM         & 31.15 $\pm$ 6.59 & 36.31 $\pm$ 6.92 & 23.71 $\pm$ 4.05 & +7.44 & 0.026 \\
+BayesianResNet  & 75.66 $\pm$ 50.59 & 82.17 $\pm$ 53.38 & 55.82 $\pm$ 29.65 & +19.84 & 0.978 \\
+KANResNet       & 3414 $\pm$ 2851 & 3446 $\pm$ 2880 & 3359 $\pm$ 3504 & +55.51 & 0.720 \\
 \hline
 \end{tabular}%
 }

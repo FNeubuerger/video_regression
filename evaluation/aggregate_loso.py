@@ -7,6 +7,14 @@ model is fine, multiple rows are aggregated by model name) and writes:
   for every numeric metric column.
 * ``results/loso_per_fold.csv`` — concatenated long-format dump.
 
+Files follow ``loso_<Model>_<tag>.csv`` where ``<tag>`` is ``masked`` /
+``unmasked`` for baseline runs or e.g. ``seed42_aug_masked`` for regularized
+reruns. Because every file stores the bare architecture name in its ``model``
+column, the tag is folded into the ``model`` label for non-baseline runs
+(``SimpleResNet (seed42_aug_masked)``) so that different runs of the same
+architecture are never pooled. The raw values are kept in ``base_model`` and
+``variant``.
+
 The script tolerates missing columns and ignores non-numeric ones.
 """
 
@@ -19,6 +27,21 @@ from typing import Iterable, List
 
 import numpy as np
 import pandas as pd
+
+BASELINE_VARIANT = "masked"
+
+
+def variant_from_filename(path: str, model: str) -> str:
+    """Return the run tag of ``loso_<model>_<tag>.csv`` ('' if it can't be parsed)."""
+    stem = os.path.splitext(os.path.basename(path))[0]
+    prefix = f"loso_{model}_"
+    return stem[len(prefix) :] if stem.startswith(prefix) else ""
+
+
+def run_label(model: str, variant: str) -> str:
+    if not variant or variant == BASELINE_VARIANT:
+        return model
+    return f"{model} ({variant})"
 
 
 def load_fold_csvs(pattern: str) -> pd.DataFrame:
@@ -38,6 +61,12 @@ def load_fold_csvs(pattern: str) -> pd.DataFrame:
             # Derive fold id from filename, e.g. loso_seq3.csv -> 3
             base = os.path.splitext(os.path.basename(p))[0]
             df["fold"] = base.replace("loso_", "")
+        if "model" in df.columns:
+            df["base_model"] = df["model"]
+            df["variant"] = [variant_from_filename(p, m) for m in df["model"]]
+            df["model"] = [
+                run_label(m, v) for m, v in zip(df["base_model"], df["variant"])
+            ]
         frames.append(df)
     return pd.concat(frames, ignore_index=True)
 
