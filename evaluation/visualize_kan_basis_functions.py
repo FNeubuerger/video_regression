@@ -48,12 +48,16 @@ def extract_kan_linear_functions(
         }
     """
     x = torch.linspace(x_range[0], x_range[1], n_points, dtype=torch.float32)
-    x_expanded = x.unsqueeze(-1).repeat(1, kan_linear.in_features)  # (n_points, in_features)
+    x_expanded = x.unsqueeze(-1).repeat(
+        1, kan_linear.in_features
+    )  # (n_points, in_features)
     x_expanded = x_expanded.to(next(kan_linear.parameters()).device)
 
     with torch.no_grad():
         # Base activation
-        base_activated = kan_linear.base_activation(x_expanded)  # (n_points, in_features)
+        base_activated = kan_linear.base_activation(
+            x_expanded
+        )  # (n_points, in_features)
         y_base = (base_activated * kan_linear.scale_base).sum(dim=1)  # (n_points,)
 
         # Spline activation
@@ -61,7 +65,9 @@ def extract_kan_linear_functions(
         # Contract with spline weights
         weight = kan_linear.spline_weight.reshape(kan_linear.out_features, -1)
         basis_flat = basis.reshape(basis.shape[0], -1)
-        y_spline = torch.nn.functional.linear(basis_flat, weight).sum(dim=1)  # (n_points,)
+        y_spline = torch.nn.functional.linear(basis_flat, weight).sum(
+            dim=1
+        )  # (n_points,)
 
         y = y_base + y_spline
 
@@ -88,17 +94,21 @@ def diagnose_kan_functions(
     for name, module in model.named_modules():
         if isinstance(module, KANLinear):
             funcs = extract_kan_linear_functions(module, n_points=n_samples)
-            functions.append({
-                "layer_name": name,
-                **funcs,
-            })
+            functions.append(
+                {
+                    "layer_name": name,
+                    **funcs,
+                }
+            )
             all_y.extend(funcs["y"])
 
     all_y = np.array(all_y)
     is_exploding = np.any(~np.isfinite(all_y))
     max_val = float(np.nanmax(all_y)) if len(all_y) > 0 else 0.0
     min_val = float(np.nanmin(all_y)) if len(all_y) > 0 else 0.0
-    is_saturated = (np.abs(all_y) > 100).sum() / len(all_y) > 0.5 if len(all_y) > 0 else False
+    is_saturated = (
+        (np.abs(all_y) > 100).sum() / len(all_y) > 0.5 if len(all_y) > 0 else False
+    )
 
     return {
         "functions": functions,
@@ -138,22 +148,52 @@ def plot_basis_functions(
         y_spline = func_data["y_spline"]
 
         ax.plot(x, y, label="Total (base + spline)", linewidth=2, color="#1f77b4")
-        ax.plot(x, y_base, linestyle="--", label="Base activation", linewidth=1.2, color="#ff7f0e")
-        ax.plot(x, y_spline, linestyle=":", label="Spline basis", linewidth=1.2, color="#2ca02c")
+        ax.plot(
+            x,
+            y_base,
+            linestyle="--",
+            label="Base activation",
+            linewidth=1.2,
+            color="#ff7f0e",
+        )
+        ax.plot(
+            x,
+            y_spline,
+            linestyle=":",
+            label="Spline basis",
+            linewidth=1.2,
+            color="#2ca02c",
+        )
 
         ax.set_title(f"KANLinear Layer {layer_idx}: {func_data['layer_name']}")
         ax.set_xlabel("Normalized input ([-1, 1])")
         ax.set_ylabel("Learned function output")
         ax.grid(True, alpha=0.3)
         ax.legend(loc="best")
-        
+
         # Add text summary
         if np.any(~np.isfinite(y)):
-            ax.text(0.02, 0.98, "⚠ Contains NaN/Inf!", transform=ax.transAxes, 
-                   fontsize=10, color="red", verticalalignment="top", bbox=dict(boxstyle="round", facecolor="yellow", alpha=0.7))
+            ax.text(
+                0.02,
+                0.98,
+                "⚠ Contains NaN/Inf!",
+                transform=ax.transAxes,
+                fontsize=10,
+                color="red",
+                verticalalignment="top",
+                bbox=dict(boxstyle="round", facecolor="yellow", alpha=0.7),
+            )
         elif np.abs(y).max() > 100:
-            ax.text(0.02, 0.98, f"⚠ Max |y| = {np.abs(y).max():.1f}", transform=ax.transAxes,
-                   fontsize=10, color="red", verticalalignment="top", bbox=dict(boxstyle="round", facecolor="yellow", alpha=0.7))
+            ax.text(
+                0.02,
+                0.98,
+                f"⚠ Max |y| = {np.abs(y).max():.1f}",
+                transform=ax.transAxes,
+                fontsize=10,
+                color="red",
+                verticalalignment="top",
+                bbox=dict(boxstyle="round", facecolor="yellow", alpha=0.7),
+            )
 
     # Summary at top
     status = "✓ Healthy"
@@ -180,7 +220,9 @@ def plot_basis_functions(
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", default="KANResNet", choices=["KANResNet", "SpatialKANBioheat"])
+    ap.add_argument(
+        "--model", default="KANResNet", choices=["KANResNet", "SpatialKANBioheat"]
+    )
     ap.add_argument(
         "--checkpoint",
         default="checkpoints/loso/KANResNet/fold_US_001_30W_10min.pth",
@@ -199,7 +241,9 @@ def main() -> None:
     elif args.model == "SpatialKANBioheat":
         from models.kan import SpatialKANBioheat
 
-        model = SpatialKANBioheat(frame_shape=frame_shape, time_steps=time_steps, output_hw=(4, 4))
+        model = SpatialKANBioheat(
+            frame_shape=frame_shape, time_steps=time_steps, output_hw=(4, 4)
+        )
     else:
         raise ValueError(f"Unknown model: {args.model}")
 

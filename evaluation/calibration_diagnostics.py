@@ -15,6 +15,7 @@ import argparse
 import os
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -87,19 +88,27 @@ def main():
 
     os.makedirs(args.out_dir, exist_ok=True)
     m = compute_calibration(targets, means, stds)
-    plot_reliability(m, os.path.join(args.out_dir, f"{args.name}_reliability.png"), title=args.name)
-    plot_sharpness(stds, os.path.join(args.out_dir, f"{args.name}_sharpness.png"), title=args.name)
+    plot_reliability(
+        m, os.path.join(args.out_dir, f"{args.name}_reliability.png"), title=args.name
+    )
+    plot_sharpness(
+        stds, os.path.join(args.out_dir, f"{args.name}_sharpness.png"), title=args.name
+    )
 
     out_csv = os.path.join(args.out_dir, f"{args.name}_calibration.csv")
-    pd.DataFrame([{
-        "model": args.name,
-        "ECE": m["ECE"],
-        "MCE": m["MCE"],
-        "PICP_95": m["PICP_95"],
-        "MPIW_95": m["MPIW_95"],
-        "sharpness_mean": m["sharpness_mean"],
-        "sharpness_median": m["sharpness_median"],
-    }]).to_csv(out_csv, index=False)
+    pd.DataFrame(
+        [
+            {
+                "model": args.name,
+                "ECE": m["ECE"],
+                "MCE": m["MCE"],
+                "PICP_95": m["PICP_95"],
+                "MPIW_95": m["MPIW_95"],
+                "sharpness_mean": m["sharpness_mean"],
+                "sharpness_median": m["sharpness_median"],
+            }
+        ]
+    ).to_csv(out_csv, index=False)
     print(f"Wrote calibration outputs to {args.out_dir}")
 
 

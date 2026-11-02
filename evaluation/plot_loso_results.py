@@ -34,7 +34,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-
 # Models that produce a (B, T, h, w) field and therefore have field_mae / field_rmse.
 SPATIAL_MODELS = {
     "ConvLTC",
@@ -161,8 +160,8 @@ def _count_params(model_name: str) -> float:
                 frame_shape=frame_shape, time_steps=time_steps
             )
         elif model_name == "PretrainedCNNLSTM":
-            from torchvision.models import resnet18
             import torch.nn as nn
+            from torchvision.models import resnet18
 
             backbone = resnet18()
             backbone.fc = nn.Linear(512, 1)
@@ -170,9 +169,13 @@ def _count_params(model_name: str) -> float:
                 backbone, frame_shape=frame_shape, time_steps=time_steps
             )
         elif model_name == "SimpleResNet":
-            m = importlib.import_module("models.backbones").SimpleResNet(frame_shape=frame_shape)
+            m = importlib.import_module("models.backbones").SimpleResNet(
+                frame_shape=frame_shape
+            )
         elif model_name == "SpatialResNet":
-            m = importlib.import_module("models.backbones").SpatialResNet(frame_shape=frame_shape)
+            m = importlib.import_module("models.backbones").SpatialResNet(
+                frame_shape=frame_shape
+            )
         elif model_name == "PhysicsCNNLSTM":
             m = importlib.import_module("physics.models").PhysicsCNNLSTM(
                 frame_shape=frame_shape, time_steps=time_steps, pretrained=False
@@ -182,13 +185,21 @@ def _count_params(model_name: str) -> float:
                 frame_shape=frame_shape, time_steps=time_steps, pretrained=False
             )
         elif model_name == "BayesianResNet":
-            m = importlib.import_module("models.bayesian").BayesianResNet(frame_shape=frame_shape)
+            m = importlib.import_module("models.bayesian").BayesianResNet(
+                frame_shape=frame_shape
+            )
         elif model_name == "FullBayesianResNet":
-            m = importlib.import_module("models.bayesian").FullBayesianResNet(frame_shape=frame_shape)
+            m = importlib.import_module("models.bayesian").FullBayesianResNet(
+                frame_shape=frame_shape
+            )
         elif model_name == "BayesianCNNLSTM":
-            m = importlib.import_module("models.bayesian").BayesianCNNLSTM(frame_shape=frame_shape)
+            m = importlib.import_module("models.bayesian").BayesianCNNLSTM(
+                frame_shape=frame_shape
+            )
         elif model_name == "ConvLTC":
-            m = importlib.import_module("models.conv_ltc").ConvLTC(in_channels=5, hidden_channels=32)
+            m = importlib.import_module("models.conv_ltc").ConvLTC(
+                in_channels=5, hidden_channels=32
+            )
         elif model_name == "KANResNet":
             m = importlib.import_module("models.kan").KANResNet(frame_shape=frame_shape)
         elif model_name == "SpatialKANBioheat":
@@ -218,7 +229,9 @@ def _paired_per_fold_panel(ax, per_fold: pd.DataFrame) -> None:
         b = per_fold[per_fold["model"] == baseline][["fold", "mae"]].rename(
             columns={"mae": "baseline"}
         )
-        k = per_fold[per_fold["model"] == kan][["fold", "mae"]].rename(columns={"mae": "kan"})
+        k = per_fold[per_fold["model"] == kan][["fold", "mae"]].rename(
+            columns={"mae": "kan"}
+        )
         merged = b.merge(k, on="fold", how="inner").dropna()
         if merged.empty:
             continue
@@ -246,7 +259,11 @@ def _paired_per_fold_panel(ax, per_fold: pd.DataFrame) -> None:
         xk = np.full(len(merged), pair_xs[idx] + width / 2)
         # Lines per subject
         for j in range(len(merged)):
-            colour = "#2ca02c" if merged["kan"].iloc[j] < merged["baseline"].iloc[j] else "#d62728"
+            colour = (
+                "#2ca02c"
+                if merged["kan"].iloc[j] < merged["baseline"].iloc[j]
+                else "#d62728"
+            )
             ax.plot(
                 [xb[j], xk[j]],
                 [merged["baseline"].iloc[j], merged["kan"].iloc[j]],
@@ -254,7 +271,9 @@ def _paired_per_fold_panel(ax, per_fold: pd.DataFrame) -> None:
                 alpha=0.6,
                 linewidth=1.0,
             )
-        ax.scatter(xb, merged["baseline"], color="#1f77b4", s=30, zorder=3, label="_baseline")
+        ax.scatter(
+            xb, merged["baseline"], color="#1f77b4", s=30, zorder=3, label="_baseline"
+        )
         ax.scatter(xk, merged["kan"], color="#9467bd", s=30, zorder=3, label="_kan")
         # Wilcoxon p-value (paired, two-sided)
         try:
@@ -281,8 +300,17 @@ def _paired_per_fold_panel(ax, per_fold: pd.DataFrame) -> None:
 
     ax.legend(
         handles=[
-            Line2D([0], [0], marker="o", color="w", markerfacecolor="#1f77b4", label="Baseline"),
-            Line2D([0], [0], marker="o", color="w", markerfacecolor="#9467bd", label="KAN"),
+            Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor="#1f77b4",
+                label="Baseline",
+            ),
+            Line2D(
+                [0], [0], marker="o", color="w", markerfacecolor="#9467bd", label="KAN"
+            ),
             Line2D([0], [0], color="#2ca02c", label="KAN improves"),
             Line2D([0], [0], color="#d62728", label="KAN regresses"),
         ],
@@ -424,7 +452,9 @@ def plot_kan_comparison(
     )
 
     if kan_has_data:
-        fig, axes = plt.subplots(1, 2, figsize=(13, 5.2), gridspec_kw={"width_ratios": [1.05, 1.3]})
+        fig, axes = plt.subplots(
+            1, 2, figsize=(13, 5.2), gridspec_kw={"width_ratios": [1.05, 1.3]}
+        )
         _paired_per_fold_panel(axes[0], per_fold)
         _pareto_panel(axes[1], summary)
         fig.suptitle(
@@ -508,8 +538,12 @@ def main() -> None:
 
     plot_mae_bars(summary, os.path.join(args.figdir, "loso_mae_bars.png"), metric="mae")
     plot_field_mae_bars(summary, os.path.join(args.figdir, "loso_field_mae_bars.png"))
-    plot_per_fold_heatmap(per_fold, os.path.join(args.figdir, "loso_per_fold_heatmap.png"))
-    plot_kan_comparison(summary, per_fold, os.path.join(args.figdir, "kan_comparison.png"))
+    plot_per_fold_heatmap(
+        per_fold, os.path.join(args.figdir, "loso_per_fold_heatmap.png")
+    )
+    plot_kan_comparison(
+        summary, per_fold, os.path.join(args.figdir, "kan_comparison.png")
+    )
     write_latex_table(summary, os.path.join(args.tabledir, "loso_summary.tex"))
 
 

@@ -1,5 +1,6 @@
-import pandas as pd
 import os
+
+import pandas as pd
 
 # Load results
 pytorch_results = pd.read_csv("results/benchmark_pytorch.csv")
@@ -9,7 +10,7 @@ onnx_results = pd.read_csv("results/benchmark_onnx.csv")
 combined_results = pd.concat([pytorch_results, onnx_results], ignore_index=True)
 
 # Sort for better readability
-combined_results = combined_results.sort_values(by=['device', 'model', 'format'])
+combined_results = combined_results.sort_values(by=["device", "model", "format"])
 
 # Save
 output_path = "results/edge_benchmark_results.csv"

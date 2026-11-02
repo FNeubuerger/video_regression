@@ -1,22 +1,29 @@
-import numpy as np
-from sklearn.metrics import mean_squared_error
-import torch
 import os
-from torchvision import datasets, transforms
-from torch.utils.data import DataLoader
-
-import matplotlib.pyplot as plt
 import sys
 
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from sklearn.metrics import mean_squared_error
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+
 # Add parent directory to path to allow imports
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from torchvision.models import resnet18
+from tqdm import tqdm
 
 from models.backbones import CNNLSTM, PretrainedCNNLSTM
-from tqdm import tqdm
-from torchvision.models import resnet18
+
 
 # Plot scatterplot and frame-by-frame predictions
-def plot_results(true_temperatures, predicted_temperatures, frame_indices, save_path="results/plot.png"):
+def plot_results(
+    true_temperatures,
+    predicted_temperatures,
+    frame_indices,
+    save_path="results/plot.png",
+):
     """
     Plot scatterplot and frame-by-frame predictions of true vs predicted temperatures.
 
@@ -49,7 +56,12 @@ def plot_results(true_temperatures, predicted_temperatures, frame_indices, save_
     # Frame-by-frame temperature predictions
     plt.subplot(1, 2, 2)
     plt.plot(frame_indices, true_temperatures, label="True Temperatures", color="blue")
-    plt.plot(frame_indices, predicted_temperatures, label="Predicted Temperatures", color="red")
+    plt.plot(
+        frame_indices,
+        predicted_temperatures,
+        label="Predicted Temperatures",
+        color="red",
+    )
     plt.xlabel("Frame Index")
     plt.ylabel("Temperature $T/K$")
     plt.title("Frame-by-Frame Temperature Predictions")
@@ -63,7 +75,14 @@ def plot_results(true_temperatures, predicted_temperatures, frame_indices, save_
     plt.savefig(save_path)
     plt.close()
 
-def show_example_predictions(test_loader, model_instance, device_instance="cuda", num_examples=5, save_path="results/example_predictions.png"):
+
+def show_example_predictions(
+    test_loader,
+    model_instance,
+    device_instance="cuda",
+    num_examples=5,
+    save_path="results/example_predictions.png",
+):
     """
     Display example test images with predicted and true temperatures.
 
@@ -93,7 +112,9 @@ def show_example_predictions(test_loader, model_instance, device_instance="cuda"
             for i in range(min(num_examples - images_shown, len(images))):
                 ax = axes[images_shown]
                 img = images[i].cpu().permute(1, 2, 0).numpy()  # Convert to HWC format
-                img = (img - img.min()) / (img.max() - img.min())  # Normalize for display
+                img = (img - img.min()) / (
+                    img.max() - img.min()
+                )  # Normalize for display
                 ax.imshow(img)
                 ax.axis("off")
                 ax.set_title(f"True: {labels[i]:.2f}\nPred: {outputs[i]:.2f}")
@@ -109,12 +130,19 @@ def show_example_predictions(test_loader, model_instance, device_instance="cuda"
     plt.savefig(save_path)
     plt.close()
 
+
 # Main function
-def evaluate(model_instance, batch_size=32, data_dir="data", device_instance="cuda", model_name="cnn_lstm_model"):
+def evaluate(
+    model_instance,
+    batch_size=32,
+    data_dir="data",
+    device_instance="cuda",
+    model_name="cnn_lstm_model",
+):
     """
     Evaluate a given model_instance on a test dataset and calculate regression performance.
     Args:
-        model_instance: The model to be evaluated. It should have a `predict` method that accepts 
+        model_instance: The model to be evaluated. It should have a `predict` method that accepts
                a numpy array as input and returns predicted values.
     Functionality:
         - Applies transformations to the dataset, including resizing and converting to tensors.
@@ -127,19 +155,18 @@ def evaluate(model_instance, batch_size=32, data_dir="data", device_instance="cu
     Outputs:
         - Prints the RMSE to the console.
         - Saves a plot of the results.
-        - Writes evaluation results, including RMSE and predictions, 
+        - Writes evaluation results, including RMSE and predictions,
           to a text file in the `results` directory.
     Note:
         - Ensure the `data_dir` variable points to the correct dataset directory.
-        - The `model_path` variable should be defined globally or passed to the function 
+        - The `model_path` variable should be defined globally or passed to the function
           to correctly name the results file.
     """
-    
+
     # Define transformations for the test dataset
-    transform = transforms.Compose([
-        transforms.Resize((128, 128)),
-        transforms.ToTensor()
-    ])
+    transform = transforms.Compose(
+        [transforms.Resize((128, 128)), transforms.ToTensor()]
+    )
 
     # Load dataset
     dataset = datasets.ImageFolder(os.path.join(data_dir), transform=transform)
@@ -168,9 +195,21 @@ def evaluate(model_instance, batch_size=32, data_dir="data", device_instance="cu
     print(f"Root Mean Squared Error (RMSE): {rmse}")
 
     # Plot results
-    plot_results(true_temperatures, predicted_temperatures, frame_indices, save_path=f"results/{model_name}_plot.png")
+    plot_results(
+        true_temperatures,
+        predicted_temperatures,
+        frame_indices,
+        save_path=f"results/{model_name}_plot.png",
+    )
     # Show example predictions
-    show_example_predictions(test_loader, model_instance, device_instance=device_instance, num_examples=5, save_path=f"results/{model_name}_example_predictions.png")
+    show_example_predictions(
+        test_loader,
+        model_instance,
+        device_instance=device_instance,
+        num_examples=5,
+        save_path=f"results/{model_name}_example_predictions.png",
+    )
+
 
 if __name__ == "__main__":
     frame_shape = (128, 128, 3)  # Height, Width, Channels
@@ -178,21 +217,31 @@ if __name__ == "__main__":
 
     # Initialize the model, loss function, and optimizer
     model = CNNLSTM(frame_shape=frame_shape, time_steps=time_steps)
-    model.load_state_dict(torch.load("models/cnn_lstm_model.pth"))  # Load the state dictionary
+    model.load_state_dict(
+        torch.load("models/cnn_lstm_model.pth")
+    )  # Load the state dictionary
     model.eval()  # Set the model to evaluation mode
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     evaluate(model, device_instance=device, model_name="cnn_lstm_model")
 
-    pretrained_cnn = resnet18(weights='IMAGENET1K_V1')
+    pretrained_cnn = resnet18(weights="IMAGENET1K_V1")
 
     # Modify the final layer to fit the medical imaging task (e.g., regression)
-    pretrained_cnn.fc = torch.nn.Linear(pretrained_cnn.fc.in_features, 1)  # Assuming single output for regression
+    pretrained_cnn.fc = torch.nn.Linear(
+        pretrained_cnn.fc.in_features, 1
+    )  # Assuming single output for regression
     # Initialize the PretrainedCNNLSTM model using the pretrained ResNet
-    pretrained_model = PretrainedCNNLSTM(pretrained_cnn, frame_shape=frame_shape, time_steps=time_steps)
+    pretrained_model = PretrainedCNNLSTM(
+        pretrained_cnn, frame_shape=frame_shape, time_steps=time_steps
+    )
 
-    pretrained_model.load_state_dict(torch.load("models/pretrained_cnn_lstm_model.pth"))  # Load the state dictionary
+    pretrained_model.load_state_dict(
+        torch.load("models/pretrained_cnn_lstm_model.pth")
+    )  # Load the state dictionary
     pretrained_model.eval()  # Set the model to evaluation mode
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     pretrained_model.to(device)
-    evaluate(pretrained_model, device_instance=device, model_name="resnet_cnn_lstm_model")
+    evaluate(
+        pretrained_model, device_instance=device, model_name="resnet_cnn_lstm_model"
+    )

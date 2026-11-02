@@ -1,13 +1,14 @@
 import torch
 import torch.nn as nn
 
+
 class CNNLSTM(nn.Module):
     """
-    CNNLSTM: A PyTorch model combining Convolutional Neural Networks (CNN) and 
+    CNNLSTM: A PyTorch model combining Convolutional Neural Networks (CNN) and
     Long Short-Term Memory (LSTM) networks for video regression tasks.
-    The model processes video sequences by first extracting spatial features 
-    from individual frames using a CNN, and then capturing temporal dependencies 
-    across frames using an LSTM. Finally, it performs regression using fully 
+    The model processes video sequences by first extracting spatial features
+    from individual frames using a CNN, and then capturing temporal dependencies
+    across frames using an LSTM. Finally, it performs regression using fully
     connected layers.
     Attributes:
         time_steps (int): Number of frames in the video sequence.
@@ -21,10 +22,11 @@ class CNNLSTM(nn.Module):
         forward(x):
             Performs the forward pass of the model.
             Args:
-                x (torch.Tensor): Input tensor of shape 
+                x (torch.Tensor): Input tensor of shape
                     (batch_size, time_steps, channels, height, width).
                 torch.Tensor: Output tensor of shape (batch_size, 1).
     """
+
     def __init__(self, frame_shape, time_steps, output_dim=4):
         """
         Initializes the CNN-LSTM model for video regression.
@@ -44,22 +46,19 @@ class CNNLSTM(nn.Module):
             nn.BatchNorm2d(16),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2),
-            
             # Second block
             nn.Conv2d(16, 32, kernel_size=3, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2),
-            
             # Third block - smaller than original
             nn.Conv2d(32, 64, kernel_size=3, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2),
-            
             # Global average pooling instead of regular flatten for efficiency
             nn.AdaptiveAvgPool2d((1, 1)),
-            nn.Flatten()
+            nn.Flatten(),
         )
 
         # Calculate the flattened feature size after CNN
@@ -68,12 +67,16 @@ class CNNLSTM(nn.Module):
             cnn_output_size = self.cnn(dummy_input).shape[1]
 
         # Smaller LSTM for faster processing
-        self.lstm = nn.LSTM(input_size=cnn_output_size, hidden_size=64, batch_first=True)
+        self.lstm = nn.LSTM(
+            input_size=cnn_output_size, hidden_size=64, batch_first=True
+        )
 
         # Smaller fully connected layers for regression
         self.fc1 = nn.Linear(64, 32)
         self.dropout = nn.Dropout(0.2)  # Add dropout for regularization
-        self.fc2 = nn.Linear(32, output_dim) # Output temperatures (one for each sensor)
+        self.fc2 = nn.Linear(
+            32, output_dim
+        )  # Output temperatures (one for each sensor)
 
     def forward(self, x):
         """
@@ -114,7 +117,7 @@ class CNNLSTM(nn.Module):
 
 class PretrainedCNNLSTM(nn.Module):
     """
-    PretrainedCNNLSTM: A PyTorch module that combines a pretrained CNN for spatial feature extraction 
+    PretrainedCNNLSTM: A PyTorch module that combines a pretrained CNN for spatial feature extraction
     and an LSTM for temporal processing, designed for video regression tasks.
     """
 
@@ -136,33 +139,38 @@ class PretrainedCNNLSTM(nn.Module):
         if frame_shape[2] != 3:
             original_conv1 = list(pretrained_cnn.children())[0]
             new_conv1 = nn.Conv2d(
-                frame_shape[2], 
-                original_conv1.out_channels, 
-                kernel_size=original_conv1.kernel_size, 
-                stride=original_conv1.stride, 
-                padding=original_conv1.padding, 
-                bias=original_conv1.bias
+                frame_shape[2],
+                original_conv1.out_channels,
+                kernel_size=original_conv1.kernel_size,
+                stride=original_conv1.stride,
+                padding=original_conv1.padding,
+                bias=original_conv1.bias,
             )
             # Initialize new weights (copy RGB weights to first 3 channels, random for others)
             with torch.no_grad():
                 new_conv1.weight[:, :3, :, :] = original_conv1.weight
                 # Initialize remaining channels with small random values
                 if frame_shape[2] > 3:
-                    nn.init.kaiming_normal_(new_conv1.weight[:, 3:, :, :], mode='fan_out', nonlinearity='relu')
-            
+                    nn.init.kaiming_normal_(
+                        new_conv1.weight[:, 3:, :, :],
+                        mode="fan_out",
+                        nonlinearity="relu",
+                    )
+
             # Replace the first layer in the pretrained model
             # Note: We can't easily replace it in the sequential if we just take children
             # So we reconstruct the list of children
             layers = list(pretrained_cnn.children())
             layers[0] = new_conv1
             self.cnn = nn.Sequential(
-                *layers[:-1],  # Remove the final classification layer
-                nn.Flatten()
+                *layers[:-1], nn.Flatten()  # Remove the final classification layer
             )
         else:
             self.cnn = nn.Sequential(
-                *list(pretrained_cnn.children())[:-1],  # Remove the final classification layer
-                nn.Flatten()
+                *list(pretrained_cnn.children())[
+                    :-1
+                ],  # Remove the final classification layer
+                nn.Flatten(),
             )
 
         # Calculate the flattened feature size after the pretrained CNN
@@ -171,11 +179,13 @@ class PretrainedCNNLSTM(nn.Module):
             cnn_output_size = self.cnn(dummy_input).shape[1]
 
         # LSTM for temporal processing
-        self.lstm = nn.LSTM(input_size=cnn_output_size, hidden_size=128, batch_first=True)
+        self.lstm = nn.LSTM(
+            input_size=cnn_output_size, hidden_size=128, batch_first=True
+        )
 
         # Fully connected layers for regression
         self.fc1 = nn.Linear(128, 64)
-        self.fc2 = nn.Linear(64, output_dim) # Output temperatures
+        self.fc2 = nn.Linear(64, output_dim)  # Output temperatures
 
     def forward(self, x):
         """
@@ -212,6 +222,7 @@ class PretrainedCNNLSTM(nn.Module):
 
         return output.squeeze(-1)
 
+
 class SimpleResNet(nn.Module):
     """
     Simple ResNet for temperature regression from single images (no temporal component).
@@ -226,39 +237,46 @@ class SimpleResNet(nn.Module):
         - output_dim: Number of output regression targets.
         """
         super(SimpleResNet, self).__init__()
-        
+
         # Load pretrained ResNet18
         from torchvision.models import resnet18
-        self.backbone = resnet18(weights='IMAGENET1K_V1')
-        
+
+        self.backbone = resnet18(weights="IMAGENET1K_V1")
+
         # Handle input channels != 3
         if frame_shape[2] != 3:
             original_conv1 = self.backbone.conv1
             new_conv1 = nn.Conv2d(
-                frame_shape[2], 
-                original_conv1.out_channels, 
-                kernel_size=original_conv1.kernel_size, 
-                stride=original_conv1.stride, 
-                padding=original_conv1.padding, 
-                bias=original_conv1.bias
+                frame_shape[2],
+                original_conv1.out_channels,
+                kernel_size=original_conv1.kernel_size,
+                stride=original_conv1.stride,
+                padding=original_conv1.padding,
+                bias=original_conv1.bias,
             )
             # Initialize new weights
             with torch.no_grad():
                 if frame_shape[2] < 3:
-                    new_conv1.weight[:, :, :, :] = original_conv1.weight[:, :frame_shape[2], :, :]
+                    new_conv1.weight[:, :, :, :] = original_conv1.weight[
+                        :, : frame_shape[2], :, :
+                    ]
                 else:
                     new_conv1.weight[:, :3, :, :] = original_conv1.weight
                     if frame_shape[2] > 3:
-                        nn.init.kaiming_normal_(new_conv1.weight[:, 3:, :, :], mode='fan_out', nonlinearity='relu')
+                        nn.init.kaiming_normal_(
+                            new_conv1.weight[:, 3:, :, :],
+                            mode="fan_out",
+                            nonlinearity="relu",
+                        )
             self.backbone.conv1 = new_conv1
-        
+
         # Get the number of features from the original fc layer
         num_features = self.backbone.fc.in_features
-        
+
         # Replace the final layer for regression
         self.backbone.fc = nn.Linear(num_features, 512)
         self.dropout = nn.Dropout(0.2)
-        self.regressor = nn.Linear(512, output_dim) # Output temperatures
+        self.regressor = nn.Linear(512, output_dim)  # Output temperatures
 
     def forward(self, x):
         """
@@ -275,7 +293,7 @@ class SimpleResNet(nn.Module):
         if x.dim() == 5:
             batch_size, time_steps, channels, height, width = x.size()
             x = x[:, -1, :, :, :]  # Take last frame
-        
+
         # Forward through ResNet backbone
         features = self.backbone(x)
         features = self.dropout(features)
@@ -300,8 +318,10 @@ class PretrainedCNN(nn.Module):
 
         # Use the pretrained CNN for feature extraction
         self.cnn = nn.Sequential(
-            *list(pretrained_cnn.children())[:-1],  # Remove the final classification layer
-            nn.Flatten()
+            *list(pretrained_cnn.children())[
+                :-1
+            ],  # Remove the final classification layer
+            nn.Flatten(),
         )
 
         # Calculate the flattened feature size after the pretrained CNN
@@ -323,48 +343,59 @@ class PretrainedCNN(nn.Module):
         - Output tensor of shape (batch_size, feature_size).
         """
         return self.cnn(x)
+
+
 class SpatialResNet(nn.Module):
     """
     Spatial ResNet that outputs a temperature map instead of a scalar.
     Compatible with AdvancedBioHeatLoss if used in a sequence.
     """
+
     def __init__(self, frame_shape, output_map_size=(64, 64)):
         super(SpatialResNet, self).__init__()
         from torchvision.models import resnet18
-        
+
         # Backbone
-        base_model = resnet18(weights='IMAGENET1K_V1')
-        
+        base_model = resnet18(weights="IMAGENET1K_V1")
+
         # Handle input channels != 3
         if frame_shape[2] != 3:
             original_conv1 = base_model.conv1
             new_conv1 = nn.Conv2d(
-                frame_shape[2], 
-                original_conv1.out_channels, 
-                kernel_size=original_conv1.kernel_size, 
-                stride=original_conv1.stride, 
-                padding=original_conv1.padding, 
-                bias=original_conv1.bias
+                frame_shape[2],
+                original_conv1.out_channels,
+                kernel_size=original_conv1.kernel_size,
+                stride=original_conv1.stride,
+                padding=original_conv1.padding,
+                bias=original_conv1.bias,
             )
             with torch.no_grad():
                 if frame_shape[2] < 3:
-                    new_conv1.weight[:, :, :, :] = original_conv1.weight[:, :frame_shape[2], :, :]
+                    new_conv1.weight[:, :, :, :] = original_conv1.weight[
+                        :, : frame_shape[2], :, :
+                    ]
                 else:
                     new_conv1.weight[:, :3, :, :] = original_conv1.weight
                     if frame_shape[2] > 3:
-                        nn.init.kaiming_normal_(new_conv1.weight[:, 3:, :, :], mode='fan_out', nonlinearity='relu')
+                        nn.init.kaiming_normal_(
+                            new_conv1.weight[:, 3:, :, :],
+                            mode="fan_out",
+                            nonlinearity="relu",
+                        )
             base_model.conv1 = new_conv1
-            
+
         # Remove FC and AvgPool to keep spatial dims
         # Output of layer4 is (512, H/32, W/32)
         self.cnn = nn.Sequential(*list(base_model.children())[:-2])
-        
+
         # Decoder to map
         self.decoder = nn.Sequential(
             nn.Conv2d(512, 128, kernel_size=1),
             nn.ReLU(),
             nn.Conv2d(128, 1, kernel_size=1),
-            nn.Upsample(size=output_map_size, mode='bilinear', align_corners=False) # Upsample to target
+            nn.Upsample(
+                size=output_map_size, mode="bilinear", align_corners=False
+            ),  # Upsample to target
         )
 
     def forward(self, x):
@@ -374,18 +405,22 @@ class SpatialResNet(nn.Module):
             batch, time, c, h, w = x.size()
             x = x.view(batch * time, c, h, w)
             features = self.cnn(x)
-            out = self.decoder(features) # Output shape depends on decoder upsample size
-            
+            out = self.decoder(
+                features
+            )  # Output shape depends on decoder upsample size
+
             # The decoder upsamples to output_map_size.
             # If output_map_size is (4,4), then shape is (B*T, 1, 4, 4)
             # If output_map_size is (64,64) which is typical for UNet, it is (B*T, 1, 64, 64)
-            
+
             # We should dynamically determine the resize shape based on `out`
             # out shape: (batch*time, channels_out=1, H_out, W_out)
             _, c_out, h_out, w_out = out.size()
-            
-            return out.view(batch, time, c_out, h_out, w_out).squeeze(2) # (Batch, Time, H_out, W_out)
+
+            return out.view(batch, time, c_out, h_out, w_out).squeeze(
+                2
+            )  # (Batch, Time, H_out, W_out)
         else:
             features = self.cnn(x)
             out = self.decoder(features)
-            return out.squeeze(1) # (Batch, H_out, W_out)
+            return out.squeeze(1)  # (Batch, H_out, W_out)

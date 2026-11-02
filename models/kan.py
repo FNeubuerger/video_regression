@@ -26,7 +26,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 # ---------------------------------------------------------------------------
 # Core KAN linear layer
 # ---------------------------------------------------------------------------
@@ -79,9 +78,7 @@ class KANLinear(nn.Module):
         self.base_weight = nn.Parameter(torch.empty(out_features, in_features))
 
         # Spline weights: one B-spline coefficient per (out, in, basis_idx).
-        n_basis = (
-            grid_size + spline_order if basis == "bspline" else grid_size + 1
-        )
+        n_basis = grid_size + spline_order if basis == "bspline" else grid_size + 1
         self.spline_weight = nn.Parameter(
             torch.empty(out_features, in_features, n_basis)
         )
@@ -95,9 +92,7 @@ class KANLinear(nn.Module):
 
     # ------------------------------------------------------------------
     def reset_parameters(self) -> None:
-        nn.init.kaiming_uniform_(
-            self.base_weight, a=math.sqrt(5) * self.scale_base
-        )
+        nn.init.kaiming_uniform_(self.base_weight, a=math.sqrt(5) * self.scale_base)
         with torch.no_grad():
             noise = (
                 (torch.rand_like(self.spline_weight) - 0.5)
@@ -243,9 +238,9 @@ class SpatialKANHead(nn.Module):
         B = latent.shape[0]
         T, H, W = self.time_steps, self.h, self.w
 
-        fx = self.kan_x(self.xs)            # (W, K)
-        fy = self.kan_y(self.ys)            # (H, K)
-        ft = self.kan_t(self.ts)            # (T, K)
+        fx = self.kan_x(self.xs)  # (W, K)
+        fy = self.kan_y(self.ys)  # (H, K)
+        ft = self.kan_t(self.ts)  # (T, K)
 
         # Multiplicative separation: outer product of the three axes.
         # coord_feat: (T, H, W, K)

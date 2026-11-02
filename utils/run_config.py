@@ -49,7 +49,9 @@ def _gpu_info() -> Dict[str, Any]:
     return {
         "available": True,
         "count": torch.cuda.device_count(),
-        "names": [torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())],
+        "names": [
+            torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())
+        ],
         "capability": [
             list(torch.cuda.get_device_capability(i))
             for i in range(torch.cuda.device_count())

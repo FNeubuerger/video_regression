@@ -1,2 +1,2 @@
-from .models import PhysicsCNNLSTM
 from .loss import PhysicsInformedLoss
+from .models import PhysicsCNNLSTM

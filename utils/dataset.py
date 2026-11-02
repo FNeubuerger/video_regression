@@ -5,26 +5,29 @@ This module provides a PyTorch Dataset class for loading image sequences
 and extracting temperature labels from filenames for training CNN-LSTM models.
 """
 
-import os
-import re
-import torch
-from torch.utils.data import Dataset
-from PIL import Image
-import numpy as np
 import json
-from torchvision import transforms
-from typing import List, Tuple, Optional
+import os
 import random
+import re
+from typing import List, Optional, Tuple
+
+import numpy as np
+import torch
+from PIL import Image
+from torch.utils.data import Dataset
+from torchvision import transforms
+
 from utils.flow_utils import preprocess_frame_with_flow
+
 
 class TemperatureSequenceDataset(Dataset):
     """
     PyTorch Dataset for loading image sequences with temperature labels.
-    
+
     This dataset loads sequences of images from the data directory where each
     image filename contains the frame number and temperature information in the
     format: frame_{frame_number}_label_{temperature}.png
-    
+
     Args:
         data_dir (str): Root directory containing sequence folders
         sequence_length (int): Number of consecutive frames to include in each sequence
@@ -33,111 +36,132 @@ class TemperatureSequenceDataset(Dataset):
         image_size (tuple): Target size for image resizing (height, width)
         use_optical_flow (bool): Whether to compute and append optical flow channels.
     """
-    
-    def __init__(self, data_dir="data", sequence_length=5, transform=None, 
-                 stride=1, image_size=(128, 128), use_optical_flow=True,
-                 use_artifact_masking=False):
+
+    def __init__(
+        self,
+        data_dir="data",
+        sequence_length=5,
+        transform=None,
+        stride=1,
+        image_size=(128, 128),
+        use_optical_flow=True,
+        use_artifact_masking=False,
+    ):
         self.data_dir = data_dir
         self.sequence_length = sequence_length
         self.stride = stride
         self.image_size = image_size
         self.use_optical_flow = use_optical_flow
         self.use_artifact_masking = use_artifact_masking
-        
+
         # Load sensor coordinates if masking is enabled
         self.sensor_coords = None
         if use_artifact_masking:
             json_path = os.path.join(data_dir, "sensor_coordinates.json")
             if os.path.exists(json_path):
-                with open(json_path, 'r') as f:
+                with open(json_path, "r") as f:
                     self.sensor_coords = json.load(f)
             else:
                 # Try level1_cropped
-                json_path = os.path.join(data_dir, "level1_cropped", "sensor_coordinates.json")
+                json_path = os.path.join(
+                    data_dir, "level1_cropped", "sensor_coordinates.json"
+                )
                 if os.path.exists(json_path):
-                    with open(json_path, 'r') as f:
+                    with open(json_path, "r") as f:
                         self.sensor_coords = json.load(f)
 
         # Default transform if none provided
         if transform is None:
-            self.transform = transforms.Compose([
-                transforms.Resize(image_size),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], 
-                                   std=[0.229, 0.224, 0.225])
-            ])
+            self.transform = transforms.Compose(
+                [
+                    transforms.Resize(image_size),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                    ),
+                ]
+            )
         else:
             self.transform = transform
-            
+
         # Load and organize all image paths and their metadata
         self.sequences = self._load_sequences()
-        
+
     def _load_sequences(self) -> List[Tuple[List[str], List[float]]]:
         """Load all valid sequences from the data directory."""
         sequences = []
-        
+
         # Get all sequence directories
-        sequence_dirs = [d for d in os.listdir(self.data_dir) 
-                        if os.path.isdir(os.path.join(self.data_dir, d)) 
-                        and d.startswith('sequence_')]
-        
+        sequence_dirs = [
+            d
+            for d in os.listdir(self.data_dir)
+            if os.path.isdir(os.path.join(self.data_dir, d))
+            and d.startswith("sequence_")
+        ]
+
         for seq_dir in sequence_dirs:
             seq_path = os.path.join(self.data_dir, seq_dir)
-            
+
             # Get all image files in this sequence
-            image_files = [f for f in os.listdir(seq_path) 
-                          if f.endswith('.png') and f.startswith('frame_')]
-            
+            image_files = [
+                f
+                for f in os.listdir(seq_path)
+                if f.endswith(".png") and f.startswith("frame_")
+            ]
+
             # Parse filename to extract frame number and temperature
             frame_data = []
             for filename in image_files:
                 frame_info = self._parse_filename(filename)
                 if frame_info is not None:
                     frame_number, temperature = frame_info
-                    frame_data.append((frame_number, temperature, 
-                                     os.path.join(seq_path, filename)))
-            
+                    frame_data.append(
+                        (frame_number, temperature, os.path.join(seq_path, filename))
+                    )
+
             # Sort by frame number
             frame_data.sort(key=lambda x: x[0])
-            
+
             # Create sequences of consecutive frames
             for i in range(0, len(frame_data) - self.sequence_length + 1, self.stride):
-                sequence_frames = frame_data[i:i + self.sequence_length]
-                
+                sequence_frames = frame_data[i : i + self.sequence_length]
+
                 # Check if frames are consecutive or close enough
                 frame_numbers = [f[0] for f in sequence_frames]
                 if self._is_valid_sequence(frame_numbers):
                     image_paths = [f[2] for f in sequence_frames]
                     temperatures = [f[1] for f in sequence_frames]
                     sequences.append((image_paths, temperatures))
-        
-        print(f"Loaded {len(sequences)} sequences from {len(sequence_dirs)} sequence directories")
+
+        print(
+            f"Loaded {len(sequences)} sequences from {len(sequence_dirs)} sequence directories"
+        )
         return sequences
-    
+
     def _parse_filename(self, filename: str) -> Optional[Tuple[int, float]]:
         """
         Parse filename to extract frame number and temperature.
         Expected format: frame_{frame_number}_label_{temperature}.png
         """
-        pattern = r'frame_(\d+)_label_([0-9.]+)\.png'
+        pattern = r"frame_(\d+)_label_([0-9.]+)\.png"
         match = re.match(pattern, filename)
-        
+
         if match:
             frame_number = int(match.group(1))
             temperature = float(match.group(2))
             return frame_number, temperature
-        
+
         return None
-    
+
     def _is_valid_sequence(self, frame_numbers: List[int]) -> bool:
         """Check if frame numbers form a valid sequence (allow some gaps)."""
         # Allow gaps of up to 5 frames between consecutive frames
         max_gap = 5
         for i in range(1, len(frame_numbers)):
-            if frame_numbers[i] - frame_numbers[i-1] > max_gap:
+            if frame_numbers[i] - frame_numbers[i - 1] > max_gap:
                 return False
         return True
-    
+
     def __len__(self) -> int:
         return len(self.sequences)
 
@@ -145,33 +169,33 @@ class TemperatureSequenceDataset(Dataset):
         """Generate a binary mask identifying sensor artifacts."""
         h, w = self.image_size
         mask = torch.zeros((1, h, w), dtype=torch.float32)
-        
+
         if not self.sensor_coords:
             return mask
-            
+
         # Identify which sequence directory we are in
         # Image path: /data/sequence_1/frame_...
         parent_dir = os.path.basename(os.path.dirname(image_path))
-        
+
         if parent_dir in self.sensor_coords:
             coords = self.sensor_coords[parent_dir]
-            
+
             # Find original size to scale correctly
             # Often it's (848, 480) or similar. Let's try to infer from the sequence
             # or use hardcoded common ones if missing.
             # For simplicity, we assume the detector's coordinates match the dataset's relative positions.
-            orig_w, orig_h = coords.get('original_size', (848, 480))
+            orig_w, orig_h = coords.get("original_size", (848, 480))
             scale_x = w / orig_w
             scale_y = h / orig_h
-            
+
             for sensor, data in coords.items():
-                if sensor in ['M1', 'M2', 'M3', 'M4']:
-                    cx, cy = data['center']
+                if sensor in ["M1", "M2", "M3", "M4"]:
+                    cx, cy = data["center"]
                     nx = int(cx * scale_x)
                     ny = int(cy * scale_y)
-                    
-                    radius = int(max(2, 4 * (w / 256))) # Scale radius with image size
-                    
+
+                    radius = int(max(2, 4 * (w / 256)))  # Scale radius with image size
+
                     y_min = max(0, ny - radius)
                     y_max = min(h, ny + radius + 1)
                     x_min = max(0, nx - radius)
@@ -182,75 +206,84 @@ class TemperatureSequenceDataset(Dataset):
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Get a sequence of images and their corresponding temperatures.
-        
+
         Returns:
             images: Tensor of shape (sequence_length, channels, height, width)
             temperatures: Tensor of shape (sequence_length,) containing temperature values
         """
         image_paths, temperatures = self.sequences[idx]
-        
+
         # Load and transform images with optimizations
         images = []
         for img_path in image_paths:
             # Load image with memory optimization
             with Image.open(img_path) as image:
                 # Convert grayscale to RGB if needed
-                if image.mode != 'RGB':
-                    image = image.convert('RGB')
-                
+                if image.mode != "RGB":
+                    image = image.convert("RGB")
+
                 # Pre-resize for memory efficiency with large batches
-                if hasattr(self, 'image_size') and image.size != self.image_size:
+                if hasattr(self, "image_size") and image.size != self.image_size:
                     image = image.resize(self.image_size)
-                
+
                 # Apply transforms
                 if self.transform:
                     image = self.transform(image)
-                
+
                 images.append(image)
-        
+
         # Stack images into a tensor
-        images_tensor = torch.stack(images)  # Shape: (sequence_length, channels, height, width)
-        
+        images_tensor = torch.stack(
+            images
+        )  # Shape: (sequence_length, channels, height, width)
+
         # Apply artifact masking if requested
         mask = torch.zeros((1, *self.image_size))
         if self.use_artifact_masking:
             mask = self._get_artifact_mask(image_paths[0])
             # Return mask separately, don't apply it here
-        
+
         # Apply Optical Flow if requested
         if self.use_optical_flow:
             images_tensor = preprocess_frame_with_flow(images_tensor)
-        
+
         # Convert temperatures to tensor and take the mean for regression target
         temperatures_tensor = torch.tensor(temperatures, dtype=torch.float32)
         target_temperature = temperatures_tensor.mean()
-        
+
         if self.use_artifact_masking:
             return images_tensor, target_temperature, mask
-        
+
         return images_tensor, target_temperature
-    
+
     def get_sample_info(self, idx: int) -> dict:
         """Get information about a specific sample for debugging."""
         image_paths, temperatures = self.sequences[idx]
         return {
-            'index': idx,
-            'image_paths': image_paths,
-            'temperatures': temperatures,
-            'sequence_length': len(image_paths)
+            "index": idx,
+            "image_paths": image_paths,
+            "temperatures": temperatures,
+            "sequence_length": len(image_paths),
         }
 
 
 class TemperatureRegressionDataset(Dataset):
     """
     Simplified dataset that returns single temperature value per sequence.
-    
+
     This version is more suitable for regression tasks where we want to predict
     a single temperature value from a sequence of images.
     """
-    
-    def __init__(self, data_dir="data", sequence_length=5, transform=None, 
-                 stride=1, image_size=(128, 128), target_strategy='last'):
+
+    def __init__(
+        self,
+        data_dir="data",
+        sequence_length=5,
+        transform=None,
+        stride=1,
+        image_size=(128, 128),
+        target_strategy="last",
+    ):
         """
         Args:
             target_strategy (str): How to determine target temperature
@@ -259,69 +292,77 @@ class TemperatureRegressionDataset(Dataset):
                 - 'first': Use temperature of first frame in sequence
         """
         self.base_dataset = TemperatureSequenceDataset(
-            data_dir=data_dir, 
+            data_dir=data_dir,
             sequence_length=sequence_length,
             transform=transform,
             stride=stride,
-            image_size=image_size
+            image_size=image_size,
         )
         self.target_strategy = target_strategy
-    
+
     def __len__(self) -> int:
         return len(self.base_dataset)
-    
+
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Get a sequence of images and a single target temperature.
-        
+
         Returns:
             images: Tensor of shape (sequence_length, channels, height, width)
             target_temp: Tensor containing single temperature value
         """
         # Get from base dataset (handles masking automatically)
         res = self.base_dataset[idx]
-        
+
         # Get raw temperatures from the sequence data
         _, temperatures = self.base_dataset.sequences[idx]
-        
+
         # Determine target temperature based on strategy
-        if self.target_strategy == 'last':
+        if self.target_strategy == "last":
             target_temp = temperatures[-1]
-        elif self.target_strategy == 'mean':
+        elif self.target_strategy == "mean":
             target_temp = np.mean(temperatures)
-        elif self.target_strategy == 'first':
+        elif self.target_strategy == "first":
             target_temp = temperatures[0]
         else:
             raise ValueError(f"Unknown target_strategy: {self.target_strategy}")
-        
+
         # Ensure target_temp is a scalar tensor
         target_temp = torch.tensor(target_temp, dtype=torch.float32)
-        
+
         if len(res) == 3:
             images, _, mask = res
             return images, target_temp, mask
-            
+
         return res[0], target_temp
-    
+
     def get_sample_info(self, idx: int) -> dict:
         """Get information about a specific sample for debugging."""
         base_info = self.base_dataset.get_sample_info(idx)
         images, target_temp = self[idx]
-        
-        base_info.update({
-            'target_strategy': self.target_strategy,
-            'target_temperature': target_temp.item(),
-            'image_shape': images.shape
-        })
+
+        base_info.update(
+            {
+                "target_strategy": self.target_strategy,
+                "target_temperature": target_temp.item(),
+                "image_shape": images.shape,
+            }
+        )
         return base_info
 
 
-def create_data_loaders(data_dir="data", batch_size=8, sequence_length=5, 
-                       train_split=0.8, image_size=(128, 128), 
-                       target_strategy='last', num_workers=2):
+def create_data_loaders(
+    data_dir="data",
+    batch_size=8,
+    sequence_length=5,
+    train_split=0.8,
+    image_size=(128, 128),
+    target_strategy="last",
+    num_workers=2,
+):
     """
     Create train and validation data loaders.
-    
+
     Args:
         data_dir (str): Path to data directory
         batch_size (int): Batch size for data loaders
@@ -330,43 +371,43 @@ def create_data_loaders(data_dir="data", batch_size=8, sequence_length=5,
         image_size (tuple): Target image size (height, width)
         target_strategy (str): Temperature target strategy
         num_workers (int): Number of worker processes for data loading
-        
+
     Returns:
         train_loader, val_loader: PyTorch DataLoaders
     """
     from torch.utils.data import DataLoader, random_split
-    
+
     # Create dataset
     dataset = TemperatureRegressionDataset(
         data_dir=data_dir,
         sequence_length=sequence_length,
         image_size=image_size,
-        target_strategy=target_strategy
+        target_strategy=target_strategy,
     )
-    
+
     # Split dataset
     train_size = int(train_split * len(dataset))
     val_size = len(dataset) - train_size
-    
+
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
-    
+
     # Create data loaders
     train_loader = DataLoader(
-        train_dataset, 
-        batch_size=batch_size, 
-        shuffle=True, 
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
         num_workers=num_workers,
-        pin_memory=True
+        pin_memory=True,
     )
-    
+
     val_loader = DataLoader(
-        val_dataset, 
-        batch_size=batch_size, 
-        shuffle=False, 
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
         num_workers=num_workers,
-        pin_memory=True
+        pin_memory=True,
     )
-    
+
     return train_loader, val_loader
 
 
@@ -376,37 +417,37 @@ if __name__ == "__main__":
         data_dir="data",
         sequence_length=5,
         image_size=(128, 128),
-        target_strategy='last'
+        target_strategy="last",
     )
-    
+
     print(f"Dataset size: {len(dataset)}")
-    
+
     if len(dataset) > 0:
         # Test a sample
         images, temperature = dataset[0]
         print(f"Sample 0:")
         print(f"  Images shape: {images.shape}")
         print(f"  Target temperature: {temperature.item():.2f}")
-        
+
         # Show sample info
         info = dataset.get_sample_info(0)
         print(f"  Sample info: {info}")
-        
+
         # Test data loader
         train_loader, val_loader = create_data_loaders(
-            data_dir="data",
-            batch_size=4,
-            sequence_length=5
+            data_dir="data", batch_size=4, sequence_length=5
         )
-        
+
         print(f"Train batches: {len(train_loader)}")
         print(f"Validation batches: {len(val_loader)}")
-        
+
         # Test one batch
         for batch_images, batch_temps in train_loader:
             print(f"Batch images shape: {batch_images.shape}")
             print(f"Batch temperatures shape: {batch_temps.shape}")
-            print(f"Temperature range: {batch_temps.min():.2f} - {batch_temps.max():.2f}")
+            print(
+                f"Temperature range: {batch_temps.min():.2f} - {batch_temps.max():.2f}"
+            )
             break
     else:
         print("No sequences found! Check your data directory structure.")

@@ -27,7 +27,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
@@ -176,7 +175,9 @@ class AdvectionDiffusionLoss(nn.Module):
     present in the dataset's last two channels.
     """
 
-    def __init__(self, weight: float = 1.0, alpha: float = 1e-3, dx: float = 1.0, dt: float = 1.0):
+    def __init__(
+        self, weight: float = 1.0, alpha: float = 1e-3, dx: float = 1.0, dt: float = 1.0
+    ):
         super().__init__()
         self.weight = weight
         self.alpha = alpha

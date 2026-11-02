@@ -1,12 +1,13 @@
 # evaluation/evaluate_phase2_completed.py
-import os
 import argparse
+import os
 import sys
 
 # Ensure this script can find the models package
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from evaluation.evaluate_models import ModelEvaluator
+
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate completed Phase 2 models")
@@ -26,7 +27,7 @@ def main():
         "MetabolicBioheat": "models/metabolic_bioheat_model.pth",
         "SpatialBioheat": "models/spatial_bioheat_resnet.pth",
         "SpatialMetabolic": "models/spatial_metabolic_bioheat_resnet.pth",
-        "SpatialConvection": "models/spatial_convection_bioheat_resnet.pth"
+        "SpatialConvection": "models/spatial_convection_bioheat_resnet.pth",
         # Skipping ConvectionBioheat (Standard) as it is restarting/running
     }
 
@@ -45,18 +46,20 @@ def main():
         return
 
     print(f"\nEvaluating {len(valid_configs)} models...")
-    
+
     evaluator = ModelEvaluator(
-        data_dir="data/level1_cropped",
-        batch_size=args.batch_size
+        data_dir="data/level1_cropped", batch_size=args.batch_size
     )
-    
+
     # Run evaluation
     results = evaluator.run_evaluation(valid_configs)
-    
+
     print("\nEvaluation Summary:")
     for res in results:
-        print(f"{res['model_name']}: RMSE={res['rmse']:.4f}, MAE={res['mae']:.4f}, R2={res['r2_score']:.4f}")
+        print(
+            f"{res['model_name']}: RMSE={res['rmse']:.4f}, MAE={res['mae']:.4f}, R2={res['r2_score']:.4f}"
+        )
+
 
 if __name__ == "__main__":
     main()

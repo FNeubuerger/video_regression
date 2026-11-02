@@ -20,7 +20,6 @@ from typing import List
 
 import pandas as pd
 
-
 CANONICAL_COLUMNS = [
     "model",
     "MAE",
@@ -89,7 +88,9 @@ def main():
         df = load_all(patterns)
     except FileNotFoundError as e:
         if args.allow_empty:
-            print(f"[build_master_table] {e}\n[build_master_table] --allow-empty set, exiting cleanly.")
+            print(
+                f"[build_master_table] {e}\n[build_master_table] --allow-empty set, exiting cleanly."
+            )
             return
         raise
     for col in CANONICAL_COLUMNS:

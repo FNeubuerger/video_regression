@@ -22,17 +22,19 @@ from torchvision import transforms
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from evaluation.loso_cross_validation import run_loso_fold  # noqa: E402
+from torch.utils.data import Subset as _Subset  # noqa: E402
 
 # Monkey-patch: limit Subset sizes so smoke test runs in minutes, not hours.
 import evaluation.loso_cross_validation as _loso  # noqa: E402
-from torch.utils.data import Subset as _Subset  # noqa: E402
+from evaluation.loso_cross_validation import run_loso_fold  # noqa: E402
 
 _orig_subset = _Subset
+
 
 class _CappedSubset(_Subset):
     def __init__(self, dataset, indices):
         super().__init__(dataset, list(indices)[:64])
+
 
 _loso.Subset = _CappedSubset  # type: ignore[attr-defined]
 

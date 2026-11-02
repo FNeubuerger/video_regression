@@ -124,7 +124,9 @@ def main():
     if not frames:
         msg = "; ".join(missing) if missing else "no CSVs matched"
         if args.allow_empty:
-            print(f"[aggregate_loso] {msg}\n[aggregate_loso] --allow-empty set, exiting cleanly.")
+            print(
+                f"[aggregate_loso] {msg}\n[aggregate_loso] --allow-empty set, exiting cleanly."
+            )
             return
         raise FileNotFoundError(msg)
     df = pd.concat(frames, ignore_index=True)

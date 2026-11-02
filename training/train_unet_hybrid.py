@@ -1,41 +1,63 @@
-import os
 import argparse
+import os
+import sys
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
-import wandb
 from tqdm import tqdm
-import sys
+
+import wandb
 
 # Add parent directory
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from models.dense_heads import ResNetUNet
-from utils.heatmap_dataset import TemperatureHeatmapDataset
 from physics.hybrid_loss import BioheatHybridLoss
+from utils.heatmap_dataset import TemperatureHeatmapDataset
+
 
 def save_checkpoint(model, optimizer, epoch, val_loss, path):
-    torch.save({
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'val_loss': val_loss
-    }, path)
+    torch.save(
+        {
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "val_loss": val_loss,
+        },
+        path,
+    )
+
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', type=int, default=10)
-    parser.add_argument('--batch_size', type=int, default=16)
-    parser.add_argument('--lr', type=float, default=1e-4)
-    parser.add_argument('--output_dir', default='checkpoints/unet_hybrid')
-    parser.add_argument('--run_name', default='unet_hybrid_physics')
-    parser.add_argument('--limit_samples', type=int, default=None, help="Limit dataset size for debugging")
-    parser.add_argument('--gpu_id', type=int, default=0)
-    parser.add_argument('--no_physics_prior', action='store_true', help="Disable Physics Prior (Gaussian base)")
-    parser.add_argument('--lambda_physics', type=float, default=1e-4, help="Weight for Physics PDE Loss")
-    parser.add_argument('--variational', action='store_true', help="Use Bayesian/Variational Bottleneck")
-    parser.add_argument('--beta_kl', type=float, default=0.01, help="Weight for KL Divergence Loss") # Beta-VAE
+    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--output_dir", default="checkpoints/unet_hybrid")
+    parser.add_argument("--run_name", default="unet_hybrid_physics")
+    parser.add_argument(
+        "--limit_samples",
+        type=int,
+        default=None,
+        help="Limit dataset size for debugging",
+    )
+    parser.add_argument("--gpu_id", type=int, default=0)
+    parser.add_argument(
+        "--no_physics_prior",
+        action="store_true",
+        help="Disable Physics Prior (Gaussian base)",
+    )
+    parser.add_argument(
+        "--lambda_physics", type=float, default=1e-4, help="Weight for Physics PDE Loss"
+    )
+    parser.add_argument(
+        "--variational", action="store_true", help="Use Bayesian/Variational Bottleneck"
+    )
+    parser.add_argument(
+        "--beta_kl", type=float, default=0.01, help="Weight for KL Divergence Loss"
+    )  # Beta-VAE
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -47,151 +69,163 @@ def main():
         data_dir="data/level1_cropped",
         raw_dir="data/level0_raw",
         target_size=(64, 64),
-        use_physics_prior=not args.no_physics_prior
+        use_physics_prior=not args.no_physics_prior,
     )
 
     if args.limit_samples:
         print(f"WARN: Limiting dataset to {args.limit_samples} samples for debugging.")
-        indices = torch.randperm(len(full_dataset))[:args.limit_samples]
+        indices = torch.randperm(len(full_dataset))[: args.limit_samples]
         full_dataset = torch.utils.data.Subset(full_dataset, indices)
-    
+
     # Split
     total_size = len(full_dataset)
     train_size = int(0.8 * total_size)
     val_size = total_size - train_size
     train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
-    
+
     train_loader = DataLoader(
-        train_dataset, 
-        batch_size=args.batch_size, 
-        shuffle=True, 
-        num_workers=4, 
-        pin_memory=True
+        train_dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=4,
+        pin_memory=True,
     )
-    
+
     val_loader = DataLoader(
-        val_dataset, 
-        batch_size=args.batch_size, 
-        shuffle=False, 
-        num_workers=4, 
-        pin_memory=True
+        val_dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=4,
+        pin_memory=True,
     )
-    
+
     # 2. Model
-    model = ResNetUNet(n_channels=3, n_classes=1, variational=args.variational).to(device)
+    model = ResNetUNet(n_channels=3, n_classes=1, variational=args.variational).to(
+        device
+    )
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    
+
     # 3. Loss
     # We use the new BioheatHybridLoss
     hybrid_criterion = BioheatHybridLoss(
-        lambda_physics=args.lambda_physics, 
+        lambda_physics=args.lambda_physics,
         dx=0.0006,  # 0.6mm/px (approx for 64x64 crop of ultrasonic)
-        device=device
+        device=device,
     )
-    
+
     # 4. WandB
     wandb.init(project="video-regression-part2", name=args.run_name, config=args)
-    
-    best_val_loss = float('inf')
-    
-    print(f"Starting training for {args.epochs} epochs with Lambda Physics = {args.lambda_physics}...")
-    
+
+    best_val_loss = float("inf")
+
+    print(
+        f"Starting training for {args.epochs} epochs with Lambda Physics = {args.lambda_physics}..."
+    )
+
     for epoch in range(args.epochs):
         # TRAIN
         model.train()
         train_loss_accum = 0.0
         mse_loss_accum = 0.0
         phys_loss_accum = 0.0
-        
+
         train_pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{args.epochs} [Train]")
         for frames, targets, masks, _, priors, _ in train_pbar:
             frames = frames.to(device)
             targets = targets.to(device)
             masks = masks.to(device)
             priors = priors.to(device)
-            
+
             optimizer.zero_grad()
-            
+
             # RESIDUAL LEARNING
             if args.variational:
                 delta, kl_loss = model(frames)
             else:
                 delta = model(frames)
                 kl_loss = torch.tensor(0.0).to(device)
-                
+
             preds = delta + priors
-            
+
             # Hybrid Loss
             # returns (total_loss, mse_item, physics_item)
             loss, mse_item, phys_item = hybrid_criterion(preds, targets, masks)
-            
+
             # Add KL Loss
             total_loss = loss + args.beta_kl * kl_loss
-            
+
             total_loss.backward()
             optimizer.step()
-            
+
             train_loss_accum += total_loss.item()
             mse_loss_accum += mse_item
             phys_loss_accum += phys_item
-            
-            train_pbar.set_postfix({'loss': total_loss.item(), 'mse': mse_item, 'kl': kl_loss.item()})
-            
+
+            train_pbar.set_postfix(
+                {"loss": total_loss.item(), "mse": mse_item, "kl": kl_loss.item()}
+            )
+
         avg_train_loss = train_loss_accum / len(train_loader)
         avg_train_mse = mse_loss_accum / len(train_loader)
         avg_train_phys = phys_loss_accum / len(train_loader)
-        
+
         # VALIDATION
         model.eval()
         val_loss_accum = 0.0
         val_mse_accum = 0.0
         val_phys_accum = 0.0
-        
+
         # Visualize one batch
         vis_batch = None
-        
+
         with torch.no_grad():
-            for i, (frames, targets, masks, _, priors, _) in enumerate(tqdm(val_loader, desc="[Val]")):
+            for i, (frames, targets, masks, _, priors, _) in enumerate(
+                tqdm(val_loader, desc="[Val]")
+            ):
                 frames = frames.to(device)
                 targets = targets.to(device)
                 masks = masks.to(device)
                 priors = priors.to(device)
-                
+
                 if args.variational:
                     delta, kl_loss = model(frames)
-                    # For validation, we might want to sample multiple times? 
+                    # For validation, we might want to sample multiple times?
                     # For now just use the single sample pass or mean if we changed model locally
                 else:
                     delta = model(frames)
                     kl_loss = torch.tensor(0.0).to(device)
-                
+
                 preds = delta + priors
-                
+
                 loss, mse_item, phys_item = hybrid_criterion(preds, targets, masks)
                 total_loss = loss + args.beta_kl * kl_loss
-                
+
                 val_loss_accum += total_loss.item()
                 val_mse_accum += mse_item
                 val_phys_accum += phys_item
-                
+
                 if i == 0:
                     vis_batch = (frames, targets, preds, priors)
 
         avg_val_loss = val_loss_accum / len(val_loader)
         avg_val_mse = val_mse_accum / len(val_loader)
-        
-        print(f"Epoch {epoch+1}: Train Loss {avg_train_loss:.4f} (MSE: {avg_train_mse:.4f} Phys: {avg_train_phys:.4f}) | Val Loss {avg_val_loss:.4f}")
-        
+
+        print(
+            f"Epoch {epoch+1}: Train Loss {avg_train_loss:.4f} (MSE: {avg_train_mse:.4f} Phys: {avg_train_phys:.4f}) | Val Loss {avg_val_loss:.4f}"
+        )
+
         # Logging
-        wandb.log({
-            "epoch": epoch + 1,
-            "train_loss": avg_train_loss,
-            "train_mse_loss": avg_train_mse,
-            "train_physics_loss": avg_train_phys,
-            "val_loss": avg_val_loss,
-            "val_mse_loss": avg_val_mse # Most comparable to other baselines
-        })
-        
+        wandb.log(
+            {
+                "epoch": epoch + 1,
+                "train_loss": avg_train_loss,
+                "train_mse_loss": avg_train_mse,
+                "train_physics_loss": avg_train_phys,
+                "val_loss": avg_val_loss,
+                "val_mse_loss": avg_val_mse,  # Most comparable to other baselines
+            }
+        )
+
         # Visualization Log
         if vis_batch:
             frames, targets, preds, priors = vis_batch
@@ -201,29 +235,34 @@ def main():
             std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
             img = img * std + mean
             img = img.clamp(0, 1)
-            
+
             pred_map = preds[0, 0].cpu().numpy()
             target_map = targets[0, 0].cpu().numpy()
             prior_map = priors[0, 0].cpu().numpy()
 
-            wandb.log({
-                "example_frame": wandb.Image(img),
-                "example_pred": wandb.Image(pred_map, caption=f"Pred Map (Val Loss: {avg_val_loss:.2f})"),
-                "example_prior": wandb.Image(prior_map, caption="Physics Prior"),
-                "example_target": wandb.Image(target_map, caption="Sparse Target")
-            })
+            wandb.log(
+                {
+                    "example_frame": wandb.Image(img),
+                    "example_pred": wandb.Image(
+                        pred_map, caption=f"Pred Map (Val Loss: {avg_val_loss:.2f})"
+                    ),
+                    "example_prior": wandb.Image(prior_map, caption="Physics Prior"),
+                    "example_target": wandb.Image(target_map, caption="Sparse Target"),
+                }
+            )
 
         # Checkpoints
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             save_path = os.path.join(args.output_dir, "best_model.pth")
             save_checkpoint(model, optimizer, epoch, avg_val_loss, save_path)
-            
+
         # Save Latest
         save_path = os.path.join(args.output_dir, "latest_model.pth")
         save_checkpoint(model, optimizer, epoch, avg_val_loss, save_path)
-        
+
     wandb.finish()
+
 
 if __name__ == "__main__":
     main()

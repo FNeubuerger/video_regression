@@ -12,6 +12,7 @@ import argparse
 import os
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,7 +20,9 @@ import pandas as pd
 from scipy.stats import wilcoxon
 
 
-def pairwise_wilcoxon(df: pd.DataFrame, metric: str, group_col: str = "model") -> pd.DataFrame:
+def pairwise_wilcoxon(
+    df: pd.DataFrame, metric: str, group_col: str = "model"
+) -> pd.DataFrame:
     models = sorted(df[group_col].unique())
     pivot = df.pivot_table(
         index="fold", columns=group_col, values=metric, aggfunc="mean"
@@ -60,7 +63,9 @@ def main():
             "Run `make loso_aggregate` first (after producing some loso_*.csv folds)."
         )
         if args.allow_empty:
-            print(f"[pairwise_stat_tests] {msg}\n[pairwise_stat_tests] --allow-empty set, exiting cleanly.")
+            print(
+                f"[pairwise_stat_tests] {msg}\n[pairwise_stat_tests] --allow-empty set, exiting cleanly."
+            )
             return
         raise FileNotFoundError(msg)
 

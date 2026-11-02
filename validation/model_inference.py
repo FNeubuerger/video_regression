@@ -91,7 +91,9 @@ def predict_video_temperatures(
     H, W = rgb.shape[-2:]
 
     temp_maps = np.zeros((T_total, H, W), dtype=np.float32)
-    std_maps = np.zeros((T_total, H, W), dtype=np.float32) if num_mc_samples > 1 else None
+    std_maps = (
+        np.zeros((T_total, H, W), dtype=np.float32) if num_mc_samples > 1 else None
+    )
 
     # Use sliding windows; fill prefix by repeating the first valid frame.
     last_t_pred = None
