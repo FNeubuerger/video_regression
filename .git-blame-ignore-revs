@@ -2,3 +2,5 @@
 #   git config blame.ignoreRevsFile .git-blame-ignore-revs
 # Format the codebase with Black and isort
 4a87e42758a1ffa15645a5c442fb5484ebb3fa4a
+# Trailing whitespace / end-of-file pass (pre-commit hooks)
+f6ca5ff11c5735e2f84921a2d30b6aeeac3aab20
