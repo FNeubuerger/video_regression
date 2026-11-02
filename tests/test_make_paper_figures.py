@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from evaluation import make_paper_figures as mpf
+from evaluation import plot_loso_results as plr
 from evaluation.pairwise_stat_tests import pairwise_wilcoxon
 
 
@@ -47,6 +48,7 @@ def test_fold_helpers():
     assert mpf.fold_protocol("US_003_30W_10min") == mpf.PROTOCOL_LONG
     assert mpf.fold_protocol("US_013_40W_5min") == mpf.PROTOCOL_SWEEP
     assert mpf.fold_label("US_013_40W_5min") == "013 (40W/5m)"
+    assert mpf._fmt(0.009) == r"$<$0.1"
 
 
 def test_load_per_fold_drops_incomplete_runs(tmp_path):
@@ -101,3 +103,22 @@ def test_pairwise_wilcoxon_pairs_folds_per_model_pair():
     p = pairwise_wilcoxon(df, "mae")
     # The 1-fold partial run must not erase the folds of the complete runs.
     assert p.loc["A/masked", "C/masked"] == pytest.approx(2 * 0.5**8)
+
+
+def test_summary_plots_keep_complete_baseline_only():
+    per_fold = _synthetic_per_fold()
+    summary = pd.DataFrame(
+        [
+            {"model": "A", "n_folds": 8},
+            {"model": "B", "n_folds": 8},
+            {"model": "C", "n_folds": 8},
+            {"model": "A (seed42_aug_masked)", "n_folds": 8},
+            {"model": "A (partial_run)", "n_folds": 1},
+        ]
+    )
+    baseline_folds, baseline_summary = plr.select_complete_baseline_runs(
+        per_fold, summary, min_folds=8
+    )
+    assert set(baseline_folds["model"]) == {"A", "B", "C"}
+    assert set(baseline_folds["variant"]) == {"masked"}
+    assert set(baseline_summary["model"]) == {"A", "B", "C"}

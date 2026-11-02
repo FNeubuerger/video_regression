@@ -392,6 +392,8 @@ def plot_fold_difficulty(matrix: pd.DataFrame, out_path: str) -> None:
 def _fmt(value: float, digits: int = 1) -> str:
     if pd.isna(value):
         return "--"
+    if 0 < abs(value) < 0.1:
+        return r"$<$0.1"
     if abs(value) >= 1000:
         return f"{value:,.0f}".replace(",", "{,}")
     return f"{value:.{digits}f}"

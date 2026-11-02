@@ -5,9 +5,13 @@ TEX = pdflatex
 BIB = bibtex
 BUILD_DIR = build
 
+PAPER_INPUTS = $(filter-out $(PROJECT).tex,$(wildcard *.tex))
+TABLES = $(wildcard tables/*.tex)
+FIGURES = $(wildcard figures/*.png)
+
 all: $(PROJECT).pdf
 
-$(PROJECT).pdf: $(PROJECT).tex references.bib
+$(PROJECT).pdf: $(PROJECT).tex references.bib $(PAPER_INPUTS) $(TABLES) $(FIGURES)
 	mkdir -p $(BUILD_DIR)
 	$(TEX) -output-directory=$(BUILD_DIR) $(PROJECT).tex
 	cp references.bib $(BUILD_DIR)/

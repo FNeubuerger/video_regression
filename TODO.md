@@ -32,10 +32,6 @@ augmentation do **not** close the mixed-split vs. LOSO gap (best LOSO MAE still
   the 30 W protocol (see `tab:loso_robust`).
 - [ ] Extend regularized LOSO to the spatial/physics models (SpatialResNet,
   ConvectionBioheat, SpatialKANBioheat) once the ablation above is settled.
-- [ ] Re-run `make loso_plots` and update `paper/tables/loso_summary.tex` and the
-  bar/heatmap figures (now that run variants are labeled separately, see
-  [decision 0002](docs/decisions/0002-loso-run-variant-labels.md)); filter out
-  incomplete runs first (the seed123 run would appear as a 1-fold row).
 - [ ] Delete or finish `results/loso_SimpleResNet_seed123_aug_unmasked.csv`
   (aborted run, 1 fold only).
 
@@ -96,6 +92,10 @@ dropped because its only commit was already superseded on `main`.
 
 ## Done (recent)
 
+- [x] Regenerated baseline LOSO table and overview plots with `make loso_plots`;
+  incomplete runs and regularized variants are excluded from baseline outputs,
+  and the regenerated MAE, field-MAE, per-fold heatmap, and KAN comparison
+  figures are integrated into `paper/main.tex`.
 - [x] Fold-level paper figures/tables (`make paper_figures`): per-fold MAE
   distribution, paired regularization plot, Holm-adjusted pairwise Wilcoxon
   heatmap + vs-best table, fold difficulty, robust stats, per-fold table; paper

@@ -109,5 +109,10 @@ Tables `tab:loso_robust`, `tab:loso_vs_best`, `tab:loso_per_fold` and Figures
 make loso_aggregate   # results/loso_summary.csv + results/loso_per_fold.csv
 make stat_tests       # pairwise Wilcoxon matrix (all runs, unadjusted)
 make paper_figures    # fold-level figures + tables (Holm-adjusted tests)
-make loso_plots       # paper figures + paper/tables/loso_summary.tex
+make loso_plots       # complete masked baseline figures + loso_summary.tex
 ```
+
+`make loso_plots` filters to complete 15-fold masked baseline runs. Regularized
+variants are covered by `tables/loso_regularized.tex` and the paired
+regularization figure; partial runs remain in the aggregate CSVs but do not
+appear in paper-facing baseline figures or tables.
