@@ -93,14 +93,9 @@ augmentation do **not** close the mixed-split vs. LOSO gap (best LOSO MAE still
 
 ## Branches
 
-All remote branches except the two below are fully merged into `main` and can
-be deleted: `dev`, `feature/advanced-physics`, `feature/dense-map-estimation`,
-`feature/edge-benchmarks-ltc`, `feature/edge-simulation`, `feature/live-demo`,
-`feature/validation-ablationzone`.
-
-- `feature/xai-integration` — merged into `main` on 2026-11-02; can be deleted.
-- `writing/intro-and-setup` — its only unmerged commit (`39d591c`, LaTeX `\\`
-  fixes in `paper/tables/*.tex`) is already superseded on `main`; can be deleted.
+Only `main` exists. On 2026-11-02 all fully merged feature branches were
+deleted, `feature/xai-integration` was merged, and `writing/intro-and-setup` was
+dropped because its only commit was already superseded on `main`.
 
 ## Done (recent)
 
