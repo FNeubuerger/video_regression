@@ -83,3 +83,5 @@ typing_extensions==4.15.0
 tzdata==2025.2
 urllib3==2.6.2
 wandb==0.23.1
+captum
+quantus
