@@ -5,6 +5,8 @@ import numpy as np
 import re
 import warnings
 
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 class BiTDataProcessor:
     """
     Class to process and clean BiT Project CSV files.
@@ -156,8 +158,8 @@ class BiTDataProcessor:
 
 if __name__ == "__main__":
     # Example usage
-    INPUT_DIR = "/mnt/data2/video_regression/data/new_data/BiT_Projekt/"
-    OUTPUT_DIR = "/mnt/data2/video_regression/data/new_data/cleaned/"
+    INPUT_DIR = os.path.join(REPO_ROOT, "data/new_data/BiT_Projekt/")
+    OUTPUT_DIR = os.path.join(REPO_ROOT, "data/new_data/cleaned/")
     
     processor = BiTDataProcessor(INPUT_DIR, OUTPUT_DIR)
     processor.run()

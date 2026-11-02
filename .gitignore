@@ -193,3 +193,13 @@ wandb/
 #ignore pdf files in research and subfolders
 research/**/*.pdf
 research/*.pdf
+# LaTeX build artifacts
+paper/build_log.txt
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.out
+paper/*.toc
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.synctex.gz

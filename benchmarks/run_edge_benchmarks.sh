@@ -7,7 +7,8 @@ echo "========================================================"
 echo "       Edge Deployment Benchmark Suite"
 echo "========================================================"
 
-PYTHON_EXEC="/mnt/data2/video_regression/.venv/bin/python"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PYTHON_EXEC="${PYTHON_EXEC:-$REPO_ROOT/.venv/bin/python}"
 
 # 1. Convert Models to ONNX (Force Regen)
 echo "[1/4] Cleaning up old ONNX models..."

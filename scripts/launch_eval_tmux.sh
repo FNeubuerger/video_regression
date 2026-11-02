@@ -1,7 +1,8 @@
 #!/bin/bash
 
 SESSION="video_regression_eval"
-WORKSPACE="/mnt/data2/video_regression"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORKSPACE="${WORKSPACE:-$REPO_ROOT}"
 
 # Create session if it doesn't exist
 if tmux has-session -t "$SESSION" 2>/dev/null; then

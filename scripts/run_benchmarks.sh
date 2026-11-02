@@ -13,7 +13,8 @@
 
 set -e
 
-WORKSPACE="/mnt/data2/video_regression"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORKSPACE="${WORKSPACE:-$REPO_ROOT}"
 SESSION="video_regression_benchmarks"
 LOG_DIR="$WORKSPACE/logs"
 

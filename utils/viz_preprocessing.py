@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 def visualize_flow_hsv(flow):
     h, w = flow.shape[:2]
     hsv = np.zeros((h, w, 3), dtype=np.uint8)
@@ -17,10 +19,10 @@ def visualize_flow_hsv(flow):
 
 def main():
     # Paths
-    base_dir = "/mnt/data2/video_regression/data/sequence_1/"
+    base_dir = os.path.join(REPO_ROOT, "data/sequence_1/")
     frame1_path = os.path.join(base_dir, "frame_50_label_31.6.png")
     frame2_path = os.path.join(base_dir, "frame_51_label_31.65.png")
-    output_path = "/mnt/data2/video_regression/paper/figures/preprocessing_pipeline.png"
+    output_path = os.path.join(REPO_ROOT, "paper/figures/preprocessing_pipeline.png")
     
     print(f"Reading frames from {base_dir}...")
     img1 = cv2.imread(frame1_path)

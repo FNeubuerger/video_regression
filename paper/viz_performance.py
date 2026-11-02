@@ -5,6 +5,8 @@ import os
 import numpy as np
 import matplotlib.ticker as ticker
 
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 def normalize_name(name):
     return name.lower().replace(" ", "").replace("_", "")
 
@@ -111,8 +113,8 @@ def plot_edge_fps(edge_df, output_path):
     print(f"Saved {output_path}")
 
 def main():
-    results_dir = "/mnt/data2/video_regression/results"
-    output_dir = "/mnt/data2/video_regression/paper/figures"
+    results_dir = os.path.join(REPO_ROOT, "results")
+    output_dir = os.path.join(REPO_ROOT, "paper/figures")
     
     os.makedirs(output_dir, exist_ok=True)
     

@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import os
 
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 def normalize_name(name):
     return name.lower().replace(" ", "").replace("_", "")
 
@@ -218,8 +220,8 @@ def generate_loso_performance_table(loso_summary_df, output_file):
 
 
 def main():
-    results_dir = "/mnt/data2/video_regression/results"
-    output_dir = "/mnt/data2/video_regression/paper/tables"
+    results_dir = os.path.join(REPO_ROOT, "results")
+    output_dir = os.path.join(REPO_ROOT, "paper/tables")
     
     os.makedirs(output_dir, exist_ok=True)
     

@@ -3,7 +3,8 @@
 # training job onto GPU 0.
 
 set -u
-VENV_PATH="/mnt/data2/video_regression/.venv/bin/python"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VENV_PATH="${VENV_PATH:-$REPO_ROOT/.venv/bin/python}"
 EPOCHS=${EPOCHS:-10}
 BATCH_SIZE=${BATCH_SIZE:-32}
 LOG_DIR=logs/loso

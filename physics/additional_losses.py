@@ -8,7 +8,7 @@ The legacy code base already implements:
   spatial fields, optionally with learnable perfusion / conductivity.
 
 This module adds the losses that were missing and that came up during the
-academic audit (see ACADEMIC_AUDIT.md).  Every loss is a small
+academic audit (see docs/archive/ACADEMIC_AUDIT.md).  Every loss is a small
 ``nn.Module`` so they compose with the existing ones via simple addition:
 
     >>> total = mse + 0.1 * energy_loss(T) + 0.05 * arrhenius_loss(T)

@@ -11,7 +11,7 @@ $(shell mkdir -p $(LOG_DIR) $(MODELS_DIR) $(CHECKPOINTS_DIR))
 # Targets
 .PHONY: all cnnlstm pretrained_cnnlstm simple_resnet physics_cnnlstm ensemble bayesian full_bayesian spatial_bioheat spatial_convection spatial_metabolic \
         unet_sparse_noprior unet_sparse_withprior tmux_part2 evaluation \
-        loso_all loso_temporal loso_spatial loso_uncertainty monitor visualize_loso
+        loso_all loso_temporal loso_spatial loso_uncertainty loso_regularized monitor visualize_loso
 
 # --- LOSO Cross-Validation ---
 
@@ -33,6 +33,14 @@ loso_uncertainty:
 	@for model in BayesianResNet FullBayesianResNet BayesianCNNLSTM; do \
 		bash scripts/run_loso_benchmarks.sh $$model; \
 	done
+
+# Regularized LOSO (weight decay + augmentation + seed); optional MODEL=<name>
+loso_regularized:
+	bash scripts/run_loso_benchmarks_regularized.sh $(MODEL_NAME)
+
+# Single model LOSO, e.g. make model-CNNLSTM
+model-%:
+	bash scripts/run_loso_benchmarks.sh $*
 
 monitor:
 	@bash scripts/monitor_benchmarks.sh
@@ -63,7 +71,7 @@ unet_sparse_withprior:
 
 tmux_part2:
 	@echo "Launching Part 2 benchmarks in tmux..."
-	./launch_benchmarks_tmux.sh part2_baseline
+	bash scripts/launch_benchmarks_tmux.sh part2_baseline
 
 # Target to retrain all models on the new dataset (Unmasked)
 retrain_all:

@@ -3,7 +3,8 @@
 # LOSO Cross-Validation Parallel Execution Script
 # This script runs the Leave-One-Sequence-Out cross-validation for multiple models.
 
-VENV_PATH="/mnt/data2/video_regression/.venv/bin/python"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VENV_PATH="${VENV_PATH:-$REPO_ROOT/.venv/bin/python}"
 
 # Standard set of models to benchmark
 # Options: CNNLSTM, PretrainedCNNLSTM, SimpleResNet, PhysicsCNNLSTM, 

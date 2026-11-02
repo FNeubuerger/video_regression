@@ -4,7 +4,8 @@
 # Reruns LOSO with weight decay + train-time augmentation to close the
 # mixed-split vs. LOSO generalization gap documented in the paper.
 
-VENV_PATH="/mnt/data2/video_regression/.venv/bin/python"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VENV_PATH="${VENV_PATH:-$REPO_ROOT/.venv/bin/python}"
 
 MODELS=("SimpleResNet" "CNNLSTM")
 EPOCHS=10
