@@ -110,7 +110,7 @@ Radiol 2014; 25: 1706 – 1708 ~~
 
 [ ] Lahat E, Eshkenazy R, Zendel A et al. Complications of ablation of liver
 tumors: a systematic review. Hepatobiliary Surgery and Nutrition 2014;
-3: 317 – 323
+3: 317 – 323 
 
 ~~[ ] Sun Y, Cheng Z, Dong L et al. Comparison of temperature curve and
 ablation zone between 915- and 2450-MHz cooled-shaft microwave

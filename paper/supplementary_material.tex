@@ -1,17 +1,17 @@
 \section{Supplementary Material: Model Architectures and Data Pipeline}
 \label{sec:supplementary}
 
-This section details the data preprocessing pipeline and the specific architectures of the deep learning models evaluated in the study. All models are implemented in PyTorch and were trained on a dataset of thermal video sequences.
+This section details the data preprocessing pipeline and the specific architectures of the deep learning models evaluated in the study. All models are implemented in PyTorch and were trained on ultrasound video sequences acquired during phantom heating.
 
 \subsection{Data Processing Pipeline}
-The input to the models consists of thermal video sequences. The preprocessing pipeline transforms raw video frames into structured tensors suitable for training.
+The input to the models consists of ultrasound video sequences. The preprocessing pipeline transforms raw video frames into structured tensors suitable for training.
 
 \subsubsection{Preprocessing (Level 0 $\to$ Level 1)}
 \begin{itemize}
-    \item \textbf{Input}: Raw thermal video frames (MP4).
+    \item \textbf{Input}: Raw ultrasound video frames (screen-captured video).
     \item \textbf{Cropping}: A Region of Interest (ROI) of size $64 \times 64$ pixels is cropped around the subject center.
     \item \textbf{Artifact Masking}: Metal reference artifacts are identified via thresholding and masked to zero to prevent model confusion.
-    \item \textbf{Normalization}: Pixel temperatures are normalized using statistics computed from the training set.
+    \item \textbf{Normalization}: Image intensities are normalized using statistics computed from the training set.
 \end{itemize}
 
 \subsubsection{Input Representation}
@@ -22,8 +22,8 @@ The `SequenceHeatmapDataset` loader constructs the input tensor $X \in \mathbb{R
     \item $H, W$: Spatial resolution ($64 \times 64$)
     \item $C$: Input Channels (Total 5):
     \begin{itemize}
-        \item Channels 1-3: Thermal data (RGB duplicated or colormap mapped).
-        \item Channels 4-5: Dense Optical Flow ($u, v$) computed between consecutive frames to capture heat convection dynamics.
+        \item Channels 1-3: Ultrasound image data as encoded by the screen-recording pipeline.
+        \item Channels 4-5: Dense Optical Flow ($u, v$) computed between consecutive frames to encode apparent image motion; these channels are not measurements of heat convection.
     \end{itemize}
 \end{itemize}
 
@@ -50,7 +50,55 @@ To quantify predictive uncertainty, we employ Variational Inference.
     \item \textbf{Physics-Informed Loss (Bioheat)}:
     Models are trained with a composite loss function:
     $$ \mathcal{L} = \mathcal{L}_{MSE} + \lambda_{phys} \mathcal{L}_{bioheat} $$
-    where $\mathcal{L}_{bioheat}$ enforces the Pennes' Bioheat equation:
-    $$ \rho c \frac{\partial T}{\partial t} = \nabla \cdot (k \nabla T) - \omega_b \rho_b c_b (T - T_a) + q_m + \rho c \mathbf{v} \cdot \nabla T $$
-    Here, the convection term $\mathbf{v} \cdot \nabla T$ utilizes the Optical Flow input channels.
+    where $\mathcal{L}_{bioheat}$ penalizes a reduced, Pennes-inspired residual. The implemented model includes temporal change, spatial diffusion, a perfusion-like relaxation term, and a learnable constant source, with an optional image-flow advection term. It does not explicitly model the microwave heat-source distribution. Since the agar phantoms are not perfused and the flow channels are derived from ultrasound image motion, these terms are phenomenological rather than direct measurements of tissue perfusion or material properties.
 \end{itemize}
+
+\subsection{Phantom Fabrication and Post-Ablation Inspection}
+\label{sec:phantom_fabrication}
+
+The tissue-mimicking phantom was prepared from agar (manufacturer, product,
+and grade: XXXX), water (type/source: XXXX), and egg white (manufacturer/brand,
+product type, and relevant preparation details: XXXX). First, 25\,g of agar
+was mixed with 100\,ml of cold water and allowed to hydrate for (XX). The
+hydrated mixture was added to 500\,ml of boiling water while stirring. It was
+heated on a hot plate (manufacturer and model: XXXX) with a magnetic stirrer
+(manufacturer and model: XXXX) and held at 95\,$^\circ$C for at least 2
+minutes. After heating, the vessel was removed from the hot plate and the
+mixture was stirred while cooling to 55\,$^\circ$C. Then, 250\,ml of egg
+white was slowly incorporated through a sieve (mesh size/material: XXXX) while
+stirring. This step was performed after cooling to avoid premature protein
+coagulation; sieving also reduced clumps and entrained air. The mixture was
+poured into a 3D-printed mold and left at room temperature (XX\,$^\circ$C)
+until set (XX). Figure \ref{fig:phantom_mold} shows the mold design.
+
+After each ablation, the phantom was allowed to cool for (XX) at (XX\,$^\circ$C)
+and then sectioned (sectioning plane/orientation: XXXX).
+Coagulated egg white provided a visible qualitative marker of the heated
+region. The cross-sectional photographs and corresponding ultrasound images
+for the tested nominal power settings are shown in Figs.~\ref{fig:ablation_cross_sections}
+and~\ref{fig:ablation_ultrasound}. These images are provided as qualitative
+illustrations; they were not used as quantitative temperature-field labels.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.8\columnwidth]{../experiment/MWA_Projekt_Bilder/Phantom-Gießform.png}
+    \caption{3D-printed mold used to cast the tissue-mimicking phantoms.}
+    \label{fig:phantom_mold}
+\end{figure}
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=0.72\textwidth,height=0.55\textheight,keepaspectratio]{\detokenize{../experiment/MWA_Projekt_Bilder/Querschnitt Collage.jpeg}}
+    \caption{Representative cross-sections of phantoms after MWA at nominal
+    power settings of 25, 30, 35, 40, 45, and 50\,W. Visible egg-white
+    coagulation illustrates the affected region qualitatively.}
+    \label{fig:ablation_cross_sections}
+\end{figure*}
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=0.72\textwidth,height=0.55\textheight,keepaspectratio]{\detokenize{../experiment/MWA_Projekt_Bilder/Ultraschall Collage.jpeg}}
+    \caption{Representative B-mode ultrasound images acquired at nominal MWA
+    power settings of 25, 30, 35, 40, 45, and 50\,W.}
+    \label{fig:ablation_ultrasound}
+\end{figure*}

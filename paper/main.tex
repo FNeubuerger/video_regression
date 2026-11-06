@@ -65,7 +65,7 @@ Finally, for clinical adoption, black-box predictions are insufficient. We empha
 We address these challenges by:
 \begin{itemize}
     \item Proposing a custom, lightweight CNN-LSTM architecture optimized for ultrasonic video regression on fast edge hardware.
-    \item Introducing physics-informed training objectives that combine data error with bioheat residuals, convection terms, and spatial smoothness priors.
+    \item Evaluating physics-inspired training objectives that combine data error with reduced bioheat residuals, image-flow terms, and spatial smoothness priors.
     \item Evaluating Kolmogorov--Arnold Network (KAN) heads and Liquid Time Constant (LTC) temporal models to capture interpretable nonlinear dynamics and continuous-time heating behavior.
     \item Incorporating probabilistic modeling through Deep Ensembles, Bayesian Neural Networks, and Bayesian Physics-Informed Neural Networks (B-PINNs).
     \item Benchmarking end-to-end deployment speed using ONNX export and ONNX Runtime across simulated Raspberry Pi 4, Jetson Nano, and Orin Nano profiles.
@@ -88,7 +88,7 @@ A recent line of work revisits the Kolmogorov--Arnold representation theorem and
 
 KANs have proven particularly attractive for physics-informed learning. \cite{wang2024kinn} (KINN) demonstrate that KAN-based PINNs outperform classical MLP-PINNs by one to two orders of magnitude on solid-mechanics benchmarks in strong, energy and inverse formulations. \cite{patra2024pikan} (PIKANs) extend this result to diffusion-dominated PDEs such as Burgers' and Allen--Cahn equations, while \cite{guo2025chebpikan} (ChebPIKAN) and~\cite{rigas2024adaptivepikan} respectively show that swapping the B-spline basis for Chebyshev polynomials and applying adaptive grid refinement further improves stability and convergence on fluid-mechanics problems. For higher-dimensional spatio-temporal fields, \cite{jacob2025spikan} introduce Separable PIKANs (SPIKANs) that factorise the coordinate-conditioned KAN along independent axes, dramatically reducing both memory and training time.
 
-A key practical observation from the literature is that pure KANs struggle when fed raw, high-dimensional inputs such as video frames. The Augmented-Lagrangian PKAN of~\cite{shen2025alpkan} addresses this by placing a recurrent encoder (GRU) before the KAN head and treating the physics constraints with an augmented-Lagrangian scheme. This encoder--KAN composition is the precedent for the hybrid architectures we propose below, in which a convolutional encoder summarises the ultrasound sequence into a compact latent before the KAN head approximates either a scalar reading or the full temperature field of Pennes' bioheat equation~\cite{pennes1948analysis}.
+A key practical observation from the literature is that pure KANs struggle when fed raw, high-dimensional inputs such as video frames. The Augmented-Lagrangian PKAN of~\cite{shen2025alpkan} addresses this by placing a recurrent encoder (GRU) before the KAN head and treating the physics constraints with an augmented-Lagrangian scheme. This encoder--KAN composition is the precedent for the hybrid architectures we propose below, in which a convolutional encoder summarises the ultrasound sequence into a compact latent before the KAN head approximates either a scalar reading or a spatial temperature field regularized by a reduced, Pennes-inspired residual.
 
 \section{Research Questions}
 This study aims to address the following key research questions:
@@ -99,9 +99,7 @@ This study aims to address the following key research questions:
     \item \textbf{RQ4}: Can uncertainty quantification techniques be effectively integrated to provide reliable confidence intervals for clinical decision support?
 \end{itemize}
 
-\section{Dataset Description and Data Capture}
-The dataset used in this study consists of ultrasonic video sequences recording the heating process of tissue-mimicking phantoms. The phantoms were prepared as protein-doped agar blocks with embedded temperature probes, enabling synchronized acquisition of ground truth thermometry and ultrasonic imagery. Data capture was performed using a clinical-grade ultrasound probe operating in the medical diagnostic frequency band. Each sequence records the temporal evolution of the phantom as it is heated from baseline temperature to approximately $60^\circ C$. Ground truth temperature measurements were recorded at probe locations and aligned to video frames in time. The dataset includes 15 distinct phantom subjects and 53,878 sequence samples from multiple trials with varying heating rates and phantom compositions to ensure diversity.
-
+\input{content/datacapture.tex}
 \section{Proposed Methodology}
 
 \subsection{System Overview}
@@ -120,7 +118,7 @@ Deployment viability is evaluated by exporting trained models to ONNX and measur
 To capture both spatial features and temporal dynamics explicitly, we utilize a 5-channel input representation for all models. For a given video frame $I_t$ at time $t$, the input tensor $X_t \in \mathbb{R}^{5 \times H \times W}$ is constructed as follows:
 \begin{enumerate}
     \item \textbf{RGB Channels (3)}: The standard image frame, resized to $64 \times 64$ pixels and normalized using ImageNet statistics.
-    \item \textbf{Optical Flow Channels (2)}: We compute dense optical flow $(dx, dy)$ between the previous frame $I_{t-1}$ and the current frame $I_t$ using the Farneback algorithm \cite{farneback2003two}. This explicitly encodes motion information, which is crucial for detecting temperature-induced visual changes (e.g., convection currents or heat shimmer).
+    \item \textbf{Optical Flow Channels (2)}: We compute dense optical flow $(dx, dy)$ between the previous frame $I_{t-1}$ and the current frame $I_t$ using the Farneback algorithm \cite{farneback2003two}. These channels encode apparent inter-frame image motion; they are not direct measurements of tissue motion, perfusion, or temperature.
 \end{enumerate}
 This preprocessing step adds a small computational overhead (approx. 0.82 ms on CPU) but significantly enriches the input data. All raw frames are resized to $64\times 64$ pixels to match the model input while preserving temporal and motion information. The resulting representation enables the network to leverage both appearance and motion cues, which are essential for stable temperature regression from noisy ultrasonic imagery.
 
@@ -139,45 +137,58 @@ Leverages a ResNet-18 \cite{he2016deep} backbone pretrained on ImageNet. To acco
 A baseline frame-based approach that predicts temperature from a single 5-channel image using a modified ResNet-18. It lacks explicit temporal memory (LSTM) but benefits from the strong spatial feature extraction of the ResNet architecture.
 
 \subsubsection{Physics-Informed CNNLSTM}
-This architecture integrates domain knowledge directly into the learning process. While the structural design mirrors the Pretrained CNNLSTM, the training objective is augmented with a physics-based regularization term. We model the temperature evolution of the tissue using a simplified bio-heat transfer equation, approximated here by Newton's Law of Cooling for the cooling phase:
+\begingroup
+\color{red}\bfseries\boldmath
+This architecture mirrors the Pretrained CNNLSTM and adds a temporal
+regularization term based on Newton's law of cooling:
 \begin{equation}
     \frac{dT}{dt} = -k(T - T_{env})
 \end{equation}
-where $T$ is the tissue temperature, $T_{env}$ is the ambient temperature, and $k$ is a cooling coefficient. The total loss function is defined as:
+where $T$ is the predicted temperature, $T_{env}$ is a reference temperature,
+and $k$ is a coefficient. The implemented residual uses frame-to-frame
+temperature differences. However, the experiments described in
+Section~\ref{sec:data_capture} record the heating phase under active MWA, not
+post-ablation cooling. This equation omits the microwave heat source and
+therefore does not describe the experimental heating process. We report this
+scalar model as using a phenomenological temporal regularizer, not as a
+mechanistic bioheat model. The total loss function is defined as:
 \begin{equation}
     \mathcal{L}_{total} = \mathcal{L}_{MSE} + \lambda \mathcal{L}_{physics}
 \end{equation}
-where $\mathcal{L}_{MSE}$ is the standard Mean Squared Error between predicted and ground truth temperatures, and $\mathcal{L}_{physics}$ penalizes residuals of the differential equation:
+where $\mathcal{L}_{MSE}$ is the standard Mean Squared Error between
+predicted and ground truth temperatures, and $\mathcal{L}_{physics}$ penalizes
+residuals of the differential equation:
 \begin{equation}
     \mathcal{L}_{physics} = \frac{1}{N} \sum_{i=1}^{N} \left| \frac{dT}{dt} + k(T - T_{env}) \right|^2
 \end{equation}
-This regularization ensures that the model's predictions are not only data-consistent but also physically plausible, which is crucial for generalization in scenarios with limited training data or noisy sensor inputs.
+This term regularizes the temporal predictions, but its physical validity for the heating-phase data is not assumed.
+\endgroup
 
 \subsubsection{Advanced Bioheat-Informed Model (Inverse PINN)}
-To further enhance physical realism, we propose an advanced architecture that incorporates Pennes' Bioheat Equation, accounting for tissue perfusion and spatial heat diffusion. Unlike the standard PINN approach where physical parameters are fixed, we treat the perfusion rate $\alpha$ and thermal conductivity $\beta$ as learnable parameters (Inverse PINN). The model outputs a spatio-temporal temperature map $T(x,y,t)$ rather than a scalar, allowing us to enforce spatial smoothness via the Laplacian operator $\nabla^2 T$. The governing equation is:
+The spatial model uses a reduced, Pennes-inspired residual with learnable coefficients $\alpha$ and $\beta$ and predicts a spatio-temporal temperature map $T(x,y,t)$. In the implementation, the residual includes temporal change, spatial diffusion, a perfusion-like relaxation term, and a learnable constant source:
 \begin{equation}
-    \frac{\partial T}{\partial t} = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{ext}
+    \frac{\partial T}{\partial t} = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{met}
 \end{equation}
-The loss function minimizes the residual of this PDE, enabling the model to simultaneously regress temperature and discover the underlying tissue properties.
+This is a reduced surrogate rather than the full Pennes equation: it does not explicitly include the spatially distributed microwave heat source $Q_{\mathrm{MWA}}$. In addition, the agar phantoms have no blood perfusion, and the coefficients are not calibrated in physical units. Accordingly, $\alpha$, $\beta$, and $Q_{met}$ are interpreted as effective regularization parameters rather than measurements of tissue properties. The loss minimizes the residual of this reduced equation; it does not establish that the predictions satisfy a mechanistic model of MWA heating.
 
 It is important to note that the full application of this bioheat loss requires temporal sequence data to compute the time derivative $\frac{\partial T}{\partial t}$. When applied to single-frame architectures (e.g., Spatial ResNet), the loss function adapts by enforcing only the spatial diffusion term ($\beta \nabla^2 T$), effectively acting as a spatial smoothness regularizer without the temporal dynamics.
 
-\subsubsection{Convection-Enhanced Bioheat Equation}
-To further refine the physical model, we incorporate the effects of convective heat transfer due to fluid motion (e.g., blood flow or tissue deformation). By leveraging the dense optical flow field $\vec{v} = (v_x, v_y)$ computed during preprocessing, we extend the bioheat equation to include the advection term $\vec{v} \cdot \nabla T$:
+\subsubsection{Optical-Flow-Informed Surrogate}
+To test whether apparent inter-frame image motion can provide an additional regularization signal, we add an advection-like term using dense optical flow $\vec{v} = (v_x, v_y)$ computed during preprocessing:
 \begin{equation}
-    \frac{\partial T}{\partial t} + \vec{v} \cdot \nabla T = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{ext}
+    \frac{\partial T}{\partial t} + \vec{v} \cdot \nabla T = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{met}
 \end{equation}
-This formulation allows the model to account for temperature changes caused by the movement of heated tissue, providing a more comprehensive physical constraint. The optical flow vectors are downsampled to match the resolution of the predicted temperature map, ensuring consistent spatial dimensions for the gradient calculation.
+The optical-flow vectors are downsampled to match the resolution of the predicted temperature map. Since optical flow from B-mode video is not a direct measurement of tissue velocity or fluid flow, and the agar phantoms have no perfusion, this term is an image-motion surrogate rather than a measurement of convection.
 
 \subsubsection{Metabolic Heat Generation}
-Finally, we introduce a metabolic heat generation term $Q_{met}$ to account for the internal heat produced by biological processes within the tissue. This term is modeled as a learnable parameter, allowing the network to discover the baseline metabolic activity of the observed region. The fully augmented bioheat equation becomes:
+The loss includes a learnable constant source term $Q_{met}$:
 \begin{equation}
-    \frac{\partial T}{\partial t} + \vec{v} \cdot \nabla T = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{met} + Q_{ext}
+    \frac{\partial T}{\partial t} + \vec{v} \cdot \nabla T = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{met}
 \end{equation}
-By incrementally adding these physical processes (Diffusion $\rightarrow$ Perfusion $\rightarrow$ Convection $\rightarrow$ Metabolism), we can systematically evaluate the contribution of each term to the model's predictive accuracy and generalization capability.
+This constant is not separately identifiable as metabolic heating or microwave absorption. The implemented residual does not explicitly include the spatial distribution of microwave energy deposition.
 
 \subsubsection{Inverse Physics and Spatial Parameter Discovery}
-Beyond temperature regression, our spatial model enables \textit{Inverse Physics} by treating the material properties $\alpha$ (perfusion) and $\beta$ (thermal conductivity) as learnable spatial maps. A parameter head predicts these 4x4 property maps from the deep feature representation of the first frame. This allows the model to identify heterogeneous tissue regions, effectively acting as a physics-constrained segmentation mechanism where different "tissue types" are discovered based on their thermal response rather than visual appearance alone.
+Beyond temperature regression, our spatial model treats the effective coefficients $\alpha$ and $\beta$ as learnable spatial maps. A parameter head predicts these $4\times4$ maps from the deep feature representation of the first frame. Because the coefficients are uncalibrated and the phantom is avascular, they are model parameters for the reduced residual, not measurements of perfusion or thermal conductivity and not tissue-type labels.
 
 \subsubsection{Kolmogorov--Arnold Heads (KAN-ResNet and Spatial KAN-Bioheat)}\label{sec:kan_models}
 Motivated by the recent success of Kolmogorov--Arnold Networks (KANs) in scientific machine learning~\cite{liu2024kan,wang2024kinn,patra2024pikan} and by the observation that KANs benefit from a strong encoder when the input is high-dimensional~\cite{shen2025alpkan}, we introduce two architectures that retain our convolutional video encoder but replace the regression head with a KAN.
@@ -363,10 +374,11 @@ While KANs are theoretically attractive for their interpretability (each learned
 \input{figures_kan_basis}
 
 \subsection{Limitations}
-Several limitations qualify the conclusions of this study. First, all data were collected from protein-doped agar phantoms rather than in-vivo or ex-vivo tissue; phantom acoustic and thermal properties only approximate the heterogeneity, perfusion, and motion artifacts of real patients, so clinical validation on animal or human tissue remains a necessary next step. Second, our edge-deployment numbers (Section~\ref{sec:computational_efficiency}, Computational Efficiency) are obtained via CPU-restricted simulation and ONNX Runtime benchmarking rather than measurements on physical Raspberry Pi or Jetson hardware; simulated timings can differ from real devices due to thermal throttling, memory bandwidth, and OS scheduling effects. Third, the dataset spans 15 phantom subjects, which, while sufficient for LOSO cross-validation, is small relative to typical clinical imaging datasets and limits statistical power: with 15 paired folds and Holm correction, pairwise Wilcoxon tests (Fig.~\ref{fig:loso_wilcoxon_heatmap}) cannot separate the leading models from one another, so their relative ranking should be interpreted as descriptive rather than confirmatory. In addition, ConvectionBioheat and SpatialKANBioheat reach implausibly low scalar errors ($<$0.05\,K) on held-out sequence US\_001, and their field MAE is similarly low; we treat these values as a suspected evaluation artifact pending further investigation. Fourth, as discussed above, the scalar KAN-ResNet head is numerically unstable without strong physical regularization, indicating that KAN-based heads are not yet a drop-in replacement for MLP heads in this domain. Fifth, the original LOSO numbers reported in Section~\ref{sec:results} were obtained without weight decay or data augmentation; Section~\ref{sec:experiments} and Table~\ref{tab:loso_regularized} report the effect of adding these regularizers for four architectures from a single seed; the physics-informed and spatial models have not yet been retrained under this regime, and multi-seed repetitions are needed to separate the regularization effect from seed variance. Finally, our uncertainty quantification methods (Deep Ensembles, BNNs, B-PINN) are evaluated only in terms of calibration metrics (NLL, PICP, MPIW) on phantom data; their reliability under distribution shift (e.g., novel tissue types or ablation devices) has not been assessed.
+\label{sec:limitations}
+Several limitations qualify the conclusions of this study. First, all data were collected from protein-doped agar phantoms rather than in-vivo or ex-vivo tissue. These phantoms have no perfusion, and their acoustic and thermal properties only approximate the heterogeneity and motion of real tissue. The recorded sequences cover active heating, without a post-ablation cooling phase. The scalar Newton-cooling residual is therefore a phenomenological temporal regularizer, not a physical model of the measured heating. The spatial bioheat-inspired residual also omits an explicit microwave heat-source term and uses uncalibrated effective coefficients; it should not be interpreted as a validated Pennes model or as estimating tissue properties. The temperature labels are available at probe locations, while predicted spatial maps are not compared against an independently measured temperature field. Clinical validation on ex-vivo and in-vivo tissue remains necessary. Second, our edge-deployment numbers (Section~\ref{sec:computational_efficiency}, Computational Efficiency) are obtained via CPU-restricted simulation and ONNX Runtime benchmarking rather than measurements on physical Raspberry Pi or Jetson hardware; simulated timings can differ from real devices due to thermal throttling, memory bandwidth, and OS scheduling effects. Third, the dataset spans 15 phantom subjects, which, while sufficient for LOSO cross-validation, is small relative to typical clinical imaging datasets and limits statistical power: with 15 paired folds and Holm correction, pairwise Wilcoxon tests (Fig.~\ref{fig:loso_wilcoxon_heatmap}) cannot separate the leading models from one another, so their relative ranking should be interpreted as descriptive rather than confirmatory. In addition, ConvectionBioheat and SpatialKANBioheat reach implausibly low scalar errors ($<$0.05\,K) on held-out sequence US\_001, and their field MAE is similarly low; we treat these values as a suspected evaluation artifact pending further investigation. Fourth, as discussed above, the scalar KAN-ResNet head is numerically unstable without strong physical regularization, indicating that KAN-based heads are not yet a drop-in replacement for MLP heads in this domain. Fifth, the original LOSO numbers reported in Section~\ref{sec:results} were obtained without weight decay or data augmentation; Section~\ref{sec:experiments} and Table~\ref{tab:loso_regularized} report the effect of adding these regularizers for four architectures from a single seed; the physics-informed and spatial models have not yet been retrained under this regime, and multi-seed repetitions are needed to separate the regularization effect from seed variance. Finally, our uncertainty quantification methods (Deep Ensembles, BNNs, B-PINN) are evaluated only in terms of calibration metrics (NLL, PICP, MPIW) on phantom data; their reliability under distribution shift (e.g., novel tissue types or ablation devices) has not been assessed.
 
 \section{Conclusion}
-This paper presented a comprehensive study of deep learning architectures for temperature estimation from ultrasonic video, spanning five architectural families (lightweight and pretrained CNN-LSTMs, physics-informed bioheat models, Kolmogorov--Arnold Network heads, and Liquid Time Constant temporal models) and two complementary probabilistic frameworks (Deep Ensembles and Bayesian Neural Networks, including a novel B-PINN variant). Returning to our research questions: we found that deep models can regress temperature from ultrasonic video with clinically relevant accuracy (RQ1), that physics-informed constraints based on Pennes' bioheat equation meaningfully improve accuracy and physical plausibility, particularly under data-sparse, subject-independent evaluation (RQ2), and that a lightweight CNN-LSTM design combined with ONNX Runtime export achieves real-time throughput on simulated Raspberry Pi 4, Jetson Nano, and Orin Nano profiles, with measured speedups of up to 7.3$\times$ over native PyTorch on CPU-constrained hardware (RQ3). Bayesian and ensemble-based uncertainty quantification further provide calibrated confidence intervals that flag unreliable predictions rather than silently failing (RQ4).
+This paper presented a study of deep learning architectures for temperature estimation from ultrasonic video, spanning lightweight and pretrained CNN-LSTMs, physics-inspired models, Kolmogorov--Arnold Network heads, and Liquid Time Constant temporal models, as well as Deep Ensembles and Bayesian Neural Networks. Returning to our research questions: we found that deep models can regress temperature from ultrasonic video on the phantom dataset (RQ1), and that physics-inspired regularizers affect prediction accuracy under data-sparse, subject-independent evaluation (RQ2). However, the reduced residuals used here do not constitute a validated physical model of MWA heating, as detailed in Section~\ref{sec:limitations}. A lightweight CNN-LSTM design combined with ONNX Runtime export achieves real-time throughput on simulated Raspberry Pi 4, Jetson Nano, and Orin Nano profiles, with measured speedups of up to 7.3$\times$ over native PyTorch on CPU-constrained hardware (RQ3). Bayesian and ensemble-based uncertainty quantification further provide calibrated confidence intervals that flag unreliable predictions rather than silently failing (RQ4).
 
 At the same time, our subject-independent LOSO evaluation was essential in exposing a substantial generalization gap that a standard mixed-subject split would have concealed: several models that appeared near-perfect under random splitting degraded by an order of magnitude or more once evaluated on entirely unseen phantom subjects. Reintroducing weight decay, train-time augmentation, and deterministic seeding into the LOSO training pipeline did not close this gap: it yielded a modest, non-significant improvement for SimpleResNet, a significant degradation for CNNLSTM, and no stabilization of the scalar KAN-ResNet head, underscoring that interpretability gains from KANs are only realized when paired with strong physical priors or explicit basis-function regularization.
 

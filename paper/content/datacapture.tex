@@ -1,0 +1,94 @@
+\section{Dataset Description and Data Capture}
+\label{sec:data_capture}
+
+\subsection{Tissue-Mimicking Phantoms}
+The experiments were conducted on protein-doped agar phantoms. The agar
+(manufacturer, product, and grade: XXXX) provided a solid, tissue-mimicking
+medium, while egg white (manufacturer/brand and product type: XXXX) produced
+a visible coagulation pattern after microwave heating. The recipe and
+fabrication procedure are provided in the Supplementary Material. The phantoms
+were cast in a 3D-printed mold (printer and material: XXXX) and allowed to set
+at room temperature (XX\,$^\circ$C) for (XX) before use.
+
+\subsection{Experimental Setup}
+A custom 3D-printed holder was used to position the phantom, microwave ablation
+(MWA) antenna, ultrasound probe, and four fiber-optic temperature probes. The
+holder includes guides for repeatable probe placement and a support for the
+ultrasound probe. Before each trial, the antenna path was made using a biopsy
+needle (manufacturer, model, and gauge: XXXX) to reduce displacement of the
+phantom and temperature probes during antenna insertion. The antenna was
+inserted to a consistent depth of (XX\,mm) using a depth mark. The four
+temperature probes were positioned to the right of the antenna, at a
+perpendicular distance of (XX\,mm) and an in-plane distance of (XX\,mm);
+these offsets should be confirmed against the experimental records.
+
+MWA was delivered using a generator (manufacturer and model: XXXX) and an
+antenna (manufacturer, model, and operating frequency: XXXX). The ultrasound
+images were acquired with a GE Vscan Air CL handheld scanner (probe
+configuration/model: XXXX). The scanner was connected to a tablet
+(manufacturer and model: XXXX) through its companion application (application
+name and version: XXXX). Because the application limits individual video
+recordings to 10 seconds, the display was recorded using screen-capture
+software (name and version: XXXX) to retain the full ablation session. The
+four fiber-optic temperature probes (manufacturer and model: XXXX) were
+connected to a thermometer (manufacturer and model: XXXX), which was
+connected to a computer (operating system: XXXX) over USB for temperature
+logging using software (name and version: XXXX). Temperature readings were
+recorded at intervals of (XX\,s). The method used to synchronize temperature
+measurements with video frames was (XXXX); the video frame rate was (XX\,fps).
+
+\begin{figure*}[t]
+    \centering
+    \begin{minipage}[t]{0.235\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{../experiment/MWA_Projekt_Bilder/Phantomhalter.png}
+        \centerline{(a) Phantom holder}
+    \end{minipage}\hfill
+    \begin{minipage}[t]{0.235\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{../experiment/MWA_Projekt_Bilder/Ultraschallhalter.png}
+        \centerline{(b) Ultrasound-probe support}
+    \end{minipage}\hfill
+    \begin{minipage}[t]{0.235\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{../experiment/MWA_Projekt_Bilder/messaufbau.jpeg}
+        \centerline{(c) Phantom and probe guides}
+    \end{minipage}\hfill
+    \begin{minipage}[t]{0.235\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{../experiment/MWA_Projekt_Bilder/gesamtaufbau.jpeg}
+        \centerline{(d) Assembled acquisition setup}
+    \end{minipage}
+    \caption{Custom experimental arrangement for acquiring ultrasound video
+    and temperature measurements during MWA. The phantom, antenna, temperature
+    probes, and ultrasound probe are held in a 3D-printed fixture.}
+    \label{fig:experimental_setup}
+\end{figure*}
+
+\subsection{Ablation and Data Acquisition}
+Ultrasound video and temperature logging were initiated at the start of each
+MWA treatment and continued during heating. Each ablation lasted 10 minutes
+(confirm whether this duration applied to all trials: XX).
+The nominal power settings represented in the collected trials ranged from
+25 to 50\,W in 5\,W increments. The four fiber-optic probes provided
+point-wise temperature measurements, which were paired with the corresponding
+ultrasound video frames for supervised temperature estimation. Figure
+\ref{fig:representative_bmode} shows a representative B-mode frame with the
+antenna track and temperature-probe locations visible in the phantom.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{\detokenize{../experiment/MWA_Projekt_Bilder/US 4 Startbild.jpeg}}
+    \caption{Representative B-mode image of the phantom showing the MWA
+    antenna track and the four temperature-probe locations.}
+    \label{fig:representative_bmode}
+\end{figure}
+
+The dataset comprises 15 phantom subjects and 53,878 sequence samples from
+multiple trials with different power settings and phantom compositions.
+These data represent the heating phase; a post-ablation cooling phase was not
+recorded as part of the described protocol. The measurements provide
+temperature labels at the probe locations rather than a directly measured
+spatial temperature field. Consequently, spatial temperature maps predicted
+by the models are inferred from ultrasound and point-wise thermometry, not
+directly observed ground truth.
