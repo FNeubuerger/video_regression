@@ -53,31 +53,46 @@ To quantify predictive uncertainty, we employ Variational Inference.
     where $\mathcal{L}_{bioheat}$ penalizes a reduced, Pennes-inspired residual. The implemented model includes temporal change, spatial diffusion, a perfusion-like relaxation term, and a learnable constant source, with an optional image-flow advection term. It does not explicitly model the microwave heat-source distribution. Since the agar phantoms are not perfused and the flow channels are derived from ultrasound image motion, these terms are phenomenological rather than direct measurements of tissue perfusion or material properties.
 \end{itemize}
 
-\subsection{Phantom Fabrication and Post-Ablation Inspection}
+\subsection{Experimental Setup}
+
+\subsubsection{Design of the Phantom and Probe mounts}
+
+\begin{figure*}[t]
+    \begin{minipage}[t]{0.235\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{../experiment/MWA_Projekt_Bilder/Phantomhalter.png}
+    \end{minipage}\hfill
+    \begin{minipage}[t]{0.235\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{../experiment/MWA_Projekt_Bilder/Ultraschallhalter.png}
+    \end{minipage}\hfill
+    \caption{Design for the 3D printed mount for the phantom, featuring guides for the MWA antenna and thermal sensors (left)  as well as the mount for the ultrasound probe (right).}
+    \label{fig:experimental_setup_design}
+\end{figure*}
+
+\ref{fig:experimental_setup_design} shows the designed models for the mounts for the phantom and the US probe.
+
+\subsubsection{Phantom Fabrication and Post-Ablation Inspection}
 \label{sec:phantom_fabrication}
 
-The tissue-mimicking phantom was prepared from agar (manufacturer, product,
-and grade: XXXX), water (type/source: XXXX), and egg white (manufacturer/brand,
-product type, and relevant preparation details: XXXX). First, 25\,g of agar
-was mixed with 100\,ml of cold water and allowed to hydrate for (XX). The
-hydrated mixture was added to 500\,ml of boiling water while stirring. It was
-heated on a hot plate (manufacturer and model: XXXX) with a magnetic stirrer
-(manufacturer and model: XXXX) and held at 95\,$^\circ$C for at least 2
-minutes. After heating, the vessel was removed from the hot plate and the
-mixture was stirred while cooling to 55\,$^\circ$C. Then, 250\,ml of egg
-white was slowly incorporated through a sieve (mesh size/material: XXXX) while
-stirring. This step was performed after cooling to avoid premature protein
-coagulation; sieving also reduced clumps and entrained air. The mixture was
-poured into a 3D-printed mold and left at room temperature (XX\,$^\circ$C)
-until set (XX). Figure \ref{fig:phantom_mold} shows the mold design.
+The tissue-mimicking phantom was prepared from agar, water, and egg white. 
+First, 25\,g of agar was mixed with 100\,ml of cold water and allowed to hydrate for 10 minutes.
+The hydrated mixture was added to 500\,ml of boiling water while stirring.
+It was heated on a hot plate with a magnetic stirrer and held at 95\,$^\circ$C for at least 2
+minutes.
+After heating, the vessel was removed from the hot plate and the mixture was stirred while cooling to 55\,$^\circ$C. 
+Then, 250\,ml of egg white was slowly incorporated through a sieve while stirring gently.
+This step was performed after cooling to avoid premature protein coagulation; sieving also reduced clumps and entrained air.
+The mixture was poured into a 3D-printed mold and left at room temperature (22\,$^\circ$C)
+until set.
+Figure \ref{fig:phantom_mold} shows the mold design.
 
-After each ablation, the phantom was allowed to cool for (XX) at (XX\,$^\circ$C)
-and then sectioned (sectioning plane/orientation: XXXX).
-Coagulated egg white provided a visible qualitative marker of the heated
-region. The cross-sectional photographs and corresponding ultrasound images
-for the tested nominal power settings are shown in Figs.~\ref{fig:ablation_cross_sections}
-and~\ref{fig:ablation_ultrasound}. These images are provided as qualitative
-illustrations; they were not used as quantitative temperature-field labels.
+After each ablation, the phantom was allowed to cool for 24 hours at (8\,$^\circ$C).
+Coagulated egg white provided a visible qualitative marker of the heated region. 
+The cross-sectional photographs and corresponding ultrasound images for the tested nominal power settings are shown in Figs.~\ref{fig:ablation_cross_sections}
+and~\ref{fig:ablation_ultrasound}. 
+These images are provided as qualitative illustrations; they were not used as quantitative temperature-field labels.
+
 
 \begin{figure}[t]
     \centering
@@ -102,3 +117,5 @@ illustrations; they were not used as quantitative temperature-field labels.
     power settings of 25, 30, 35, 40, 45, and 50\,W.}
     \label{fig:ablation_ultrasound}
 \end{figure*}
+
+
