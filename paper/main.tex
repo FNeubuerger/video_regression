@@ -73,7 +73,19 @@ We address these challenges by:
 
 \section{Related Work}
 \subsection{Non-Invasive Temperature Monitoring}
-The gold standard for non-invasive temperature monitoring is Magnetic Resonance Thermometry (MRT), which offers high spatial resolution and accuracy. However, MRT is expensive, immobile, and requires complex infrastructure, limiting its availability~\cite{Geoghegan2022}. Computed tomography can delineate the ablation zone post-procedure but provides no real-time feedback and delivers ionizing radiation. Ultrasound-based thermometry is a cost-effective, portable, real-time alternative but suffers from lower signal-to-noise ratios and poor intrinsic lesion contrast. Traditional signal processing methods for ultrasonic thermometry often rely on tracking echo shifts or speckle decorrelation due to the change in speed of sound with temperature, but these indirect markers do not correlate reliably with absolute tissue temperature and are sensitive to motion and tissue heterogeneity~\cite{Seip2002}. Comparative clinical studies confirm that MWA produces more consistent, larger ablation zones than RFA~\cite{Shibata2000}, further motivating the need for monitoring techniques that keep pace with faster MWA heating dynamics.
+
+
+The gold standard for non-invasive temperature monitoring is Magnetic Resonance Thermometry (MRT), which offers high spatial resolution and accuracy~\cite{chenProstateCancerMR2000,baronVivoT2Based2014, bertschNoninvasiveTemperatureMapping1998, kozakUsingDiffusionMRI2010,riekeMRThermometry2008}. 
+However, MRT is expensive, immobile, and requires complex infrastructure, limiting its availability~\cite{Geoghegan2022}.
+Computed tomography (CT) can delineate the ablation zone using pre- and post-ablation contrast-enhanced scans, but conventional CT does not provide continuous real-time temperature feedback and involves ionizing radiation.
+Dual-layer spectral CT has been investigated as a means of monitoring temperature in vivo during thermal ablation, with sequential scans acquired at one-minute intervals. \cite{varbleDualLayerSpectralCT2026}
+However, real-time in-vivo spectral imaging paired with direct temperature measurements remains underexplored, and CT thermometry has not yet been adopted clinically \cite{bydderTemperatureDependenceComputed1979, faniCTbasedThermometryOverview2014, liuReproducibleSpectralCT2024}.
+  
+Ultrasound-based thermometry is a cost-effective, portable, real-time alternative but suffers from lower signal-to-noise ratios and poor intrinsic lesion contrast. 
+Traditional signal processing methods for ultrasonic thermometry often rely on tracking echo shifts or speckle decorrelation due to the change in speed of sound with temperature, but these indirect markers do not correlate reliably with absolute tissue temperature and are sensitive to motion and tissue heterogeneity.\cite{liuContrastenhancedUltrasoundguidedMicrowave2011, zhangFeasibilityUsingUltrasonic2017, zhangExVivoVivo2018, frieserEfficacyContrastenhancedUS2011, lewisThermometryAblationMonitoring2015}
+
+
+Comparative clinical studies confirm that MWA produces more consistent, larger ablation zones than RFA~\cite{Shibata2000}, further motivating the need for monitoring techniques that keep pace with faster MWA heating dynamics.
 
 Zhang et al.~\cite{Zhang2020} demonstrated that a CNN applied directly to ultrasound RF data can detect thermally-induced lesions with substantially higher accuracy (AUC 0.89) than conventional B-mode image analysis (AUC 0.69), showing that learned features can extract more information from ultrasound signals than manual inspection. However, this and related work targets binary lesion classification rather than continuous temperature regression, leaving a gap for real-time, quantitative video regression models suitable for edge deployment.
 
