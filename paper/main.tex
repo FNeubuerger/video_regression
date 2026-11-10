@@ -72,8 +72,8 @@ We address these challenges by:
 \end{itemize}
 
 \section{Related Work}
-\subsection{Non-Invasive Temperature Monitoring}
 
+ \subsection{Noninvasive Temperature Monitoring Using Indirect Medical Imaging}
 
 The gold standard for non-invasive temperature monitoring is Magnetic Resonance Thermometry (MRT), which offers high spatial resolution and accuracy~\cite{chenProstateCancerMR2000,baronVivoT2Based2014, bertschNoninvasiveTemperatureMapping1998, kozakUsingDiffusionMRI2010,riekeMRThermometry2008}. 
 However, MRT is expensive, immobile, and requires complex infrastructure, limiting its availability~\cite{Geoghegan2022}.
@@ -87,20 +87,30 @@ Traditional signal processing methods for ultrasonic thermometry often rely on t
 
 Comparative clinical studies confirm that MWA produces more consistent, larger ablation zones than RFA~\cite{Shibata2000}, further motivating the need for monitoring techniques that keep pace with faster MWA heating dynamics.
 
-Zhang et al.~\cite{Zhang2020} demonstrated that a CNN applied directly to ultrasound RF data can detect thermally-induced lesions with substantially higher accuracy (AUC 0.89) than conventional B-mode image analysis (AUC 0.69), showing that learned features can extract more information from ultrasound signals than manual inspection. However, this and related work targets binary lesion classification rather than continuous temperature regression, leaving a gap for real-time, quantitative video regression models suitable for edge deployment.
-
-\subsection{Deep Learning in Medical Imaging}
-Convolutional Neural Networks (CNNs) have revolutionized medical image analysis. Architectures like ResNet \cite{he2016deep} are widely used for classification and segmentation tasks. Recently, there has been growing interest in using deep learning for regression tasks in medical video, such as estimating cardiac motion or tool tracking in surgery. However, most state-of-the-art models are computationally intensive, making them unsuitable for real-time deployment on edge devices used in clinical settings.
+\subsection{Deep Learning for Temperature Monitoring and Estimation}
+Convolutional Neural Networks (CNNs) have revolutionized medical image analysis. Architectures like ResNet \cite{he2016deep} are widely used for classification and segmentation tasks.
+ Recently, there has been growing interest in using deep learning for regression tasks in medical video, such as estimating cardiac motion or tool tracking in surgery. 
+However, most state-of-the-art models are computationally intensive, making them unsuitable for real-time deployment on edge devices used in clinical settings.
+Zhang et al.~\cite{Zhang2020} demonstrated that a CNN applied directly to ultrasound RF data can detect thermally-induced lesions with substantially higher accuracy (AUC 0.89) than conventional B-mode image analysis (AUC 0.69), showing that learned features can extract more information from ultrasound signals than manual inspection. 
+However, this and related work targets binary lesion classification rather than continuous temperature regression, leaving a gap for real-time, quantitative video regression models suitable for edge deployment.
 
 \subsection{Physics-Informed Machine Learning}
-Physics-Informed Neural Networks (PINNs) \cite{raissi2019physics} represent a paradigm shift where physical laws (expressed as Partial Differential Equations) are incorporated into the learning process. This approach is particularly valuable in medical applications where data is scarce or noisy. By constraining the model to obey physical laws (e.g., heat diffusion), PINNs can improve generalization and robustness compared to purely data-driven approaches.
+Physics-Informed Neural Networks (PINNs) \cite{raissi2019physics} represent a paradigm shift where physical laws (expressed as Partial Differential Equations) are incorporated into the learning process. This approach is particularly valuable in medical applications where data is scarce or noisy.
+By constraining the model to obey physical laws (e.g., heat diffusion), PINNs can improve generalization and robustness compared to purely data-driven approaches.
 
 \subsection{Kolmogorov--Arnold Networks for Scientific Machine Learning}
-A recent line of work revisits the Kolmogorov--Arnold representation theorem and replaces the fixed nonlinearities of multilayer perceptrons (MLPs) with learnable univariate activations placed on the edges of the network~\cite{liu2024kan}. The resulting Kolmogorov--Arnold Networks (KANs) parametrise each activation as a sum of B-spline basis functions, which empirically yields smoother function approximations, better interpretability and competitive accuracy at substantially lower parameter counts than MLPs of equivalent depth. Several efficient reformulations, notably the GPU-friendly B-spline implementation of~\cite{blealtan2024efficientkan}, have made KANs practical drop-in replacements for dense layers in modern deep architectures.
+A recent line of work revisits the Kolmogorov--Arnold representation theorem and replaces the fixed nonlinearities of multilayer perceptrons (MLPs) with learnable univariate activations placed on the edges of the network~\cite{liu2024kan}. 
+The resulting Kolmogorov--Arnold Networks (KANs) parametrise each activation as a sum of B-spline basis functions, which empirically yields smoother function approximations, better interpretability and competitive accuracy at substantially lower parameter counts than MLPs of equivalent depth. 
+Several efficient reformulations, notably the GPU-friendly B-spline implementation of~\cite{blealtan2024efficientkan}, have made KANs practical drop-in replacements for dense layers in modern deep architectures.
 
-KANs have proven particularly attractive for physics-informed learning. \cite{wang2024kinn} (KINN) demonstrate that KAN-based PINNs outperform classical MLP-PINNs by one to two orders of magnitude on solid-mechanics benchmarks in strong, energy and inverse formulations. \cite{patra2024pikan} (PIKANs) extend this result to diffusion-dominated PDEs such as Burgers' and Allen--Cahn equations, while \cite{guo2025chebpikan} (ChebPIKAN) and~\cite{rigas2024adaptivepikan} respectively show that swapping the B-spline basis for Chebyshev polynomials and applying adaptive grid refinement further improves stability and convergence on fluid-mechanics problems. For higher-dimensional spatio-temporal fields, \cite{jacob2025spikan} introduce Separable PIKANs (SPIKANs) that factorise the coordinate-conditioned KAN along independent axes, dramatically reducing both memory and training time.
+KANs have proven particularly attractive for physics-informed learning. \cite{wang2024kinn}
+ (KINN) demonstrate that KAN-based PINNs outperform classical MLP-PINNs by one to two orders of magnitude on solid-mechanics benchmarks in strong, energy and inverse formulations. \cite{patra2024pikan} 
+ (PIKANs) extend this result to diffusion-dominated PDEs such as Burgers' and Allen--Cahn equations, while \cite{guo2025chebpikan} (ChebPIKAN) and~\cite{rigas2024adaptivepikan} respectively show that swapping the B-spline basis for Chebyshev polynomials and applying adaptive grid refinement further improves stability and convergence on fluid-mechanics problems. 
+ For higher-dimensional spatio-temporal fields, \cite{jacob2025spikan} introduce Separable PIKANs (SPIKANs) that factorise the coordinate-conditioned KAN along independent axes, dramatically reducing both memory and training time.
 
-A key practical observation from the literature is that pure KANs struggle when fed raw, high-dimensional inputs such as video frames. The Augmented-Lagrangian PKAN of~\cite{shen2025alpkan} addresses this by placing a recurrent encoder (GRU) before the KAN head and treating the physics constraints with an augmented-Lagrangian scheme. This encoder--KAN composition is the precedent for the hybrid architectures we propose below, in which a convolutional encoder summarises the ultrasound sequence into a compact latent before the KAN head approximates either a scalar reading or a spatial temperature field regularized by a reduced, Pennes-inspired residual.
+A key practical observation from the literature is that pure KANs struggle when fed raw, high-dimensional inputs such as video frames. 
+The Augmented-Lagrangian PKAN of~\cite{shen2025alpkan} addresses this by placing a recurrent encoder (GRU) before the KAN head and treating the physics constraints with an augmented-Lagrangian scheme. 
+This encoder--KAN composition is the precedent for the hybrid architectures we propose below, in which a convolutional encoder summarises the ultrasound sequence into a compact latent before the KAN head approximates either a scalar reading or a spatial temperature field regularized by a reduced, Pennes-inspired residual.
 
 \section{Research Questions}
 This study aims to address the following key research questions:
