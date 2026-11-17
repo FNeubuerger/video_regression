@@ -5,7 +5,7 @@ TEX = pdflatex
 BIB = bibtex
 BUILD_DIR = build
 
-PAPER_INPUTS = $(filter-out $(PROJECT).tex,$(wildcard *.tex))
+PAPER_INPUTS = $(filter-out $(PROJECT).tex,$(wildcard *.tex content/*.tex))
 TABLES = $(wildcard tables/*.tex)
 FIGURES = $(wildcard figures/*.png)
 

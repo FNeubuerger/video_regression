@@ -134,9 +134,9 @@ Our proposed system is designed for real-time, privacy-preserving temperature mo
 
 Deployment viability is evaluated by exporting trained models to ONNX and measuring throughput with ONNX Runtime. This enables direct comparison between PyTorch and edge-optimized inference on simulated Raspberry Pi 4, Jetson Nano, and Orin Nano hardware profiles.
 
-\input{sensor_localization}
-
 \subsection{Data Preprocessing and Input Representation}
+\input{content/sensor_localization}
+
 To capture both spatial features and temporal dynamics explicitly, we utilize a 5-channel input representation for all models. For a given video frame $I_t$ at time $t$, the input tensor $X_t \in \mathbb{R}^{5 \times H \times W}$ is constructed as follows:
 \begin{enumerate}
     \item \textbf{RGB Channels (3)}: The standard image frame, resized to $64 \times 64$ pixels and normalized using ImageNet statistics.
@@ -144,122 +144,9 @@ To capture both spatial features and temporal dynamics explicitly, we utilize a 
 \end{enumerate}
 This preprocessing step adds a small computational overhead (approx. 0.82 ms on CPU) but significantly enriches the input data. All raw frames are resized to $64\times 64$ pixels to match the model input while preserving temporal and motion information. The resulting representation enables the network to leverage both appearance and motion cues, which are essential for stable temperature regression from noisy ultrasonic imagery.
 
-\input{figures_preprocessing}
+\input{content/figures_preprocessing}
 
-\subsection{Model Architectures}
-We evaluate five distinct architectures designed to balance accuracy and computational efficiency. The benchmark includes standard CNN-LSTM and ResNet variants, physics-informed PINN models, KAN heads, and continuous-time LTC-based temporal models.
-
-\subsubsection{CNNLSTM (Custom Lightweight)}
-A compact architecture designed for extreme edge constraints. It consists of a 3-layer CNN feature extractor (16, 32, 64 filters) followed by a Global Average Pooling layer and a single LSTM layer (hidden size 64). This model has only $\sim$60k parameters.
-
-\subsubsection{Pretrained CNNLSTM}
-Leverages a ResNet-18 \cite{he2016deep} backbone pretrained on ImageNet. To accommodate the 5-channel input, we modify the first convolutional layer by extending its weights: the first 3 channels are initialized from the pretrained RGB weights, while the 2 flow channels are initialized using Kaiming initialization. The extracted features feed into an LSTM (hidden size 128).
-
-\subsubsection{Simple ResNet}
-A baseline frame-based approach that predicts temperature from a single 5-channel image using a modified ResNet-18. It lacks explicit temporal memory (LSTM) but benefits from the strong spatial feature extraction of the ResNet architecture.
-
-\subsubsection{Physics-Informed CNNLSTM}
-\begingroup
-\color{red}\bfseries\boldmath
-This architecture mirrors the Pretrained CNNLSTM and adds a temporal
-regularization term based on Newton's law of cooling:
-\begin{equation}
-    \frac{dT}{dt} = -k(T - T_{env})
-\end{equation}
-where $T$ is the predicted temperature, $T_{env}$ is a reference temperature,
-and $k$ is a coefficient. The implemented residual uses frame-to-frame
-temperature differences. However, the experiments described in
-Section~\ref{sec:data_capture} record the heating phase under active MWA, not
-post-ablation cooling. This equation omits the microwave heat source and
-therefore does not describe the experimental heating process. We report this
-scalar model as using a phenomenological temporal regularizer, not as a
-mechanistic bioheat model. The total loss function is defined as:
-\begin{equation}
-    \mathcal{L}_{total} = \mathcal{L}_{MSE} + \lambda \mathcal{L}_{physics}
-\end{equation}
-where $\mathcal{L}_{MSE}$ is the standard Mean Squared Error between
-predicted and ground truth temperatures, and $\mathcal{L}_{physics}$ penalizes
-residuals of the differential equation:
-\begin{equation}
-    \mathcal{L}_{physics} = \frac{1}{N} \sum_{i=1}^{N} \left| \frac{dT}{dt} + k(T - T_{env}) \right|^2
-\end{equation}
-This term regularizes the temporal predictions, but its physical validity for the heating-phase data is not assumed.
-\endgroup
-
-\subsubsection{Advanced Bioheat-Informed Model (Inverse PINN)}
-The spatial model uses a reduced, Pennes-inspired residual with learnable coefficients $\alpha$ and $\beta$ and predicts a spatio-temporal temperature map $T(x,y,t)$. In the implementation, the residual includes temporal change, spatial diffusion, a perfusion-like relaxation term, and a learnable constant source:
-\begin{equation}
-    \frac{\partial T}{\partial t} = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{met}
-\end{equation}
-This is a reduced surrogate rather than the full Pennes equation: it does not explicitly include the spatially distributed microwave heat source $Q_{\mathrm{MWA}}$. In addition, the agar phantoms have no blood perfusion, and the coefficients are not calibrated in physical units. Accordingly, $\alpha$, $\beta$, and $Q_{met}$ are interpreted as effective regularization parameters rather than measurements of tissue properties. The loss minimizes the residual of this reduced equation; it does not establish that the predictions satisfy a mechanistic model of MWA heating.
-
-It is important to note that the full application of this bioheat loss requires temporal sequence data to compute the time derivative $\frac{\partial T}{\partial t}$. When applied to single-frame architectures (e.g., Spatial ResNet), the loss function adapts by enforcing only the spatial diffusion term ($\beta \nabla^2 T$), effectively acting as a spatial smoothness regularizer without the temporal dynamics.
-
-\subsubsection{Optical-Flow-Informed Surrogate}
-To test whether apparent inter-frame image motion can provide an additional regularization signal, we add an advection-like term using dense optical flow $\vec{v} = (v_x, v_y)$ computed during preprocessing:
-\begin{equation}
-    \frac{\partial T}{\partial t} + \vec{v} \cdot \nabla T = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{met}
-\end{equation}
-The optical-flow vectors are downsampled to match the resolution of the predicted temperature map. Since optical flow from B-mode video is not a direct measurement of tissue velocity or fluid flow, and the agar phantoms have no perfusion, this term is an image-motion surrogate rather than a measurement of convection.
-
-\subsubsection{Metabolic Heat Generation}
-The loss includes a learnable constant source term $Q_{met}$:
-\begin{equation}
-    \frac{\partial T}{\partial t} + \vec{v} \cdot \nabla T = \beta \nabla^2 T - \alpha(T - T_{arterial}) + Q_{met}
-\end{equation}
-This constant is not separately identifiable as metabolic heating or microwave absorption. The implemented residual does not explicitly include the spatial distribution of microwave energy deposition.
-
-\subsubsection{Inverse Physics and Spatial Parameter Discovery}
-Beyond temperature regression, our spatial model treats the effective coefficients $\alpha$ and $\beta$ as learnable spatial maps. A parameter head predicts these $4\times4$ maps from the deep feature representation of the first frame. Because the coefficients are uncalibrated and the phantom is avascular, they are model parameters for the reduced residual, not measurements of perfusion or thermal conductivity and not tissue-type labels.
-
-\subsubsection{Kolmogorov--Arnold Heads (KAN-ResNet and Spatial KAN-Bioheat)}\label{sec:kan_models}
-Motivated by the recent success of Kolmogorov--Arnold Networks (KANs) in scientific machine learning~\cite{liu2024kan,wang2024kinn,patra2024pikan} and by the observation that KANs benefit from a strong encoder when the input is high-dimensional~\cite{shen2025alpkan}, we introduce two architectures that retain our convolutional video encoder but replace the regression head with a KAN.
-
-A KAN linear layer maps an input vector $\mathbf{x}\in\mathbb{R}^{d_{in}}$ to $\mathbf{y}\in\mathbb{R}^{d_{out}}$ via learnable univariate activations placed on each edge:
-\begin{align}
-    y_j &= \sum_{i=1}^{d_{in}} \bigl( w^{b}_{ji}\,\sigma(x_i) + w^{s}_{ji}\, \phi_{ji}(x_i) \bigr), \\
-    \phi_{ji}(x_i) &= \sum_{k=1}^{G+p} c_{jik}\, B_{k,p}(x_i).
-\end{align}
-where $\sigma$ is a smooth base activation (SiLU), $B_{k,p}$ are B-splines of order $p$ over a uniform grid of $G$ knots, and $\{c_{jik}, w^{b}_{ji}, w^{s}_{ji}\}$ are the learnable parameters. We adopt the efficient implementation of~\cite{blealtan2024efficientkan}, which collapses the per-edge spline contraction into a single dense matrix multiply.
-
-\paragraph{KAN-ResNet.} A direct apples-to-apples ablation of the Simple ResNet baseline: the same 5-channel ResNet-18 backbone produces a 512-dimensional latent vector, which is fed to a two-layer KAN ($512 \to 64 \to 4$) that emits the four sensor temperatures. This isolates the effect of the head, holding the encoder fixed.
-
-\paragraph{Spatial KAN-Bioheat.} A separable PIKAN field head in the style of SPIKANs~\cite{jacob2025spikan}. Three small one-dimensional KANs, $\Phi_x,\Phi_y,\Phi_t$, evaluate learnable basis functions on the spatial and temporal collocation coordinates of the $4\times4\times T$ output grid. Their outer product produces a coordinate feature tensor that is concatenated, voxel-wise, with the encoder latent and passed through a fusion KAN to produce the temperature field $T(x,y,t)$:
-\begin{equation}
-    T(x_i, y_j, t_k) \;=\; \mathrm{KAN}_{\text{fuse}}\!\Bigl(\, \Phi_t(t_k)\odot\Phi_y(y_j)\odot\Phi_x(x_i)\;\Vert\;\mathbf{z}_{\text{enc}} \,\Bigr).
-\end{equation}
-The field is trained with the same Advanced Bioheat Loss as our \emph{Convection-Bioheat} model, so that the comparison directly probes whether the spline-based functional form is a better surrogate than a tiny convolutional head for approximating the PDE residual on a coarse grid. Because the spline activations are smooth and differentiable to high order, the autograd-based residual $\partial_t T + \vec{v}\!\cdot\!\nabla T - \beta\nabla^2 T + \alpha(T-T_{art})$ is well-behaved without explicit numerical smoothing.
-
-Both KAN variants enter the LOSO benchmark with no other change to the training pipeline, providing a controlled study of the encoder--KAN composition in a clinical ultrasound regression task.
-
-\input{ltc_section}
-
-\subsection{Uncertainty Quantification}
-Reliability is paramount in clinical and industrial settings. To provide clinicians with confidence intervals alongside temperature estimates, we implement two distinct probabilistic approaches:
-
-\subsubsection{Deep Ensembles}
-We train $M=5$ independent instances of the SimpleResNet architecture. Each model is initialized with different random seeds and trained on the same dataset. During inference, the ensemble prediction is the mean of the individual outputs, and the variance represents the aleatoric uncertainty (data uncertainty). This method is computationally expensive at training time but offers a robust baseline for uncertainty estimation.
-
-\subsubsection{Bayesian Neural Networks (BNN)}
-We employ Variational Inference to approximate the posterior distribution of the network weights, $P(w|\mathcal{D})$, given the training data $\mathcal{D}$. Since the true posterior is intractable, we approximate it with a variational distribution $q_\theta(w)$ (typically a Gaussian) parameterized by $\theta$. We use the "Bayes by Backprop" algorithm \cite{blundell2015weight} to minimize the Evidence Lower Bound (ELBO), which is equivalent to minimizing the combined loss:
-\begin{equation}
-    \mathcal{L}_{BNN} = \mathcal{L}_{MSE} + \beta \cdot \text{KL}(q_\theta(w) || P(w))
-\end{equation}
-Note that because this objective is defined as a minimization loss, the KL term appears with a positive sign: we minimize the negative ELBO, which combines the data error with a regularizer that keeps the variational posterior close to the prior. Here, $\mathcal{L}_{MSE}$ is the data likelihood (reconstruction error), $\text{KL}$ is the Kullback-Leibler divergence between the variational posterior and the prior $P(w)$, and $\beta$ is a weighting factor balancing complexity and accuracy.
-
-We investigate two BNN variants:
-\begin{itemize}
-    \item \textbf{Bayesian Head}: We use a standard ResNet-18 backbone for feature extraction and only replace the final fully connected layers with Bayesian layers. This approach is computationally efficient as the heavy convolutional backbone remains deterministic.
-    \item \textbf{Full Bayesian}: We convert every learnable layer (Convolutional and Linear) in the ResNet-18 to a Bayesian layer. This captures epistemic uncertainty (model uncertainty) across the entire hierarchy of features but significantly increases the number of parameters (doubling them to store means and variances).
-\end{itemize}
-Implementation was performed using the \texttt{torchbnn} library. During inference, we perform multiple forward passes (Monte Carlo sampling) to estimate the predictive mean and variance.
-
-\subsubsection{Bayesian Physics-Informed Neural Network (B-PINN)}
-We propose a hybrid architecture that synergizes the strengths of Bayesian Deep Learning and Physics-Informed Learning. This model employs a Bayesian ResNet backbone to capture epistemic uncertainty while simultaneously minimizing the Advanced Bioheat Loss. The total objective function becomes:
-\begin{equation}
-    \mathcal{L}_{total} = \mathcal{L}_{MSE} + \lambda_{phys} \mathcal{L}_{bioheat} + \lambda_{KL} \text{KL}(q_\theta(w) || P(w))
-\end{equation}
-This formulation ensures that the model's predictions are data-driven, physically consistent, and probabilistically calibrated. The physics loss acts as a regularizer that constrains the search space of the Bayesian posterior, potentially leading to better generalization in low-data regimes.
+\input{content/model_architectures_sortiertnacharchitekturen.tex}
 
 \section{Experimental Setup}\label{sec:experiments}
 
@@ -352,7 +239,7 @@ The results show that explicitly modeling the Bioheat Transfer Equation (BTE) re
 Standard train/test splits can substantially overestimate real-world performance when sequences from the same phantom subject appear in both partitions, since the network can memorize subject-specific tissue texture rather than learning generalizable temperature cues. To quantify this effect, Table~\ref{tab:loso_results} reports Leave-One-Subject-Out (LOSO) cross-validation results, in which each of the 15 phantom subjects is held out as an independent test set in turn.
 
 \input{tables/loso_summary}
-\input{figures_loso_summary}
+\input{content/figures_loso_summary}
 
 The comparison between Table~\ref{tab:performance_comparison} and Table~\ref{tab:loso_results} reveals a substantial generalization gap. For example, SimpleResNet drops from 1.31\,K MAE under the mixed-subject split to 26.67\,K $\pm$ 5.14\,K under LOSO, and BioheatPINN-family models similarly degrade from sub-Kelvin errors to the 40--55\,K range once evaluated on entirely unseen subjects. This gap indicates that much of the apparent accuracy in the mixed-subject setting is attributable to subject-specific overfitting rather than genuine physical generalization, and it underscores the importance of subject-independent validation protocols for any claims of clinical applicability. Notably, the KANResNet head fails catastrophically under LOSO (3358.7\,K $\pm$ 3504.0\,K MAE, driven by extreme divergence on held-out subject US\_015), while models constrained by the Advanced Bioheat Loss (SpatialKANBioheat, ConvectionBioheat) maintain low field-level MAE despite scalar-level degradation, consistent with the discussion of KAN interpretability in Section~\ref{sec:kan_models}. We therefore treat the LOSO numbers, not the mixed-subject numbers, as the primary evidence for clinical generalizability throughout the remainder of this paper.
 
@@ -362,7 +249,7 @@ Splitting the folds by acquisition protocol reveals a second, systematic effect.
 
 \input{tables/loso_robust_stats}
 \input{tables/loso_wilcoxon_vs_best}
-\input{figures_loso_analysis}
+\input{content/figures_loso_analysis}
 \input{tables/loso_per_fold}
 
 As described in Section~\ref{sec:experiments}, we re-ran the LOSO benchmark for SimpleResNet, CNNLSTM, BayesianResNet, and KANResNet with explicit weight decay, train-time flip/brightness augmentation, and deterministic seeding, to test whether standard regularization can close part of this gap. Table~\ref{tab:loso_regularized} reports the resulting MAE, RMSE, and the delta against the unregularized baseline from Table~\ref{tab:loso_results}. The effect is architecture-dependent and small relative to the gap: SimpleResNet improves from 26.67 to 22.88~K MAE (10 of 15 folds improve; $p=0.135$, not significant), whereas CNNLSTM degrades significantly from 23.71 to 31.15~K ($p=0.026$). BayesianResNet remains highly fold-dependent (MAE 75.66~K, driven by a few divergent folds), and KANResNet diverges in both configurations. Standard regularization therefore does not close the generalization gap; the remaining error of $>$20~K for every image-only scalar model indicates that the gap is dominated by inter-subject distribution shift rather than by a lack of weight decay or augmentation.
@@ -383,7 +270,7 @@ The Bayesian models provide critical uncertainty estimates. As shown in the resu
 
 \input{results_temporal_spatial}
 
-\input{figures_spatial_models}
+\input{content/figures_spatial_models}
 
 The KAN-headed variants introduced in Section~\ref{sec:kan_models} offer an additional axis of comparison. Consistent with the trends reported by~\cite{wang2024kinn,patra2024pikan}, replacing the MLP regression head with a B-spline KAN preserves accuracy at a comparable parameter budget while producing visibly smoother spatial temperature fields, an effect that is amplified for the separable SPIKAN-style field head when combined with the bioheat residual.
 
@@ -393,7 +280,7 @@ The results indicate that while heavier models like the Pretrained ResNet offer 
 \paragraph{KAN Interpretability and Basis Function Analysis.}
 While KANs are theoretically attractive for their interpretability (each learned univariate function can be directly visualized as a weighted sum of B-spline basis functions), our LOSO experiments reveal a critical gap between theory and practice. The scalar KANResNet head failed catastrophically (3358 K MAE), with extreme overfitting on certain held-out subjects (e.g., 23,091 K MAE on US\_015). Basis function visualization (Fig.~\ref{fig:kan_basis_kanresnet}) revealed that without regularization, the spline coefficients grow unconstrained, producing highly oscillatory learned functions with no physical structure. In contrast, SpatialKANBioheat (47.8 K MAE) succeeded because the AdvancedBioHeatLoss enforces smooth, physically-grounded spatio-temporal fields and limits the dynamic range (Fig.~\ref{fig:kan_basis_spatialkanbio}). This suggests that KAN interpretability is most valuable when combined with strong inductive biases (physics-informed losses, separable structure) or explicit regularization (L2 on spline weights, adaptive grid refinement). Future work should apply insights from the recent PIKAN literature~\cite{guo2025chebpikan, jacob2025spikan} to stabilize data-driven KAN training on lower-dimensional targets.
 
-\input{figures_kan_basis}
+\input{content/figures_kan_basis}
 
 \subsection{Limitations}
 \label{sec:limitations}

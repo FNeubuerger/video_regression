@@ -1,0 +1,17 @@
+\subsubsection{Convolutional Liquid Time-Constant Architecture}
+\label{sec:conv_ltc}
+Liquid Time-Constant networks provide a recurrent model with input-dependent
+state dynamics~\cite{lechner2020neural}. The evaluated LTC model, ConvLTC,
+consists of a two-layer convolutional
+encoder, a convolutional Liquid Time-Constant (LTC) recurrent core, and a
+convolutional decoder. The encoder maps each frame to feature maps while
+preserving their spatial dimensions. The recurrent state likewise retains
+the spatial layout.
+
+At each time step, the recurrent cell concatenates the current encoded frame
+with the previous hidden state. Convolutions generate an input-dependent
+leak and drive signal, and an Euler update advances the hidden state. The
+decoder maps each recurrent state to a temperature map, producing a
+spatiotemporal sequence of predictions. In the current implementation, the
+update uses a fixed unit time step; irregular sampling intervals are not
+passed to the recurrent core.

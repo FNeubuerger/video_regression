@@ -170,3 +170,24 @@ The current codebase is consistent with a multi-branch model zoo:
 - `ConvLTC_Model` / `LatentLTC_UNet`: experimental advanced sequence models
 
 This is broader and more heterogeneous than the original single-architecture description, but it matches the actual implementation in the repository.
+
+
+
+
+CNN-LSTM-Architekturen
+CNNLSTM, PretrainedCNNLSTM, (PhysicsCNNLSTM)
+
+ResNet-basierte Architekturen
+SimpleResNet, SpatialResNet
+
+Bayesianische Varianten
+BayesianResNet, FullBayesianResNet, BayesianCNNLSTM – jeweils mit Angabe der zugrunde liegenden Architektur
+
+Physik-informierte Varianten
+PhysicsCNNLSTM, ConvectionBioheat – erklären, worin die physikalische Erweiterung besteht
+
+KAN-Architekturen
+KANResNet, SpatialKANBioheat
+
+LTC-Architekturen
+ConvLTC

@@ -1,0 +1,28 @@
+The four fibre-optic probe locations are identified separately in each
+ultrasound recording by image-based preprocessing. The first 20 frames are
+averaged to reduce frame-to-frame variation. A vertical intensity projection
+of this average frame is used to locate the brightest horizontal band; the
+image is then cropped to a region extending 180 pixels above and below that
+location (clipped at the image boundaries). Sensor candidates are extracted
+from the averaged crop after contrast-limited adaptive histogram
+equalization, Gaussian smoothing, and binary thresholding. Contours with
+areas between 20 and 5000 pixels are retained, and candidates with an
+enclosing-circle radius greater than 60 pixels are discarded.
+
+If exactly four candidates remain, they are used directly. If more remain,
+the four largest candidates among the 12 largest are selected as the group
+with the highest axis-aligned rectangularity score. This score favours
+similar opposing side lengths and diagonals, and horizontal and vertical
+alignment. Fewer than four candidates do not yield a complete sensor
+localisation. The selected points are ordered by image position: the upper
+row from left to right is labelled M1 and M2, and the lower row from left to
+right is labelled M3 and M4. Their center coordinates are stored in
+\texttt{sensor\_coordinates.json} in pixels relative to the cropped video. A
+visualization with the detected locations is also saved for inspection.
+
+During dataset loading, these coordinates are scaled to the model input
+resolution and used to place the corresponding M1--M4 temperature readings
+in sparse target maps. Thus, the implemented procedure localises probes in
+the cropped ultrasound image on a per-recording basis; it does not estimate
+physical coordinates or a geometric transformation from the phantom to the
+ultrasound frame.

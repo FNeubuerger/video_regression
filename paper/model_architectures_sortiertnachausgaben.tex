@@ -1,0 +1,186 @@
+\subsection{Model Architectures}
+The evaluated models are grouped by their input processing and output
+representation. This distinguishes temporal scalar regressors from frame-based
+and spatial predictors, while treating physics-informed losses and uncertainty
+estimation as separate methodological components.
+
+\subsubsection{Temporal CNN--LSTM Architectures}
+
+\paragraph{CNNLSTM (Custom Lightweight)}
+The custom CNNLSTM applies three convolutional blocks with 16, 32, and 64
+channels to each frame. Adaptive average pooling produces a feature vector for
+each frame, and an LSTM with hidden size 64 aggregates the frame features over
+time. A fully connected regression head maps the last LSTM state to the four
+sensor temperatures.
+
+\paragraph{Pretrained CNNLSTM}
+This model uses an ImageNet-pretrained ResNet-18~\cite{he2016deep} as a frame encoder, followed
+by an LSTM with hidden size 128 and a fully connected regression head. For the
+five-channel input, the first convolution is adapted: its RGB weights are
+initialized from the pretrained layer and the additional optical-flow channel
+weights are initialized separately. The regression head uses the last LSTM
+state to predict the four sensor temperatures.
+
+\paragraph{PhysicsCNNLSTM}
+PhysicsCNNLSTM also uses frame-wise CNN feature extraction followed by an LSTM,
+but predicts sensor values at every time step rather than only from the last
+state. Its encoder is either a pretrained ResNet-18 or a compact CNN, and its
+regression head maps each LSTM output to four sensor values. The physical
+regularization used during training is described separately below; it does
+not change the network's CNN--LSTM structure.
+
+\subsubsection{Frame-Based and Spatial ResNet Predictors}
+
+\paragraph{SimpleResNet}
+SimpleResNet uses a ResNet-18~\cite{he2016deep} encoder with an adapted first convolution for
+the input channel count and a regression head for the four sensor
+temperatures. It has no temporal state: when given a sequence-shaped input,
+the forward pass selects the last frame.
+
+\paragraph{SpatialResNet}
+SpatialResNet retains the spatial feature maps of a ResNet-18~\cite{he2016deep} by removing its
+classification and global-pooling layers. A convolutional decoder and
+bilinear upsampling produce a temperature map. For a sequence input, each
+frame is processed independently and the maps are returned as a sequence;
+there is no recurrent temporal aggregation in this model.
+
+\subsubsection{Spatiotemporal Spatial Architecture}
+
+\paragraph{ConvectionBioheat}
+The model evaluated under the name \emph{ConvectionBioheat} is implemented by
+SpatialPhysicsCNNLSTM. A ResNet-18~\cite{he2016deep} encoder extracts spatial features from
+each frame. The flattened feature maps are processed by an LSTM, whose output
+is mapped to a coarse $4\times4$ temperature field at each time step. A
+separate parameter head, evaluated from the first frame's features, predicts
+$4\times4$ maps for the effective coefficients $\alpha$ and $\beta$. The
+network returns the temperature field together with these two parameter
+maps. The Bioheat residual and its optional optical-flow term are part of the
+training loss, not additional network architectures.
+
+\subsubsection{KAN-Based Hybrid Architectures}
+\label{sec:kan_models}
+The KAN models combine a convolutional ResNet-18 encoder with a
+Kolmogorov--Arnold Network (KAN) head. KANs replace fixed node activations
+with learnable univariate functions on network edges~\cite{liu2024kan}.
+KAN-based approaches have also been explored for physics-informed learning
+and spatiotemporal fields~\cite{wang2024kinn,patra2024pikan,jacob2025spikan};
+recurrent encoders followed by KAN heads provide a related hybrid
+design~\cite{shen2025alpkan}. In the B-spline formulation used here, an edge
+function is represented by a weighted sum of spline basis functions:
+\begin{align}
+    y_j &= \sum_{i=1}^{d_{in}}
+    \left( w^{b}_{ji}\,\sigma(x_i) +
+    w^{s}_{ji}\,\phi_{ji}(x_i) \right), \\
+    \phi_{ji}(x_i) &= \sum_{k=1}^{G+p} c_{jik}\,B_{k,p}(x_i).
+\end{align}
+Here, $\sigma$ is the SiLU base activation, $B_{k,p}$ are B-spline basis
+functions, and the coefficients and weights are learned. We use the
+efficient implementation described in~\cite{blealtan2024efficientkan}.
+
+\paragraph{KAN-ResNet}
+KAN-ResNet replaces the scalar regression head of the ResNet-18 encoder with
+a two-layer KAN ($512\rightarrow64\rightarrow4$), producing the four sensor
+temperatures. For sequence inputs, the encoded frame features are averaged
+over time before entering the KAN head.
+
+\paragraph{Spatial KAN-Bioheat}
+Spatial KAN-Bioheat uses a separable KAN field head, following the
+SPIKAN-style factorization of coordinate functions~\cite{jacob2025spikan}, to produce a coarse
+spatiotemporal temperature field. Separate one-dimensional KANs evaluate
+spatial and temporal coordinates; their coordinate features are combined
+with the ResNet encoder representation by a fusion KAN. The resulting
+$4\times4$ field at each time step is trained with the same Advanced BioHeat
+Loss as ConvectionBioheat, providing a comparison of the two field
+parameterizations under a shared physics-informed objective.
+
+\input{content/ltc_section}
+
+\subsection{Physics-Informed Training Objectives}
+
+\subsubsection{Temporal Regularization for PhysicsCNNLSTM}
+PhysicsCNNLSTM is trained with a temporal residual based on Newton's law of
+cooling:
+\begin{equation}
+    \frac{dT}{dt} = -k(T - T_{env}).
+\end{equation}
+The implementation approximates the time derivative using frame-to-frame
+differences and combines the residual penalty with the data loss:
+\begin{equation}
+    \mathcal{L}_{total} =
+    \mathcal{L}_{MSE} + \lambda\mathcal{L}_{physics},\qquad
+    \mathcal{L}_{physics} =
+    \frac{1}{N}\sum_{i=1}^{N}
+    \left|\frac{dT}{dt}+k(T-T_{env})\right|^2.
+\end{equation}
+Because the measurements are acquired during active MWA heating, this
+cooling-law residual omits the microwave heat source and is treated as a
+phenomenological temporal regularizer, not as a mechanistic model of the
+heating process.
+
+\subsubsection{Advanced BioHeat Loss}
+The Advanced BioHeat Loss is applied to spatial predictions. For a
+spatiotemporal temperature field, its reduced residual combines the temporal
+change, spatial diffusion, a perfusion-like relaxation term, and an optional
+constant source term:
+\begin{equation}
+    \frac{\partial T}{\partial t}
+    + \vec{v}\cdot\nabla T
+    = \beta\nabla^2 T
+    - \alpha(T-T_{arterial}) + Q_{met}.
+\end{equation}
+The advection-like term is included only when optical flow $\vec{v}$ is
+provided. Optical flow from B-mode video is an image-motion surrogate, not a
+direct measurement of tissue velocity or fluid convection. The constant
+$Q_{met}$ is learnable when enabled; it is not separately identifiable as
+metabolic heating or microwave absorption. The experiments use avascular agar
+phantoms, and the effective coefficients are not calibrated physical
+measurements.
+
+For single-frame spatial predictions, no temporal derivative can be
+computed, so the loss uses a spatial residual instead. SpatialPhysicsCNNLSTM
+also returns $\alpha$ and $\beta$ maps from its parameter head; these are
+passed to the loss as learned effective maps. These terms describe
+configurations of the objective and model outputs, rather than separate
+architectures.
+
+\subsection{Uncertainty Quantification}
+Uncertainty is estimated using Deep Ensembles and Bayesian Neural Networks.
+These methods modify the estimation procedure or regression layers and are
+described separately from the deterministic backbone families.
+
+\subsubsection{Deep Ensembles}
+We train $M=5$ independent instances of SimpleResNet with different random
+seeds. The ensemble prediction is the mean of the individual outputs; the
+between-model variance estimates epistemic uncertainty. This approach
+requires multiple models at inference time.
+
+\subsubsection{Bayesian Neural Networks}
+Bayesian layers represent weights by probability distributions and are
+trained using variational inference, following the Bayes-by-Backprop
+formulation~\cite{blundell2015weight}. The objective combines the data loss
+with a Kullback--Leibler penalty:
+\begin{equation}
+    \mathcal{L}_{BNN} =
+    \mathcal{L}_{MSE}
+    + \beta\,\mathrm{KL}\!\left(q_\theta(w)\,\|\,P(w)\right).
+\end{equation}
+The KL term regularizes the approximate posterior $q_\theta(w)$ toward the
+prior $P(w)$. The repository includes a Bayesian-head ResNet, a full Bayesian
+ResNet variant, and a Bayesian CNNLSTM. In the Bayesian-head model, the
+ResNet-18 feature extractor is deterministic and the regression head uses
+Bayesian linear layers; the full Bayesian variant also replaces convolutional
+layers. BayesianCNNLSTM applies its Bayesian head to each LSTM time step.
+Multiple stochastic forward passes are used to estimate predictive means and
+variances.
+
+\paragraph{Bayesian Physics-Informed Combination}
+Bayesian models can also be trained with a physics-informed objective. In
+this case, the data term, physics residual, and KL regularizer are combined:
+\begin{equation}
+    \mathcal{L}_{total} =
+    \mathcal{L}_{MSE}
+    + \lambda_{phys}\mathcal{L}_{bioheat}
+    + \lambda_{KL}\mathrm{KL}\!\left(q_\theta(w)\,\|\,P(w)\right).
+\end{equation}
+This combination does not by itself guarantee calibrated uncertainty or
+physical consistency; those properties must be assessed empirically.
