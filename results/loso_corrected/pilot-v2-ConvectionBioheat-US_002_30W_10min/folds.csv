@@ -1,0 +1,2 @@
+fold,mae,rmse,probe_mae,probe_rmse,available_windows,sampled_windows,scored_windows,scored_probes,checkpoint,masked,evaluation_only,model
+US_002_30W_10min,42.28925779461861,43.43276498849907,42.28925780951977,44.17948411304296,4487,128,128,512,checkpoints/loso/ConvectionBioheat/fold_US_002_30W_10min.pth,True,True,ConvectionBioheat

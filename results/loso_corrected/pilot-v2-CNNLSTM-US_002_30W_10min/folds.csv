@@ -1,0 +1,2 @@
+fold,mae,rmse,probe_mae,probe_rmse,available_windows,sampled_windows,scored_windows,scored_probes,checkpoint,masked,evaluation_only,model
+US_002_30W_10min,8.828836034983397,11.12273994564503,19.894144162535667,23.10367963510303,4487,128,128,512,checkpoints/loso/CNNLSTM/fold_US_002_30W_10min.pth,True,True,CNNLSTM

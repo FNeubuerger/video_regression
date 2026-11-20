@@ -15,9 +15,9 @@ and benchmarks them for edge deployment (Raspberry Pi 4, Jetson Nano/Orin).
 
 ## Status at a glance
 
-- **Current results:** [`docs/RESULTS.md`](docs/RESULTS.md) — LOSO cross-validation
-  over 15 phantom sequences. Best LOSO MAE is ~23 K (SpatialResNet, regularized
-  SimpleResNet); the large gap to mixed-split numbers is the main open problem.
+- **Current results:** [`docs/RESULTS.md`](docs/RESULTS.md) — corrected
+  held-out checkpoint pilots. Historical LOSO scores are invalidated; a
+  full retraining benchmark is pending.
 - **Open work:** [`TODO.md`](TODO.md) (single source of truth for tasks).
 - **Paper:** [`paper/main.tex`](paper/main.tex), build with `make docs_pdf`.
 

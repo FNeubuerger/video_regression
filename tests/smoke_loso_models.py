@@ -14,25 +14,12 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 import traceback
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from torch.utils.data import Subset as _Subset  # noqa: E402
-
-# Monkey-patch: limit Subset sizes so smoke test runs in minutes, not hours.
-import evaluation.loso_cross_validation as _loso  # noqa: E402
 from evaluation.loso_cross_validation import run_loso_fold  # noqa: E402
-
-_orig_subset = _Subset
-
-
-class _CappedSubset(_Subset):
-    def __init__(self, dataset, indices):
-        super().__init__(dataset, list(indices)[:64])
-
-
-_loso.Subset = _CappedSubset  # type: ignore[attr-defined]
 
 MODELS = [
     "CNNLSTM",
@@ -54,6 +41,17 @@ class Args:
     epochs = 1
     batch_size = 4
     masked = False
+    data_dir = "data/level1_cropped"
+    seed = 42
+    cpu = False
+    augment = False
+    weight_decay = 1e-4
+    max_fit_windows = 64
+    max_test_windows = 64
+    evaluation_checkpoint = None
+
+    def __init__(self, model):
+        self.run_id = f"smoke-{model}-{time.time_ns()}"
 
 
 def main():
@@ -75,8 +73,8 @@ def main():
     for m in MODELS:
         print(f"=== {m} ===")
         try:
-            res = run_loso_fold(holdout, m, Args)
-            status = f"OK   mae={res['mae']:.2f}" if res else "SKIP"
+            res = run_loso_fold(holdout, m, Args(m))
+            status = f"OK   MAE={res['mae']} probe MAE={res['probe_mae']}"
         except Exception as e:  # noqa: BLE001
             status = f"FAIL {type(e).__name__}: {e}"
             traceback.print_exc(limit=5)

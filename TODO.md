@@ -5,16 +5,27 @@ Current numbers: [docs/RESULTS.md](docs/RESULTS.md). Last reviewed: 2026-11-02.
 
 ## 1. Results & science (highest priority)
 
-The regularized LOSO runs (committed 2026-11-02) show that weight decay +
-augmentation do **not** close the mixed-split vs. LOSO gap (best LOSO MAE still
-~23 K). The paper narrative has been corrected accordingly.
+The historical LOSO scores are invalidated. The corrected checkpoint pilots
+in [docs/RESULTS.md](docs/RESULTS.md) are diagnostic only.
+
+- [x] Correct held-out alignment, input masking, and probe-only scoring;
+  run checkpoint pilots without overwriting historical files.
+- [x] Correct CNNLSTM and SimpleResNet training and validation: enforce
+  explicit output contracts, exclude missing targets from loss, split
+  validation by whole sequence, and verify with fresh GPU smoke tests.
+- [ ] Adapt the remaining architectures' losses and output contracts to
+  measured targets before including them in the corrected benchmark.
+- [ ] Retrain and score all eligible folds with fixed seeds and verified
+  checkpoint provenance. Keep US_001 out of the four-probe endpoint and
+  report it separately. Replace legacy paper figures and statistics only
+  after this rerun.
 
 - [ ] **Disentangle the regularization ablation.** Weight decay and augmentation
   were changed together with a single seed. Run SimpleResNet + CNNLSTM with
   (a) WD only, (b) aug only, (c) both, each with ≥3 seeds (42/123/7).
-- [ ] **Investigate why CNNLSTM gets worse with augmentation** (+7.4 K, p=0.026).
-  Suspect: horizontal flip + negated flow-dx is inconsistent with the temporal
-  model, or brightness jitter destroys the intensity cue the LSTM relies on.
+- [ ] Recompute the paired regularization analysis with Holm adjustment after
+  corrected retraining; the historical CNNLSTM result was not significant
+  after adjustment even before accounting for the scoring defects.
 - [ ] **Root-cause the generalization gap** beyond regularization: per-sequence
   normalization / intensity calibration, domain shift between 10 min @ 30 W and
   5 min @ 25–50 W sequences (`US_010`–`US_015`), predicting ΔT instead of absolute T.
@@ -23,10 +34,6 @@ augmentation do **not** close the mixed-split vs. LOSO gap (best LOSO MAE still
   regularization, lower LR. Otherwise report only SpatialKANBioheat.
 - [ ] **BayesianResNet fold blow-ups** (US_005: 237 K baseline; US_006: 395 K
   regularized). Check KL weighting / MC sample count; report median alongside mean.
-- [ ] **Sanity-check ConvectionBioheat field MAE of 0.05 K** — implausibly low
-  vs. 49.9 K scalar MAE; likely the field target equals the physics prior. Also
-  ConvectionBioheat/SpatialKANBioheat score 0.009/0.043 K *scalar* MAE on fold
-  `US_001` (all other models 15–45 K) — flagged as suspected artifact in the paper.
 - [ ] Physics models degrade on the 5 min power sweep (ConvectionBioheat 42→61 K,
   SpatialKANBioheat 39→61 K); check whether the bioheat parameters are fixed to
   the 30 W protocol (see `tab:loso_robust`).
@@ -37,7 +44,7 @@ augmentation do **not** close the mixed-split vs. LOSO gap (best LOSO MAE still
 
 ## 2. Reproducibility & infrastructure
 
-- [ ] **Do not overwrite checkpoints between LOSO configurations.** Regularized
+- [x] **Do not overwrite checkpoints between LOSO configurations.** Regularized
   runs overwrote `checkpoints/loso/<Model>/fold_*.pth` for SimpleResNet, CNNLSTM,
   BayesianResNet, KANResNet; include the run tag in the checkpoint directory.
 - [ ] Clean up `results/MASTER_RESULTS.csv` (mixes legacy `comprehensive_results`

@@ -24,6 +24,7 @@ class SequenceHeatmapDataset(Dataset):
         use_physics_prior=True,
         use_artifact_masking=False,
         use_optical_flow=False,
+        return_probe_mask=False,
     ):
         """
         Args:
@@ -43,6 +44,7 @@ class SequenceHeatmapDataset(Dataset):
         self.target_size = target_size
         self.sequence_length = sequence_length
         self.stride = stride
+        self.return_probe_mask = return_probe_mask
         self.use_physics_prior = use_physics_prior
         self.use_artifact_masking = use_artifact_masking
         self.use_optical_flow = use_optical_flow
@@ -197,6 +199,7 @@ class SequenceHeatmapDataset(Dataset):
         sparse_targets = []
         priors = []
         scalars_targets = []
+        probe_masks = []
 
         cap = cv2.VideoCapture(meta["path"])
         cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
@@ -231,6 +234,8 @@ class SequenceHeatmapDataset(Dataset):
             sparse_map = torch.zeros(
                 (1, self.target_size[0], self.target_size[1]), dtype=torch.float32
             )
+            if self.return_probe_mask:
+                probe_mask = torch.zeros_like(sparse_map, dtype=torch.bool)
             artifact_mask = torch.zeros(
                 (1, self.target_size[0], self.target_size[1]), dtype=torch.float32
             )
@@ -254,7 +259,11 @@ class SequenceHeatmapDataset(Dataset):
 
                 temp_val = current_temps[s_idx]
                 val = float(temp_val)
-                if not np.isnan(val):
+                if np.isfinite(val):
+                    if self.return_probe_mask:
+                        if probe_mask[0, py, px]:
+                            raise ValueError(f"Multiple probes map to pixel {(px, py)}")
+                        probe_mask[0, py, px] = True
                     sparse_map[0, py, px] = val
 
                 if self.use_artifact_masking:
@@ -271,6 +280,9 @@ class SequenceHeatmapDataset(Dataset):
                 frame_tensor = frame_tensor * (1.0 - artifact_mask)
 
             sparse_targets.append(sparse_map)
+            if self.return_probe_mask:
+                # Preserve valid zero readings; the sparse map alone cannot mark them.
+                probe_masks.append(probe_mask)
             priors.append(meta["prior_map"])
 
             # Handle scalars (replace NaNs with 0 or mean)
@@ -281,6 +293,10 @@ class SequenceHeatmapDataset(Dataset):
         cap.release()
 
         if not read_success or len(frames) != self.sequence_length:
+            if self.return_probe_mask:
+                raise RuntimeError(
+                    f"Could not decode {meta['path']} at frame {start_frame}"
+                )
             C = 5 if self.use_optical_flow else 3
             H, W = self.target_size[0], self.target_size[1]
             return (
@@ -298,6 +314,9 @@ class SequenceHeatmapDataset(Dataset):
         targets_t = torch.stack(sparse_targets)  # (Seq, 1, H, W)
         priors_t = torch.stack(priors)  # (Seq, 1, H, W)
         scalars_t = torch.stack(scalars_targets)  # (Seq, 4)
+
+        if self.return_probe_mask:
+            return frames_t, targets_t, priors_t, scalars_t, torch.stack(probe_masks)
 
         # Replace NaNs in scalars with 0.0 (or appropriate value)
         scalars_t = torch.nan_to_num(scalars_t, nan=0.0)

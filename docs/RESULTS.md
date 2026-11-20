@@ -1,13 +1,81 @@
 # Current Results
 
-Last updated: 2026-11-02 (commit `698f296`, "added some recent results").
 This file is the single place for headline numbers. Raw per-fold CSVs live in
 [`results/`](../results/); paper tables in [`paper/tables/`](../paper/tables/).
 
-## Evaluation protocol
+## Corrected LOSO retraining smoke tests
+
+CNNLSTM and SimpleResNet were trained from scratch on the second H200 with
+seed 42 and artifact masking. The loss matches the four outputs to measured
+final-frame thermometry, excluding missing readings. Checkpoints were
+selected by measured-probe MSE on whole validation sequences US_008 and
+US_009, disjoint from both training and test.
+
+| Model and test fold | Epochs | Train / val / test windows | Four-probe mean MAE | Measured-probe MAE |
+|---|---:|---:|---:|---:|
+| [CNNLSTM, US_002](../results/loso_corrected/train-pilot-cnnlstm-us002/folds.csv) | 3 | 768 / 768 / 512 | 29.56 K | 29.56 K |
+| [SimpleResNet, US_001](../results/loso_corrected/train-pilot-simpleresnet-us001/folds.csv) | 1 | 128 / 128 / 128 | Unavailable | 49.32 K |
+
+These are capped pipeline smoke tests, not converged fits or comparable model
+scores. The earlier full-fold CNNLSTM checkpoint rescore
+([CSV](../results/loso_corrected/gpu-cnnlstm-us002-full/folds.csv)) used a
+different checkpoint, fitted with the legacy protocol.
+
+To reproduce the CNNLSTM smoke test, select the intended GPU with
+`CUDA_VISIBLE_DEVICES` and run with a fresh run ID:
+
+```bash
+CUBLAS_WORKSPACE_CONFIG=:4096:8 OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 \
+  uv run --locked python -m evaluation.loso_cross_validation \
+  --model CNNLSTM --folds US_002_30W_10min --masked --no-wandb \
+  --epochs 3 --max_fit_windows 768 --max_test_windows 512 \
+  --run_id reproduce-train-cnnlstm-us002
+```
+
+Omit the window caps for full-fold fitting and scoring. Models other than
+CNNLSTM and SimpleResNet still use legacy training; do not combine those
+runs with corrected retraining in a benchmark.
+
+## Corrected held-out checkpoint pilots
+
+Six masked CPU runs rescored existing checkpoints on 128 evenly spaced
+five-frame windows per fold (seed 42). The corrected scorer uses the final
+frame, takes preprocessed images as-is, and samples spatial outputs only at
+measured probe locations. The primary metric is MAE of the four-probe mean.
+`US_001` had no M3/M4 readings and is ineligible for that metric. Individual
+probe MAE is a separate endpoint, not dense field validation.
+
+| Model | US_001 probe MAE (256 readings) | US_002 four-probe mean MAE (128 windows) | US_002 probe MAE (512 readings) |
+|---|---:|---:|---:|
+| CNNLSTM | 34.17 K | 8.83 K | 19.89 K |
+| ConvectionBioheat | 55.34 K | 42.29 K | 42.29 K |
+| SpatialKANBioheat | 55.21 K | 42.19 K | 42.19 K |
+
+These are diagnostics, not a model comparison: checkpoint training provenance
+is incomplete, some original baselines were overwritten, and only two folds
+were sampled. No models were retrained. Example reproduction (use a fresh run ID):
+
+```bash
+OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 uv run --locked python -m evaluation.loso_cross_validation \
+  --model CNNLSTM --folds US_002_30W_10min \
+  --evaluation_checkpoint checkpoints/loso/CNNLSTM/fold_US_002_30W_10min.pth \
+  --masked --cpu --no-wandb --max_test_windows 128 --run_id reproduce-cnn-us002
+```
+
+The six final CSVs are in the `pilot-<model>-<fold>` directories under
+[`results/loso_corrected/`](../results/loso_corrected/). The earlier `pilot-v2-*`
+outputs predate the endpoint split and should not be used. Blank primary
+metrics mean the endpoint was unavailable, not zero error.
+
+## Historical evaluation protocol (invalidated)
+
+**All legacy LOSO scores, rankings, and statistical comparisons below are
+retained for provenance only.** The old evaluation could mispair predictions
+and targets, apply the physics prior as an input mask, and score unmeasured
+pixels. Do not mix it with corrected results or use it in a submission.
 
 - **LOSO (Leave-One-Sequence-Out):** 15 phantom sequences (`US_001` … `US_015`),
-  each held out once. This is the protocol the paper's claims rest on.
+  each held out once.
 - All LOSO runs: 10 epochs, batch size 32, thermometer artifact masking
   (`--masked`), scalar MAE/RMSE in Kelvin on the held-out sequence.
 - Mixed/random-split numbers (e.g. "BioheatPINN 0.26 K", "SimpleResNet 1.31 K")

@@ -44,8 +44,21 @@ kopinski.thomas@fh-swf.de}
 
 \maketitle
 
+\noindent\textbf{Working draft --- not for submission.}
+The retained LOSO tables and plots are historical and must not be used as evidence:
+the previous evaluator misapplied the physics prior to test inputs, could
+misalign predictions and targets, and scored unmeasured pixels as observations.
+A corrected benchmark is pending.
+
 \begin{abstract}
-This paper presents a comprehensive study on estimating temperature dynamics from ultrasonic video sequences using deep learning models tailored for edge deployment, specifically for monitoring temperature during heat treatment of tumor tissue. We propose a specialized CNN-LSTM architecture for this task and compare it against Pretrained ResNets, Kolmogorov--Arnold Network (KAN) heads, Physics-Informed Neural Networks (PINNs), and Liquid Time Constant (LTC) variants in terms of accuracy and computational efficiency. To enhance robustness and provide a transparent monitoring system, we integrate Uncertainty Quantification (UQ) via Deep Ensembles and Bayesian Neural Networks. Furthermore, we propose a lightweight preprocessing pipeline incorporating dense optical flow to capture temporal dynamics explicitly. We benchmark these models on a simulated edge environment, demonstrating that our optimized architectures achieve real-time performance (>30 FPS) on low-cost, resource-constrained devices like the Raspberry Pi 4 and Jetson Nano, while maintaining high predictive accuracy.
+We study temperature regression from ultrasound video sequences of heated
+agar phantoms using CNN-LSTMs, pretrained ResNets, Kolmogorov--Arnold Network
+heads, physics-informed models, and Liquid Time Constant variants. The
+preprocessing pipeline uses optical flow to represent temporal dynamics, and
+ensembles and Bayesian neural networks provide predictive intervals.
+CPU-constrained simulations assess potential edge throughput; they do not
+establish performance on physical devices. Corrected held-out accuracy and
+clinical applicability have not been established.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -241,18 +254,23 @@ Standard train/test splits can substantially overestimate real-world performance
 \input{tables/loso_summary}
 \input{content/figures_loso_summary}
 
-The comparison between Table~\ref{tab:performance_comparison} and Table~\ref{tab:loso_results} reveals a substantial generalization gap. For example, SimpleResNet drops from 1.31\,K MAE under the mixed-subject split to 26.67\,K $\pm$ 5.14\,K under LOSO, and BioheatPINN-family models similarly degrade from sub-Kelvin errors to the 40--55\,K range once evaluated on entirely unseen subjects. This gap indicates that much of the apparent accuracy in the mixed-subject setting is attributable to subject-specific overfitting rather than genuine physical generalization, and it underscores the importance of subject-independent validation protocols for any claims of clinical applicability. Notably, the KANResNet head fails catastrophically under LOSO (3358.7\,K $\pm$ 3504.0\,K MAE, driven by extreme divergence on held-out subject US\_015), while models constrained by the Advanced Bioheat Loss (SpatialKANBioheat, ConvectionBioheat) maintain low field-level MAE despite scalar-level degradation, consistent with the discussion of KAN interpretability in Section~\ref{sec:kan_models}. We therefore treat the LOSO numbers, not the mixed-subject numbers, as the primary evidence for clinical generalizability throughout the remainder of this paper.
-
-\paragraph{Fold-level statistics.} Because the per-fold error distributions are heavy-tailed for several models (Fig.~\ref{fig:loso_mae_distribution}), Table~\ref{tab:loso_robust} complements the mean $\pm$ CI view with medians, interquartile ranges, worst-fold errors, and mean ranks across folds. A Friedman test confirms that the 12 models differ overall ($p=1.8\times10^{-9}$), yet the ordering at the top is not resolvable with 15 folds. CNNLSTM and SpatialResNet share the best mean rank (3.9), and after Holm correction across all 66 pairs, no two of the eight leading models are significantly different (Fig.~\ref{fig:loso_wilcoxon_heatmap}). Against the best-median reference CNNLSTM (Table~\ref{tab:loso_vs_best}), only ConvectionBioheat, SpatialKANBioheat, ConvLTC, and KANResNet are significantly worse ($p_\mathrm{Holm}<0.05$ over 11 comparisons). Robust statistics also change the picture for the Bayesian ResNets: their medians (26.6 and 27.0\,K) are on par with SimpleResNet, and their poor means are driven by single divergent folds (worst folds 237 and 122\,K).
-
-Splitting the folds by acquisition protocol reveals a second, systematic effect. The physics-constrained models degrade markedly on the six shorter 25--50\,W power-sweep sequences relative to the nine 30\,W/10\,min sequences: ConvectionBioheat goes from 42.4 to 61.0\,K, SpatialKANBioheat from 39.2 to 60.7\,K, and ConvLTC from 83.9 to 117.0\,K. In contrast, CNNLSTM (25.9 vs.\ 20.5\,K) and SpatialResNet (25.1 vs.\ 20.0\,K) are slightly better on the sweep. This is consistent with fixed bioheat parameters that are implicitly tuned to the dominant 30\,W protocol. Finally, no held-out sequence is uniformly hard (Fig.~\ref{fig:loso_fold_difficulty}, Table~\ref{tab:loso_per_fold}): the median MAE across models ranges from 21\,K (US\_006) to 42\,K (US\_001), and the best model on each fold achieves 7.6--18.3\,K. The best model also changes from fold to fold, with CNNLSTM and SpatialResNet each winning four folds. The remaining error therefore reflects model--subject interactions rather than a few corrupt recordings.
+\paragraph{Historical results (invalidated).} The retained LOSO tables and
+plots document the original runs only. Their scores do not establish a
+generalization gap, model ranking, or difference between acquisition protocols.
+The corrected benchmark will use the mean of four measured probe temperatures
+at the final frame of each window. US\_001 lacks readings from two probes and
+will be reported separately using measured-probe errors. Probe measurements
+do not establish dense temperature-field accuracy.
 
 \input{tables/loso_robust_stats}
 \input{tables/loso_wilcoxon_vs_best}
 \input{content/figures_loso_analysis}
 \input{tables/loso_per_fold}
 
-As described in Section~\ref{sec:experiments}, we re-ran the LOSO benchmark for SimpleResNet, CNNLSTM, BayesianResNet, and KANResNet with explicit weight decay, train-time flip/brightness augmentation, and deterministic seeding, to test whether standard regularization can close part of this gap. Table~\ref{tab:loso_regularized} reports the resulting MAE, RMSE, and the delta against the unregularized baseline from Table~\ref{tab:loso_results}. The effect is architecture-dependent and small relative to the gap: SimpleResNet improves from 26.67 to 22.88~K MAE (10 of 15 folds improve; $p=0.135$, not significant), whereas CNNLSTM degrades significantly from 23.71 to 31.15~K ($p=0.026$). BayesianResNet remains highly fold-dependent (MAE 75.66~K, driven by a few divergent folds), and KANResNet diverges in both configurations. Standard regularization therefore does not close the generalization gap; the remaining error of $>$20~K for every image-only scalar model indicates that the gap is dominated by inter-subject distribution shift rather than by a lack of weight decay or augmentation.
+The historical regularization results in Table~\ref{tab:loso_regularized} are
+also invalidated. Even before accounting for the scoring defects, the
+CNNLSTM result did not reach significance after Holm correction across the
+four comparisons (raw $p=0.0256$; adjusted $p=0.1023$).
 
 \input{tables/loso_regularized}
 
@@ -266,7 +284,9 @@ As described in Section~\ref{sec:experiments}, we re-ran the LOSO benchmark for 
 Figure~\ref{fig:loso_regularization_paired} shows that these changes are not uniform shifts. For SimpleResNet the median drops from 25.3 to 22.7\,K, but five folds still degrade. For CNNLSTM, ten of 15 folds degrade, several by more than 15\,K. For BayesianResNet, regularization improves nine folds but turns one fold into a 395\,K outlier and degrades five others by more than 15\,K, so both the mean and the median (26.6 to 32.9\,K) worsen.
 
 
-The Bayesian models provide critical uncertainty estimates. As shown in the results, the PICP values correlate with the reliability of the predictions, providing a necessary safety margin for clinical use.
+The Bayesian models provide predictive intervals, but their calibration varied;
+for example, one recorded BayesianResNet evaluation covered only 6.8\% of targets
+with nominal 95\% intervals. This does not establish a clinical safety margin.
 
 \input{results_temporal_spatial}
 
@@ -287,11 +307,14 @@ While KANs are theoretically attractive for their interpretability (each learned
 Several limitations qualify the conclusions of this study. First, all data were collected from protein-doped agar phantoms rather than in-vivo or ex-vivo tissue. These phantoms have no perfusion, and their acoustic and thermal properties only approximate the heterogeneity and motion of real tissue. The recorded sequences cover active heating, without a post-ablation cooling phase. The scalar Newton-cooling residual is therefore a phenomenological temporal regularizer, not a physical model of the measured heating. The spatial bioheat-inspired residual also omits an explicit microwave heat-source term and uses uncalibrated effective coefficients; it should not be interpreted as a validated Pennes model or as estimating tissue properties. The temperature labels are available at probe locations, while predicted spatial maps are not compared against an independently measured temperature field. Clinical validation on ex-vivo and in-vivo tissue remains necessary. Second, our edge-deployment numbers (Section~\ref{sec:computational_efficiency}, Computational Efficiency) are obtained via CPU-restricted simulation and ONNX Runtime benchmarking rather than measurements on physical Raspberry Pi or Jetson hardware; simulated timings can differ from real devices due to thermal throttling, memory bandwidth, and OS scheduling effects. Third, the dataset spans 15 phantom subjects, which, while sufficient for LOSO cross-validation, is small relative to typical clinical imaging datasets and limits statistical power: with 15 paired folds and Holm correction, pairwise Wilcoxon tests (Fig.~\ref{fig:loso_wilcoxon_heatmap}) cannot separate the leading models from one another, so their relative ranking should be interpreted as descriptive rather than confirmatory. In addition, ConvectionBioheat and SpatialKANBioheat reach implausibly low scalar errors ($<$0.05\,K) on held-out sequence US\_001, and their field MAE is similarly low; we treat these values as a suspected evaluation artifact pending further investigation. Fourth, as discussed above, the scalar KAN-ResNet head is numerically unstable without strong physical regularization, indicating that KAN-based heads are not yet a drop-in replacement for MLP heads in this domain. Fifth, the original LOSO numbers reported in Section~\ref{sec:results} were obtained without weight decay or data augmentation; Section~\ref{sec:experiments} and Table~\ref{tab:loso_regularized} report the effect of adding these regularizers for four architectures from a single seed; the physics-informed and spatial models have not yet been retrained under this regime, and multi-seed repetitions are needed to separate the regularization effect from seed variance. Finally, our uncertainty quantification methods (Deep Ensembles, BNNs, B-PINN) are evaluated only in terms of calibration metrics (NLL, PICP, MPIW) on phantom data; their reliability under distribution shift (e.g., novel tissue types or ablation devices) has not been assessed.
 
 \section{Conclusion}
-This paper presented a study of deep learning architectures for temperature estimation from ultrasonic video, spanning lightweight and pretrained CNN-LSTMs, physics-inspired models, Kolmogorov--Arnold Network heads, and Liquid Time Constant temporal models, as well as Deep Ensembles and Bayesian Neural Networks. Returning to our research questions: we found that deep models can regress temperature from ultrasonic video on the phantom dataset (RQ1), and that physics-inspired regularizers affect prediction accuracy under data-sparse, subject-independent evaluation (RQ2). However, the reduced residuals used here do not constitute a validated physical model of MWA heating, as detailed in Section~\ref{sec:limitations}. A lightweight CNN-LSTM design combined with ONNX Runtime export achieves real-time throughput on simulated Raspberry Pi 4, Jetson Nano, and Orin Nano profiles, with measured speedups of up to 7.3$\times$ over native PyTorch on CPU-constrained hardware (RQ3). Bayesian and ensemble-based uncertainty quantification further provide calibrated confidence intervals that flag unreliable predictions rather than silently failing (RQ4).
-
-At the same time, our subject-independent LOSO evaluation was essential in exposing a substantial generalization gap that a standard mixed-subject split would have concealed: several models that appeared near-perfect under random splitting degraded by an order of magnitude or more once evaluated on entirely unseen phantom subjects. Reintroducing weight decay, train-time augmentation, and deterministic seeding into the LOSO training pipeline did not close this gap: it yielded a modest, non-significant improvement for SimpleResNet, a significant degradation for CNNLSTM, and no stabilization of the scalar KAN-ResNet head, underscoring that interpretability gains from KANs are only realized when paired with strong physical priors or explicit basis-function regularization.
-
-Taken together, these results support the feasibility of privacy-preserving, edge-deployable, and uncertainty-aware temperature monitoring for thermal ablation, while highlighting that rigorous subject-level validation, not just aggregate accuracy, is necessary to substantiate clinical readiness claims. Future work will prioritize three directions: (i) validating the pipeline on ex-vivo and eventually in-vivo tissue, where perfusion and motion artifacts differ substantially from agar phantoms; (ii) measuring inference latency, memory footprint, and energy consumption on physical Raspberry Pi and Jetson hardware rather than CPU-restricted simulation; and (iii) extending the LOSO-regularized training regime and statistical significance testing (e.g., paired Wilcoxon tests across folds) to the full model suite, so that comparative claims between architectures rest on confirmatory rather than descriptive evidence.
+We studied ultrasound temperature regression on agar phantoms. The mixed-subject
+results are exploratory; neither they nor the legacy LOSO scores establish
+accuracy on unseen subjects or clinical readiness. The corrected protocol
+compares predictions with measured probe temperatures, not with a dense
+temperature field. Model rankings and regularization effects will be reassessed
+after a complete corrected LOSO benchmark. Simulated edge timings do not
+replace measurements on physical devices, and predictive intervals require
+independent calibration checks.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}

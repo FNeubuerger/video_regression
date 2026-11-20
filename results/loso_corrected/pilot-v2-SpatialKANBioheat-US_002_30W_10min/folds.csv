@@ -1,0 +1,2 @@
+fold,mae,rmse,probe_mae,probe_rmse,available_windows,sampled_windows,scored_windows,scored_probes,checkpoint,masked,evaluation_only,model
+US_002_30W_10min,42.185497999191284,43.32859010528937,42.185498025268316,44.071313276117515,4487,128,128,512,checkpoints/loso/SpatialKANBioheat/fold_US_002_30W_10min.pth,True,True,SpatialKANBioheat
